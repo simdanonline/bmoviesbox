@@ -1,4 +1,4 @@
-# BMovieBox - React Native Movie Player App
+# BMovieBox - React Native Movie Player App (Vibe Codedish)
 
 A modern, feature-rich movie streaming application built with Expo and React Native, powered by the BMovieBox API (SOAP2Day integration).
 
