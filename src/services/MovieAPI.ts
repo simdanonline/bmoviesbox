@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export interface Movie {
   id: string;
@@ -102,9 +103,20 @@ export interface SeriesDetail {
   seasons: Season[];
 }
 
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
 class MovieAPI {
   private apiClient: AxiosInstance;
   private baseURL: string = "https://movie-scraper-vml3.onrender.com/api";
+  private movieCache: Map<string, CacheEntry<MoviesResponse>> = new Map();
+  private seriesCache: Map<string, CacheEntry<MoviesResponse>> = new Map();
+  private readonly CACHE_DURATION = 10 * 60 * 1000; // 10 minutes in milliseconds
+  private readonly PERSISTENT_CACHE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+  private readonly MOVIES_CACHE_KEY = "bmoviebox_movies_cache";
+  private readonly SERIES_CACHE_KEY = "bmoviebox_series_cache";
 
   constructor(baseURL?: string) {
     if (baseURL) {
@@ -115,27 +127,123 @@ class MovieAPI {
       baseURL: this.baseURL,
       timeout: 15000,
     });
+
+    // Load persisted cache on initialization
+    this.loadPersistedCache();
   }
 
-  // Get all movies with pagination
+  private async loadPersistedCache(): Promise<void> {
+    try {
+      const moviesData = await AsyncStorage.getItem(this.MOVIES_CACHE_KEY);
+      const seriesData = await AsyncStorage.getItem(this.SERIES_CACHE_KEY);
+
+      if (moviesData) {
+        const parsed = JSON.parse(moviesData);
+        Object.entries(parsed).forEach(([key, value]: [string, any]) => {
+          this.movieCache.set(key, value);
+        });
+        console.log("📦 Loaded persisted movies cache");
+      }
+
+      if (seriesData) {
+        const parsed = JSON.parse(seriesData);
+        Object.entries(parsed).forEach(([key, value]: [string, any]) => {
+          this.seriesCache.set(key, value);
+        });
+        console.log("📦 Loaded persisted series cache");
+      }
+    } catch (error) {
+      console.error("Failed to load persisted cache:", error);
+    }
+  }
+
+  private async persistCache(
+    cache: Map<string, CacheEntry<MoviesResponse>>,
+    key: string
+  ): Promise<void> {
+    try {
+      const cacheObject = Object.fromEntries(cache);
+      await AsyncStorage.setItem(key, JSON.stringify(cacheObject));
+    } catch (error) {
+      console.error(`Failed to persist cache (${key}):`, error);
+    }
+  }
+
+  private isCacheValid<T>(entry: CacheEntry<T>): boolean {
+    return Date.now() - entry.timestamp < this.CACHE_DURATION;
+  }
+
+  private isPersistentCacheValid<T>(entry: CacheEntry<T>): boolean {
+    return Date.now() - entry.timestamp < this.PERSISTENT_CACHE_DURATION;
+  }
+
+  // Get all movies with pagination and caching (with persistent fallback for poor network)
   async getAllMovies(page: number = 1): Promise<MoviesResponse> {
+    const cacheKey = `page_${page}`;
+    
+    // Check if cache exists and is still valid (fresh cache)
+    const cached = this.movieCache.get(cacheKey);
+    if (cached && this.isCacheValid(cached)) {
+      console.log(`📦 Using fresh cached movies for page ${page}`);
+      return cached.data;
+    }
+
     try {
       const response = await this.apiClient.get<MoviesResponse>("/movies", {
         params: { page },
       });
+      
+      // Store in both memory and persistent cache
+      const cacheEntry: CacheEntry<MoviesResponse> = {
+        data: response.data,
+        timestamp: Date.now(),
+      };
+      this.movieCache.set(cacheKey, cacheEntry);
+      await this.persistCache(this.movieCache, this.MOVIES_CACHE_KEY);
+
       return response.data;
     } catch (error) {
+      // If API fails, try to use persistent cache (even if stale)
+      if (cached && this.isPersistentCacheValid(cached)) {
+        console.log(`⚠️ API failed, using persistent cached movies for page ${page}`);
+        return cached.data;
+      }
+      
       throw this.handleError(error);
     }
   }
 
   async getAllSeries(page: number = 1): Promise<MoviesResponse> {
+    const cacheKey = `page_${page}`;
+
+    // Check if cache exists and is still valid (fresh cache)
+    const cached = this.seriesCache.get(cacheKey);
+    if (cached && this.isCacheValid(cached)) {
+      console.log(`📦 Using fresh cached series for page ${page}`);
+      return cached.data;
+    }
+
     try {
       const response = await this.apiClient.get<MoviesResponse>("/movies/series", {
         params: { page },
       });
+
+      // Store in both memory and persistent cache
+      const cacheEntry: CacheEntry<MoviesResponse> = {
+        data: response.data,
+        timestamp: Date.now(),
+      };
+      this.seriesCache.set(cacheKey, cacheEntry);
+      await this.persistCache(this.seriesCache, this.SERIES_CACHE_KEY);
+
       return response.data;
     } catch (error) {
+      // If API fails, try to use persistent cache (even if stale)
+      if (cached && this.isPersistentCacheValid(cached)) {
+        console.log(`⚠️ API failed, using persistent cached series for page ${page}`);
+        return cached.data;
+      }
+
       throw this.handleError(error);
     }
   }
@@ -235,6 +343,33 @@ class MovieAPI {
       baseURL: this.baseURL,
       timeout: 15000,
     });
+  }
+
+  // Clear cache for specific page or all cache
+  clearMovieCache(page?: number): void {
+    if (page !== undefined) {
+      this.movieCache.delete(`page_${page}`);
+      console.log(`🗑️ Cleared movie cache for page ${page}`);
+    } else {
+      this.movieCache.clear();
+      console.log(`🗑️ Cleared all movie cache`);
+    }
+  }
+
+  clearSeriesCache(page?: number): void {
+    if (page !== undefined) {
+      this.seriesCache.delete(`page_${page}`);
+      console.log(`🗑️ Cleared series cache for page ${page}`);
+    } else {
+      this.seriesCache.clear();
+      console.log(`🗑️ Cleared all series cache`);
+    }
+  }
+
+  clearAllCache(): void {
+    this.movieCache.clear();
+    this.seriesCache.clear();
+    console.log(`🗑️ Cleared all cache`);
   }
 
   private handleError(error: any): Error {
