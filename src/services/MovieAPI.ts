@@ -110,7 +110,7 @@ interface CacheEntry<T> {
 
 class MovieAPI {
   private apiClient: AxiosInstance;
-  private baseURL: string = "https://movie-scraper-vml3.onrender.com/api";
+  private baseURL: string = "https://bmoviebox-b.simdan.dev/api";
   private movieCache: Map<string, CacheEntry<MoviesResponse>> = new Map();
   private seriesCache: Map<string, CacheEntry<MoviesResponse>> = new Map();
   private readonly CACHE_DURATION = 10 * 60 * 1000; // 10 minutes in milliseconds

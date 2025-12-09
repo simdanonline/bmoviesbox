@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ViewStyle } from "react-native";
 import { Image } from "expo-image";
 import { Movie } from "../services/MovieAPI";
 import { styles } from "../styles/styles";
+import { Feather } from "@expo/vector-icons";
 
 interface MovieCardProps {
   movie: Movie;
@@ -35,6 +36,11 @@ export default function MovieCard({ movie, onPress, style }: MovieCardProps) {
             <Text style={styles.playIconSmall}>▶</Text>
           </View>
         </View>
+        {movie.isSeries && (
+          <View style={styles.seriesBadge}>
+            <Feather name="tv" size={24} color="black" />
+          </View>
+        )}
       </View>
 
       <View style={styles.cardInfo}>

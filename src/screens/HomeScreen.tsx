@@ -17,7 +17,7 @@ import { styles } from "../styles/styles";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FontAwesome, Ionicons } from "@expo/vector-icons";
 
-type HomeScreenProps = NativeStackScreenProps<any, "Home">;
+type HomeScreenProps = NativeStackScreenProps<any, "Movies">;
 
 export default function HomeScreen({ navigation }: HomeScreenProps) {
   const [movies, setMovies] = useState<Movie[]>([]);

@@ -443,4 +443,12 @@ export const styles = StyleSheet.create({
     backgroundColor: "#e74c3c",
     borderRadius: 6,
   },
+  seriesBadge: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    backgroundColor: "#ffc107",
+    padding: 4,
+    borderRadius: 4,
+  },
 });

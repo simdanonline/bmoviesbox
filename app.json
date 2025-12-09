@@ -16,7 +16,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#000000"
-      }
+      },
+      "package": "com.simdanonline.bmoviebox"
     },
     "web": {
       "favicon": "./assets/images/favicon.png"

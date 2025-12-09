@@ -13,11 +13,11 @@ function MyTabs() {
   return (
     <Tab.Navigator screenOptions={{ tabBarStyle: { backgroundColor: "#000" } }}>
       <Tab.Screen
-        name="Home"
+        name="Movies"
         component={HomeScreen}
         options={{
           headerShown: false,
-          tabBarLabel: () => <Text style={{ color: "#fff" }}>Home</Text>,
+          tabBarLabel: () => <Text style={{ color: "#fff" }}>Movies</Text>,
           tabBarIcon: ({ focused }) => (
             <AntDesign name="play-circle" size={24} color={ focused ? "#fff" : "#999"} />
           ),
