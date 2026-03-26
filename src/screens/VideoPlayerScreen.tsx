@@ -67,7 +67,6 @@ export default function VideoPlayerScreen({
         )}
 
         <SecureVideoWebView url={server.url} />
-        {/* <AdBlockingVideoPlayer url={server.url} /> */}
       </View>
 
       <View style={styles.playerFooter}>

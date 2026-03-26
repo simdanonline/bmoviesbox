@@ -1,15 +1,17 @@
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import AppStack from "./AppStack";
-import { NavigationContainer } from "@react-navigation/native";
 import { Text } from "react-native";
 import HomeScreen from "../screens/HomeScreen";
 import SeriesList from "../screens/SeriesList";
 import AntDesign from "@expo/vector-icons/build/AntDesign";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
+import LiveTab from "../screens/LiveTab";
+import { useTvApp } from "../context/TvAppContext";
 
 const Tab = createBottomTabNavigator();
 
 function MyTabs() {
+  const { isTvApp } = useTvApp();
+
   return (
     <Tab.Navigator screenOptions={{ tabBarStyle: { backgroundColor: "#000" } }}>
       <Tab.Screen
@@ -32,6 +34,17 @@ function MyTabs() {
           tabBarIcon: ({ focused }) => <FontAwesome name="tv" size={24} color={ focused ? "#fff" : "#999"} />,
         }}
       />
+      {isTvApp && (
+        <Tab.Screen
+          name="LiveTab"
+          component={LiveTab}
+          options={{
+            headerShown: false,
+            tabBarLabel: () => <Text style={{ color: "#fff" }}>Live</Text>,
+            tabBarIcon: ({ focused }) => <FontAwesome name="tv" size={24} color={ focused ? "#fff" : "#999"} />,
+          }}
+        />
+      )}
     </Tab.Navigator>
   );
 }

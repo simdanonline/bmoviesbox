@@ -13,6 +13,7 @@ import MovieAPI, { MovieDetail } from "../services/MovieAPI";
 import { styles } from "../styles/styles";
 import { Image } from "expo-image";
 import * as WebBrowser from "expo-web-browser";
+import { useTvApp } from "../context/TvAppContext";
 
 type MovieDetailsScreenProps = NativeStackScreenProps<any, "MovieDetails">;
 
@@ -20,6 +21,7 @@ export default function MovieDetailsScreen({
   route,
   navigation,
 }: MovieDetailsScreenProps) {
+  const { isTvApp } = useTvApp();
   const { slug } = route.params as { slug: string };
   const [movieDetails, setMovieDetails] = useState<MovieDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,7 +71,7 @@ export default function MovieDetailsScreen({
     if (movieDetails.streamingServers.length === 0) {
       Alert.alert(
         "No Servers",
-        "No streaming servers available for this movie"
+        "No streaming servers available for this movie",
       );
       return;
     }
@@ -125,9 +127,11 @@ export default function MovieDetailsScreen({
       )}
 
       {/* Play Button */}
-      <TouchableOpacity style={styles.playButton} onPress={handlePlayPress}>
-        <Text style={styles.playButtonText}>▶ PLAY</Text>
-      </TouchableOpacity>
+      {isTvApp ? (
+        <TouchableOpacity style={styles.playButton} onPress={handlePlayPress}>
+          <Text style={styles.playButtonText}>▶ PLAY</Text>
+        </TouchableOpacity>
+      ) : null}
 
       <TouchableOpacity
         style={styles.trailerButton}

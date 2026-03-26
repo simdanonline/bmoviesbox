@@ -103,6 +103,26 @@ export interface SeriesDetail {
   seasons: Season[];
 }
 
+export interface LiveGame {
+  league: string;
+  homeTeam: string;
+  awayTeam: string;
+  status: string;
+  link: string;
+}
+
+export interface LiveStream {
+  link: string;
+  source: string;
+  quality: string;
+  language: string;
+  channel: string;
+}
+
+export interface LiveGameEmbed {
+  embedLink: string;
+}
+
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
@@ -370,6 +390,39 @@ class MovieAPI {
     this.movieCache.clear();
     this.seriesCache.clear();
     console.log(`🗑️ Cleared all cache`);
+  }
+
+  async getLiveGames(): Promise<LiveGame[]> {
+    try {
+      const response = await this.apiClient.get<LiveGame[]>("/live/sportsurge-http");
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching live games:", error);
+      throw this.handleError(error);
+    }
+  }
+
+  async getStreams(link: string): Promise<LiveStream[]> {
+    try {
+      const response = await this.apiClient.get<LiveStream[]>("/live/streams-http", {
+        params: { link },
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching streams:", error);
+      throw this.handleError(error);
+    }
+  }
+
+  async getLiveGameEmbed(link: string): Promise<LiveGameEmbed> {
+    try {
+      const response = await this.apiClient.get<LiveGameEmbed>("/live/embed-http", {
+        params: { link },
+      });
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
   }
 
   private handleError(error: any): Error {

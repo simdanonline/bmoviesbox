@@ -15,6 +15,7 @@ import { Image } from "expo-image";
 import { styles, width } from "../styles/styles";
 import * as WebBrowser from "expo-web-browser";
 import MovieAPI, { Episode, SeriesDetail } from "../services/MovieAPI";
+import { useTvApp } from "../context/TvAppContext";
 
 type SeriesDetailsScreenProps = NativeStackScreenProps<any, "SeriesDetails">;
 
@@ -22,6 +23,7 @@ export default function SeriesDetailsScreen({
   route,
   navigation,
 }: SeriesDetailsScreenProps) {
+  const { isTvApp } = useTvApp();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { url } = route.params as { url: string };
@@ -228,72 +230,76 @@ export default function SeriesDetailsScreen({
         )}
 
         {/* Seasons & Episodes */}
-        {seriesData.seasons.length > 0 && (
-          <View style={seriesStyles.section}>
-            <Text style={seriesStyles.sectionTitle}>Episodes</Text>
+        {isTvApp ? <View>
+          {seriesData.seasons.length > 0 && (
+            <View style={seriesStyles.section}>
+              <Text style={seriesStyles.sectionTitle}>Episodes</Text>
 
-            {/* Season Selector */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={seriesStyles.seasonSelector}
-            >
-              {seriesData.seasons.map((season) => (
-                <TouchableOpacity
-                  key={season.seasonNumber}
-                  style={[
-                    seriesStyles.seasonButton,
-                    selectedSeason === season.seasonNumber &&
-                      seriesStyles.seasonButtonActive,
-                  ]}
-                  onPress={() => setSelectedSeason(season.seasonNumber)}
-                >
-                  <Text
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={seriesStyles.seasonSelector}
+              >
+                {seriesData.seasons.map((season) => (
+                  <TouchableOpacity
+                    key={season.seasonNumber}
                     style={[
-                      seriesStyles.seasonButtonText,
+                      seriesStyles.seasonButton,
                       selectedSeason === season.seasonNumber &&
-                        seriesStyles.seasonButtonTextActive,
+                        seriesStyles.seasonButtonActive,
                     ]}
+                    onPress={() => setSelectedSeason(season.seasonNumber)}
                   >
-                    S{season.seasonNumber}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+                    <Text
+                      style={[
+                        seriesStyles.seasonButtonText,
+                        selectedSeason === season.seasonNumber &&
+                          seriesStyles.seasonButtonTextActive,
+                      ]}
+                    >
+                      S{season.seasonNumber}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
 
-            {/* Episodes Grid */}
-            <View style={seriesStyles.episodesGrid}>
-              {currentEpisodes.map((episode) => (
-                <TouchableOpacity
-                  key={episode.episodeNumber}
-                  style={seriesStyles.episodeCard}
-                  onPress={() => handlePlayEpisode(episode)}
-                  disabled={gettingLinks}
-                >
-                  {gettingLinks && selectedEpisode === episode.episodeNumber ? (
-                    <View style={seriesStyles.centered}>
-                      <ActivityIndicator />
-                    </View>
-                  ) : (
-                    <>
-                      <View style={seriesStyles.episodeNumber}>
-                        <Text style={seriesStyles.episodeNumberText}>
-                          E{episode.episodeNumber}
+              <View style={seriesStyles.episodesGrid}>
+                {currentEpisodes.map((episode) => (
+                  <TouchableOpacity
+                    key={episode.episodeNumber}
+                    style={seriesStyles.episodeCard}
+                    onPress={() => handlePlayEpisode(episode)}
+                    disabled={gettingLinks}
+                  >
+                    {gettingLinks &&
+                    selectedEpisode === episode.episodeNumber ? (
+                      <View style={seriesStyles.centered}>
+                        <ActivityIndicator />
+                      </View>
+                    ) : (
+                      <>
+                        <View style={seriesStyles.episodeNumber}>
+                          <Text style={seriesStyles.episodeNumberText}>
+                            E{episode.episodeNumber}
+                          </Text>
+                        </View>
+                        <Text
+                          style={seriesStyles.episodeTitle}
+                          numberOfLines={1}
+                        >
+                          {episode.episodeTitle}
                         </Text>
-                      </View>
-                      <Text style={seriesStyles.episodeTitle} numberOfLines={1}>
-                        {episode.episodeTitle}
-                      </Text>
-                      <View style={seriesStyles.playIconSmall}>
-                        <Text style={seriesStyles.playIcon}>▶</Text>
-                      </View>
-                    </>
-                  )}
-                </TouchableOpacity>
-              ))}
+                        <View style={seriesStyles.playIconSmall}>
+                          <Text style={seriesStyles.playIcon}>▶</Text>
+                        </View>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
-          </View>
-        )}
+          )}
+        </View> : null}
 
         {/* Directors */}
         {seriesData.directors.length > 0 && (
