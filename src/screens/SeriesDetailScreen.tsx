@@ -9,6 +9,7 @@ import {
   FlatList,
   StyleSheet,
   Platform,
+  Share,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Image } from "expo-image";
@@ -16,6 +17,9 @@ import { styles, width } from "../styles/styles";
 import * as WebBrowser from "expo-web-browser";
 import MovieAPI, { Episode, SeriesDetail } from "../services/MovieAPI";
 import { useTvApp } from "../context/TvAppContext";
+import { useUserData } from "../context/UserDataContext";
+import StarRating from "../components/StarRating";
+import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 
 type SeriesDetailsScreenProps = NativeStackScreenProps<any, "SeriesDetails">;
 
@@ -24,6 +28,8 @@ export default function SeriesDetailsScreen({
   navigation,
 }: SeriesDetailsScreenProps) {
   const { isTvApp } = useTvApp();
+  const { isInWatchlist, toggleWatchlist, addToHistory, getRating, setRating } =
+    useUserData();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { url } = route.params as { url: string };
@@ -49,6 +55,23 @@ export default function SeriesDetailsScreen({
     };
     fetchDetails();
   }, []);
+
+  useEffect(() => {
+    if (seriesData) {
+      addToHistory({
+        id: seriesData.id,
+        title: seriesData.title,
+        thumbnail: seriesData.thumbnail,
+        imdbRating: seriesData.ratings?.imdb ?? null,
+        releaseYear: seriesData.releaseYear,
+        genres: seriesData.genres,
+        url: seriesData.url,
+        isSeries: true,
+        savedAt: Date.now(),
+      });
+    }
+  }, [seriesData?.id]);
+
   const currentSeason = seriesData?.seasons?.find(
     (s) => s.seasonNumber === selectedSeason
   );
@@ -135,6 +158,48 @@ export default function SeriesDetailsScreen({
         />
       )}
 
+      {/* Action Buttons */}
+      <View style={detailActionStyles.actionRow}>
+        <TouchableOpacity
+          style={detailActionStyles.actionButton}
+          onPress={() =>
+            toggleWatchlist({
+              id: seriesData.id,
+              title: seriesData.title,
+              thumbnail: seriesData.thumbnail,
+              imdbRating: seriesData.ratings?.imdb ?? null,
+              releaseYear: seriesData.releaseYear,
+              genres: seriesData.genres,
+              url: seriesData.url,
+              isSeries: true,
+              savedAt: Date.now(),
+            })
+          }
+        >
+          <FontAwesome
+            name={isInWatchlist(seriesData.url) ? "bookmark" : "bookmark-o"}
+            size={22}
+            color={isInWatchlist(seriesData.url) ? "#e74c3c" : "#fff"}
+          />
+          <Text style={detailActionStyles.actionText}>
+            {isInWatchlist(seriesData.url) ? "Saved" : "Watchlist"}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={detailActionStyles.actionButton}
+          onPress={() =>
+            Share.share({
+              message: `Check out the series "${seriesData.title}" on BMovieBox!`,
+              title: seriesData.title,
+            })
+          }
+        >
+          <FontAwesome name="share-alt" size={22} color="#fff" />
+          <Text style={detailActionStyles.actionText}>Share</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Play Trailer Button */}
       {seriesData.trailerUrl && (
         <TouchableOpacity
@@ -217,6 +282,15 @@ export default function SeriesDetailsScreen({
               </View>
             )}
           </View>
+        </View>
+
+        {/* Your Rating */}
+        <View style={detailActionStyles.yourRatingSection}>
+          <Text style={seriesStyles.sectionTitle}>Your Rating</Text>
+          <StarRating
+            rating={getRating(seriesData.url)}
+            onRate={(r) => setRating(seriesData.url, r)}
+          />
         </View>
 
         {/* Description */}
@@ -555,5 +629,32 @@ const seriesStyles = StyleSheet.create({
   playIcon: {
     color: "#fff",
     fontSize: 14,
+  },
+});
+
+const detailActionStyles = StyleSheet.create({
+  actionRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#1a1a1a",
+    borderBottomWidth: 1,
+    borderBottomColor: "#333",
+  },
+  actionButton: {
+    alignItems: "center",
+    padding: 8,
+  },
+  actionText: {
+    color: "#fff",
+    fontSize: 12,
+    marginTop: 4,
+  },
+  yourRatingSection: {
+    marginBottom: 16,
+    backgroundColor: "#1a1a1a",
+    padding: 16,
+    borderRadius: 8,
   },
 });

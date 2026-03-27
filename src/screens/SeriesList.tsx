@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -8,14 +8,17 @@ import {
   RefreshControl,
   Platform,
   TouchableOpacity,
+  StyleSheet,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import MovieAPI, { Movie, MoviesResponse } from "../services/MovieAPI";
 import FeaturedMovie from "../components/FeaturedMovie";
 import MovieCard from "../components/MovieCard";
 import { styles } from "../styles/styles";
+import { useUserData } from "../context/UserDataContext";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FontAwesome, Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 
 type SeriesListProps = NativeStackScreenProps<any, "Series">;
 
@@ -24,6 +27,12 @@ export default function SeriesList({ navigation }: SeriesListProps) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { history } = useUserData();
+
+  const recentSeries = useMemo(
+    () => history.filter((h) => h.isSeries).slice(0, 10),
+    [history]
+  );
 
   useEffect(() => {
     fetchSeries();
@@ -118,7 +127,39 @@ export default function SeriesList({ navigation }: SeriesListProps) {
           </TouchableOpacity>
         </View>
 
-        {/* Featured Movie */}
+        {/* Recently Viewed */}
+        {recentSeries.length > 0 && (
+          <View style={seriesListStyles.recentSection}>
+            <Text style={styles.sectionTitle}>Recently Viewed</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={seriesListStyles.recentScroll}
+            >
+              {recentSeries.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={seriesListStyles.recentCard}
+                  onPress={() =>
+                    navigation.navigate("SeriesDetails", { url: item.url })
+                  }
+                  activeOpacity={0.7}
+                >
+                  <Image
+                    source={{ uri: item.thumbnail?.trim() }}
+                    style={seriesListStyles.recentImage}
+                    contentFit="cover"
+                  />
+                  <Text style={seriesListStyles.recentTitle} numberOfLines={1}>
+                    {item.title}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Featured Series */}
         {featuredSeries && (
           <FeaturedMovie
             movie={featuredSeries}
@@ -143,3 +184,30 @@ export default function SeriesList({ navigation }: SeriesListProps) {
     </SafeAreaView>
   );
 }
+
+const seriesListStyles = StyleSheet.create({
+  recentSection: {
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  recentScroll: {
+    gap: 12,
+  },
+  recentCard: {
+    width: 100,
+    alignItems: "center",
+  },
+  recentImage: {
+    width: 100,
+    height: 150,
+    borderRadius: 8,
+    backgroundColor: "#1a1a1a",
+  },
+  recentTitle: {
+    color: "#ccc",
+    fontSize: 11,
+    marginTop: 6,
+    textAlign: "center",
+    width: 100,
+  },
+});

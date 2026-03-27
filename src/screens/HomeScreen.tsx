@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -18,8 +18,10 @@ import FeaturedMovie from "../components/FeaturedMovie";
 import MovieCard from "../components/MovieCard";
 import { styles } from "../styles/styles";
 import { useTvApp } from "../context/TvAppContext";
+import { useUserData } from "../context/UserDataContext";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FontAwesome, Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import * as Updates from "expo-updates";
 import * as Device from "expo-device";
 
@@ -33,6 +35,8 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   const [showAccessModal, setShowAccessModal] = useState(false);
   const [accessKey, setAccessKey] = useState("");
   const { isTvApp, unlockTvApp } = useTvApp();
+  const { history } = useUserData();
+  const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const tapCountRef = useRef(0);
   const lastTapTimeRef = useRef(0);
 
@@ -70,11 +74,36 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     }
   };
 
+  const featuredMovie = movies.length > 0 ? movies[0] : null;
+  const otherMovies = movies.length > 1 ? movies.slice(1) : [];
+
+  const recentMovies = useMemo(
+    () => history.filter((h) => !h.isSeries).slice(0, 10),
+    [history]
+  );
+
+  const allGenres = useMemo(() => {
+    const genreSet = new Set<string>();
+    movies.forEach((m) => m.genres?.forEach((g) => genreSet.add(g)));
+    return Array.from(genreSet).sort();
+  }, [movies]);
+
+  const filteredMovies = useMemo(() => {
+    if (!selectedGenre) return otherMovies;
+    return otherMovies.filter((m) => m.genres?.includes(selectedGenre));
+  }, [otherMovies, selectedGenre]);
+
   const handleMoviePress = (movie: Movie) => {
     // Extract slug from URL
     const urlParts = movie.url.split("/").filter(Boolean);
     const slug = urlParts[urlParts.length - 1];
     navigation.navigate("MovieDetails", { slug, movie });
+  };
+
+  const handleRecentPress = (item: any) => {
+    const urlParts = item.url.split("/").filter(Boolean);
+    const slug = urlParts[urlParts.length - 1];
+    navigation.navigate("MovieDetails", { slug, movie: item });
   };
 
   if (loading) {
@@ -103,9 +132,6 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   const onclickSearch = () => {
     navigation.navigate("SearchScreen");
   };
-
-  const featuredMovie = movies.length > 0 ? movies[0] : null;
-  const otherMovies = movies.length > 1 ? movies.slice(1) : [];
 
   const handleHeaderTap = () => {
     if (Platform.OS === "web") return;
@@ -203,6 +229,36 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           </TouchableOpacity>
         </View>
 
+        {/* Recently Viewed */}
+        {recentMovies.length > 0 && (
+          <View style={homeStyles.recentSection}>
+            <Text style={styles.sectionTitle}>Recently Viewed</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={homeStyles.recentScroll}
+            >
+              {recentMovies.map((item, idx) => (
+                <TouchableOpacity
+                  key={item.id + idx}
+                  style={homeStyles.recentCard}
+                  onPress={() => handleRecentPress(item)}
+                  activeOpacity={0.7}
+                >
+                  <Image
+                    source={{ uri: item.thumbnail?.trim() }}
+                    style={homeStyles.recentImage}
+                    contentFit="cover"
+                  />
+                  <Text style={homeStyles.recentTitle} numberOfLines={1}>
+                    {item.title}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {/* Featured Movie */}
         {featuredMovie && (
           <FeaturedMovie
@@ -211,11 +267,60 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           />
         )}
 
+        {/* Genre Filters */}
+        {allGenres.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={homeStyles.genreScroll}
+          >
+            <TouchableOpacity
+              style={[
+                homeStyles.genreChip,
+                !selectedGenre && homeStyles.genreChipActive,
+              ]}
+              onPress={() => setSelectedGenre(null)}
+            >
+              <Text
+                style={[
+                  homeStyles.genreChipText,
+                  !selectedGenre && homeStyles.genreChipTextActive,
+                ]}
+              >
+                All
+              </Text>
+            </TouchableOpacity>
+            {allGenres.map((genre) => (
+              <TouchableOpacity
+                key={genre}
+                style={[
+                  homeStyles.genreChip,
+                  selectedGenre === genre && homeStyles.genreChipActive,
+                ]}
+                onPress={() =>
+                  setSelectedGenre(selectedGenre === genre ? null : genre)
+                }
+              >
+                <Text
+                  style={[
+                    homeStyles.genreChipText,
+                    selectedGenre === genre && homeStyles.genreChipTextActive,
+                  ]}
+                >
+                  {genre}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
         {/* Movies List */}
         <View style={styles.moviesSection}>
-          <Text style={styles.sectionTitle}>More Movies</Text>
+          <Text style={styles.sectionTitle}>
+            {selectedGenre ? selectedGenre : "More Movies"}
+          </Text>
           <View style={styles.moviesGrid}>
-            {otherMovies.map((movie) => (
+            {filteredMovies.map((movie) => (
               <MovieCard
                 key={movie.id}
                 movie={movie}
@@ -337,5 +442,58 @@ const modalStyles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+});
+
+const homeStyles = StyleSheet.create({
+  recentSection: {
+    paddingHorizontal: 16,
+    marginBottom: 8,
+    marginTop: 12,
+  },
+  recentScroll: {
+    gap: 12,
+  },
+  recentCard: {
+    width: 100,
+    alignItems: "center",
+  },
+  recentImage: {
+    width: 100,
+    height: 150,
+    borderRadius: 8,
+    backgroundColor: "#1a1a1a",
+  },
+  recentTitle: {
+    color: "#ccc",
+    fontSize: 11,
+    marginTop: 6,
+    textAlign: "center",
+    width: 100,
+  },
+  genreScroll: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  genreChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: "#1a1a1a",
+    borderWidth: 1,
+    borderColor: "#333",
+  },
+  genreChipActive: {
+    backgroundColor: "#e74c3c",
+    borderColor: "#e74c3c",
+  },
+  genreChipText: {
+    color: "#aaa",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  genreChipTextActive: {
+    color: "#fff",
   },
 });

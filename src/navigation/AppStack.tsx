@@ -3,6 +3,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
 import { TvAppProvider } from "../context/TvAppContext";
+import { UserDataProvider } from "../context/UserDataContext";
 import HomeScreen from "../screens/HomeScreen";
 import MovieDetailsScreen from "../screens/MovieDetailsScreen";
 import ServerSelectionScreen from "../screens/ServerSelectionScreen";
@@ -19,6 +20,7 @@ const Stack = createNativeStackNavigator();
 export default function AppStack() {
   return (
     <TvAppProvider>
+    <UserDataProvider>
     <NavigationContainer>
       <StatusBar style="auto" />
       <>
@@ -101,6 +103,7 @@ export default function AppStack() {
         </Stack.Navigator>
       </>
     </NavigationContainer>
+    </UserDataProvider>
     </TvAppProvider>
   );
 }

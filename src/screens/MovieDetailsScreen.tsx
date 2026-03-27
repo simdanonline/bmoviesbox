@@ -7,6 +7,8 @@ import {
   Alert,
   TouchableOpacity,
   Platform,
+  Share,
+  StyleSheet,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import MovieAPI, { MovieDetail } from "../services/MovieAPI";
@@ -14,6 +16,9 @@ import { styles } from "../styles/styles";
 import { Image } from "expo-image";
 import * as WebBrowser from "expo-web-browser";
 import { useTvApp } from "../context/TvAppContext";
+import { useUserData } from "../context/UserDataContext";
+import StarRating from "../components/StarRating";
+import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 
 type MovieDetailsScreenProps = NativeStackScreenProps<any, "MovieDetails">;
 
@@ -22,6 +27,8 @@ export default function MovieDetailsScreen({
   navigation,
 }: MovieDetailsScreenProps) {
   const { isTvApp } = useTvApp();
+  const { isInWatchlist, toggleWatchlist, addToHistory, getRating, setRating } =
+    useUserData();
   const { slug } = route.params as { slug: string };
   const [movieDetails, setMovieDetails] = useState<MovieDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,6 +37,22 @@ export default function MovieDetailsScreen({
   useEffect(() => {
     fetchMovieDetails();
   }, [slug]);
+
+  useEffect(() => {
+    if (movieDetails) {
+      addToHistory({
+        id: movieDetails.id,
+        title: movieDetails.title,
+        thumbnail: movieDetails.thumbnail,
+        imdbRating: movieDetails.ratings?.imdb ?? null,
+        releaseYear: movieDetails.releaseYear,
+        genres: movieDetails.genres,
+        url: movieDetails.url,
+        isSeries: false,
+        savedAt: Date.now(),
+      });
+    }
+  }, [movieDetails?.id]);
 
   const fetchMovieDetails = async () => {
     try {
@@ -126,6 +149,48 @@ export default function MovieDetailsScreen({
         />
       )}
 
+      {/* Action Buttons */}
+      <View style={detailActionStyles.actionRow}>
+        <TouchableOpacity
+          style={detailActionStyles.actionButton}
+          onPress={() =>
+            toggleWatchlist({
+              id: movieDetails.id,
+              title: movieDetails.title,
+              thumbnail: movieDetails.thumbnail,
+              imdbRating: movieDetails.ratings?.imdb ?? null,
+              releaseYear: movieDetails.releaseYear,
+              genres: movieDetails.genres,
+              url: movieDetails.url,
+              isSeries: false,
+              savedAt: Date.now(),
+            })
+          }
+        >
+          <FontAwesome
+            name={isInWatchlist(movieDetails.url) ? "bookmark" : "bookmark-o"}
+            size={22}
+            color={isInWatchlist(movieDetails.url) ? "#e74c3c" : "#fff"}
+          />
+          <Text style={detailActionStyles.actionText}>
+            {isInWatchlist(movieDetails.url) ? "Saved" : "Watchlist"}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={detailActionStyles.actionButton}
+          onPress={() =>
+            Share.share({
+              message: `Check out "${movieDetails.title}" on BMovieBox!`,
+              title: movieDetails.title,
+            })
+          }
+        >
+          <FontAwesome name="share-alt" size={22} color="#fff" />
+          <Text style={detailActionStyles.actionText}>Share</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Play Button */}
       {isTvApp ? (
         <TouchableOpacity style={styles.playButton} onPress={handlePlayPress}>
@@ -205,6 +270,15 @@ export default function MovieDetailsScreen({
           </View>
         </View>
 
+        {/* Your Rating */}
+        <View style={detailActionStyles.yourRatingSection}>
+          <Text style={styles.sectionTitle}>Your Rating</Text>
+          <StarRating
+            rating={getRating(movieDetails.url)}
+            onRate={(r) => setRating(movieDetails.url, r)}
+          />
+        </View>
+
         {/* Description */}
         {movieDetails.description && (
           <View style={styles.section}>
@@ -273,3 +347,30 @@ export default function MovieDetailsScreen({
     </ScrollView>
   );
 }
+
+const detailActionStyles = StyleSheet.create({
+  actionRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#1a1a1a",
+    borderBottomWidth: 1,
+    borderBottomColor: "#333",
+  },
+  actionButton: {
+    alignItems: "center",
+    padding: 8,
+  },
+  actionText: {
+    color: "#fff",
+    fontSize: 12,
+    marginTop: 4,
+  },
+  yourRatingSection: {
+    marginBottom: 16,
+    backgroundColor: "#1a1a1a",
+    padding: 16,
+    borderRadius: 8,
+  },
+});
