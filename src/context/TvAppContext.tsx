@@ -6,6 +6,7 @@ import React, {
   useCallback,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 
 const TV_MODE_KEY = "@bmoviebox_tv_mode";
 const UNLOCK_PASSWORD = "letmein";
@@ -25,10 +26,12 @@ const TvAppContext = createContext<TvAppContextType>({
 });
 
 export function TvAppProvider({ children }: { children: React.ReactNode }) {
-  const [isTvApp, setIsTvApp] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const isWeb = Platform.OS === "web";
+  const [isTvApp, setIsTvApp] = useState(isWeb);
+  const [isLoading, setIsLoading] = useState(!isWeb);
 
   useEffect(() => {
+    if (isWeb) return;
     (async () => {
       try {
         const value = await AsyncStorage.getItem(TV_MODE_KEY);

@@ -22,3 +22,5 @@ coverage/
 
 .expo/
 *.zip
+# Local Netlify folder
+.netlify

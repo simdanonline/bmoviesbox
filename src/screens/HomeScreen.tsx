@@ -108,6 +108,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   const otherMovies = movies.length > 1 ? movies.slice(1) : [];
 
   const handleHeaderTap = () => {
+    if (Platform.OS === "web") return;
     if (isTvApp) {
       checkForUpdate();
       return;

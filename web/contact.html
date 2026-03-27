@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contact Us — BMovieBox</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: #0f0f0f;
+      color: #d4d4d4;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    header {
+      background-color: #1a1a1a;
+      border-bottom: 1px solid #2a2a2a;
+      padding: 20px 0;
+      text-align: center;
+    }
+
+    header a {
+      text-decoration: none;
+      font-size: 24px;
+      font-weight: 700;
+      color: #e74c3c;
+      letter-spacing: 1px;
+    }
+
+    main {
+      max-width: 620px;
+      margin: 48px auto;
+      padding: 0 24px 80px;
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 12px;
+    }
+
+    .subtitle {
+      color: #888;
+      margin-bottom: 40px;
+      font-size: 15px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #aaa;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    input[type="text"],
+    input[type="email"],
+    textarea {
+      width: 100%;
+      background-color: #1a1a1a;
+      border: 1px solid #2e2e2e;
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: #fff;
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus,
+    input[type="email"]:focus,
+    textarea:focus {
+      border-color: #e74c3c;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 140px;
+    }
+
+    button[type="submit"] {
+      background-color: #e74c3c;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 14px 32px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      width: 100%;
+    }
+
+    button[type="submit"]:hover {
+      background-color: #c0392b;
+    }
+
+    .success-message {
+      display: none;
+      background-color: #1a2e1a;
+      border: 1px solid #2d5a2d;
+      border-radius: 8px;
+      padding: 16px 20px;
+      color: #6fcf6f;
+      margin-top: 20px;
+      font-size: 15px;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #1e1e1e;
+      margin: 40px 0;
+    }
+
+    .direct-contact {
+      font-size: 14px;
+      color: #666;
+    }
+
+    .direct-contact a {
+      color: #e74c3c;
+      text-decoration: none;
+    }
+
+    .direct-contact a:hover { text-decoration: underline; }
+
+    a { color: #e74c3c; text-decoration: none; }
+
+    footer {
+      text-align: center;
+      padding: 24px;
+      font-size: 13px;
+      color: #555;
+      border-top: 1px solid #1e1e1e;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a href="index.html">BMovieBox</a>
+  </header>
+
+  <main>
+    <h1>Contact Us</h1>
+    <p class="subtitle">Have a question or feedback? We'd love to hear from you.</p>
+
+    <form
+      name="contact"
+      method="POST"
+      data-netlify="true"
+      netlify-honeypot="bot-field"
+      onsubmit="handleSubmit(event)"
+    >
+      <!-- Netlify honeypot -->
+      <input type="hidden" name="form-name" value="contact" />
+      <p style="display:none">
+        <label>Don't fill this out: <input name="bot-field" /></label>
+      </p>
+
+      <div class="form-group">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" placeholder="Your name" required />
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" placeholder="you@example.com" required />
+      </div>
+
+      <div class="form-group">
+        <label for="subject">Subject</label>
+        <input type="text" id="subject" name="subject" placeholder="What's this about?" required />
+      </div>
+
+      <div class="form-group">
+        <label for="message">Message</label>
+        <textarea id="message" name="message" placeholder="Your message..." required></textarea>
+      </div>
+
+      <button type="submit">Send Message</button>
+
+      <div class="success-message" id="successMsg">
+        Thanks for reaching out! We'll get back to you shortly.
+      </div>
+    </form>
+
+    <hr class="divider" />
+
+    <p class="direct-contact">
+      Prefer email? Reach us directly at
+      <a href="mailto:support@simdanlabs.com">support@simdanlabs.com</a>
+    </p>
+  </main>
+
+  <footer>
+    &copy; 2026 BMovieBox. All rights reserved.
+    &nbsp;·&nbsp;
+    <a href="privacy-policy.html">Privacy Policy</a>
+    &nbsp;·&nbsp;
+    <a href="contact.html">Contact Us</a>
+  </footer>
+
+  <script>
+    function handleSubmit(e) {
+      e.preventDefault();
+      const form = e.target;
+      const data = new FormData(form);
+
+      fetch("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams(data).toString(),
+      })
+        .then(() => {
+          form.reset();
+          document.getElementById("successMsg").style.display = "block";
+        })
+        .catch(() => {
+          alert("Something went wrong. Please try again.");
+        });
+    }
+  </script>
+
+</body>
+</html>
