@@ -16,32 +16,71 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import MovieAPI, { Movie, MoviesResponse } from "../services/MovieAPI";
 import FeaturedMovie from "../components/FeaturedMovie";
 import MovieCard from "../components/MovieCard";
+import RecommendationRail from "../components/RecommendationRail";
+import ContinueWatchingSection from "../components/ContinueWatchingCard";
 import { styles } from "../styles/styles";
 import { useTvApp } from "../context/TvAppContext";
 import { useUserData } from "../context/UserDataContext";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { FontAwesome, Ionicons } from "@expo/vector-icons";
-import { Image } from "expo-image";
+import { FontAwesome } from "@expo/vector-icons";
 import * as Updates from "expo-updates";
 import * as Device from "expo-device";
+import {
+  buildRecommendationPool,
+  getPersonalizedRails,
+  RecommendationRail as RailType,
+} from "../services/RecommendationService";
+import { LibraryItem } from "../types/app";
 
 type HomeScreenProps = NativeStackScreenProps<any, "Movies">;
 
 export default function HomeScreen({ navigation }: HomeScreenProps) {
   const [movies, setMovies] = useState<Movie[]>([]);
+  const [bgSeries, setBgSeries] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAccessModal, setShowAccessModal] = useState(false);
   const [accessKey, setAccessKey] = useState("");
   const { isTvApp, unlockTvApp } = useTvApp();
-  const { history } = useUserData();
+  const {
+    history,
+    tasteProfile,
+    library,
+    knownMetadata,
+    ratings,
+    getContinueWatchingItems,
+    isOnboardingComplete,
+  } = useUserData();
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const tapCountRef = useRef(0);
   const lastTapTimeRef = useRef(0);
 
   useEffect(() => {
     fetchMovies();
+  }, []);
+
+  // Background-fetch a few pages of movies + series for recommendation pool
+  useEffect(() => {
+    (async () => {
+      try {
+        const [p2, seriesP1] = await Promise.all([
+          MovieAPI.getAllMovies(2).catch(() => null),
+          MovieAPI.getAllSeries(1).catch(() => null),
+        ]);
+        if (p2?.movies) {
+          setMovies((prev) => {
+            const urls = new Set(prev.map((m) => m.url));
+            return [...prev, ...p2.movies.filter((m) => !urls.has(m.url))];
+          });
+        }
+        if (seriesP1?.movies) {
+          setBgSeries(seriesP1.movies);
+        }
+      } catch {
+        // non-critical
+      }
+    })();
   }, []);
 
   const fetchMovies = async () => {
@@ -77,11 +116,6 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   const featuredMovie = movies.length > 0 ? movies[0] : null;
   const otherMovies = movies.length > 1 ? movies.slice(1) : [];
 
-  const recentMovies = useMemo(
-    () => history.filter((h) => !h.isSeries).slice(0, 10),
-    [history]
-  );
-
   const allGenres = useMemo(() => {
     const genreSet = new Set<string>();
     movies.forEach((m) => m.genres?.forEach((g) => genreSet.add(g)));
@@ -93,17 +127,49 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     return otherMovies.filter((m) => m.genres?.includes(selectedGenre));
   }, [otherMovies, selectedGenre]);
 
+  // Recommendation rails
+  const historyUrls = useMemo(
+    () => new Set(history.map((h) => h.url)),
+    [history]
+  );
+
+  const rails = useMemo((): RailType[] => {
+    if (movies.length === 0) return [];
+    const pool = buildRecommendationPool(
+      movies,
+      bgSeries,
+      tasteProfile,
+      library,
+      knownMetadata,
+      ratings,
+      historyUrls
+    );
+    return getPersonalizedRails(pool, tasteProfile, ratings);
+  }, [movies, bgSeries, tasteProfile, library, knownMetadata, ratings, historyUrls]);
+
+  const continueWatching = useMemo(
+    () => getContinueWatchingItems(),
+    [getContinueWatchingItems]
+  );
+
   const handleMoviePress = (movie: Movie) => {
-    // Extract slug from URL
     const urlParts = movie.url.split("/").filter(Boolean);
     const slug = urlParts[urlParts.length - 1];
-    navigation.navigate("MovieDetails", { slug, movie });
+    if (movie.isSeries) {
+      navigation.navigate("SeriesDetails", { url: movie.url });
+    } else {
+      navigation.navigate("MovieDetails", { slug, movie });
+    }
   };
 
-  const handleRecentPress = (item: any) => {
-    const urlParts = item.url.split("/").filter(Boolean);
-    const slug = urlParts[urlParts.length - 1];
-    navigation.navigate("MovieDetails", { slug, movie: item });
+  const handleContinuePress = (item: LibraryItem) => {
+    if (item.isSeries) {
+      navigation.navigate("SeriesDetails", { url: item.url });
+    } else {
+      const urlParts = item.url.split("/").filter(Boolean);
+      const slug = urlParts[urlParts.length - 1];
+      navigation.navigate("MovieDetails", { slug, movie: item });
+    }
   };
 
   if (loading) {
@@ -229,35 +295,33 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           </TouchableOpacity>
         </View>
 
-        {/* Recently Viewed */}
-        {recentMovies.length > 0 && (
-          <View style={homeStyles.recentSection}>
-            <Text style={styles.sectionTitle}>Recently Viewed</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={homeStyles.recentScroll}
-            >
-              {recentMovies.map((item, idx) => (
-                <TouchableOpacity
-                  key={item.id + idx}
-                  style={homeStyles.recentCard}
-                  onPress={() => handleRecentPress(item)}
-                  activeOpacity={0.7}
-                >
-                  <Image
-                    source={{ uri: item.thumbnail?.trim() }}
-                    style={homeStyles.recentImage}
-                    contentFit="cover"
-                  />
-                  <Text style={homeStyles.recentTitle} numberOfLines={1}>
-                    {item.title}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+        {/* Welcome hint if onboarding was skipped */}
+        {!isOnboardingComplete && movies.length > 0 && (
+          <View style={homeStyles.hintBanner}>
+            <Text style={homeStyles.hintText}>
+              Set your taste preferences in Settings to get personalized
+              recommendations.
+            </Text>
           </View>
         )}
+
+        {/* Continue Watching */}
+        {!isTvApp && (
+          <ContinueWatchingSection
+            items={continueWatching}
+            onPress={handleContinuePress}
+          />
+        )}
+
+        {/* Recommendation Rails */}
+        {rails.map((rail) => (
+          <RecommendationRail
+            key={rail.id}
+            title={rail.title}
+            items={rail.items}
+            onPress={handleMoviePress}
+          />
+        ))}
 
         {/* Featured Movie */}
         {featuredMovie && (
@@ -446,30 +510,20 @@ const modalStyles = StyleSheet.create({
 });
 
 const homeStyles = StyleSheet.create({
-  recentSection: {
-    paddingHorizontal: 16,
-    marginBottom: 8,
-    marginTop: 12,
-  },
-  recentScroll: {
-    gap: 12,
-  },
-  recentCard: {
-    width: 100,
-    alignItems: "center",
-  },
-  recentImage: {
-    width: 100,
-    height: 150,
-    borderRadius: 8,
+  hintBanner: {
     backgroundColor: "#1a1a1a",
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: "#e74c3c",
   },
-  recentTitle: {
-    color: "#ccc",
-    fontSize: 11,
-    marginTop: 6,
-    textAlign: "center",
-    width: 100,
+  hintText: {
+    color: "#aaa",
+    fontSize: 13,
+    lineHeight: 18,
   },
   genreScroll: {
     paddingHorizontal: 16,

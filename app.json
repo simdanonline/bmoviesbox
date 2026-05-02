@@ -3,14 +3,13 @@
     "name": "BMovieBox",
     "slug": "bmoviebox",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "dark",
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
-      "supportsTabletMode": true,
       "bundleIdentifier": "com.simdanonline.bmoviebox",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -30,7 +29,14 @@
       [
         "expo-video"
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#e74c3c"
+        }
+      ]
     ],
     "extra": {
       "eas": {

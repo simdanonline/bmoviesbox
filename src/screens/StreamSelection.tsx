@@ -5,12 +5,13 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  SafeAreaView,
   Dimensions,
+  Image,
 } from "react-native";
 import React, { useEffect, useState } from "react";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
 import MovieAPI, { LiveGame, LiveStream } from "../services/MovieAPI";
 
 type Props = NativeStackScreenProps<any, "StreamSelection">;
@@ -143,9 +144,39 @@ const StreamSelection = ({ route, navigation }: Props) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Select Stream</Text>
-        <Text style={styles.headerSubtitle}>
-          {game.homeTeam} {game.awayTeam ? "vs " + game.awayTeam : ""}
-        </Text>
+        <View style={styles.matchupRow}>
+          {game.homeLogo ? (
+            <Image
+              source={{ uri: game.homeLogo }}
+              style={styles.headerTeamLogo}
+              resizeMode="contain"
+            />
+          ) : null}
+          <Text style={styles.headerSubtitle} numberOfLines={1}>
+            {game.homeTeam}
+          </Text>
+          {game.awayTeam ? (
+            <>
+              <Text style={styles.matchupVs}>vs</Text>
+              <Text style={styles.headerSubtitle} numberOfLines={1}>
+                {game.awayTeam}
+              </Text>
+              {game.awayLogo ? (
+                <Image
+                  source={{ uri: game.awayLogo }}
+                  style={styles.headerTeamLogo}
+                  resizeMode="contain"
+                />
+              ) : null}
+            </>
+          ) : null}
+        </View>
+        {game.league ? (
+          <Text style={styles.headerLeague} numberOfLines={1}>
+            {game.league}
+            {game.status ? `  ·  ${game.status}` : ""}
+          </Text>
+        ) : null}
       </View>
 
       <View style={styles.legendContainer}>
@@ -205,6 +236,31 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 14,
     color: "#999",
+    flexShrink: 1,
+  },
+  matchupRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  matchupVs: {
+    color: "#e74c3c",
+    fontSize: 12,
+    fontWeight: "700",
+    marginHorizontal: 6,
+  },
+  headerTeamLogo: {
+    width: 22,
+    height: 22,
+    marginHorizontal: 4,
+  },
+  headerLeague: {
+    color: "#666",
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   legendContainer: {
     flexDirection: "row",

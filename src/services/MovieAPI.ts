@@ -1,5 +1,6 @@
 import axios, { AxiosInstance } from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ReleaseEvent } from "../types/app";
 
 export interface Movie {
   id: string;
@@ -104,10 +105,20 @@ export interface SeriesDetail {
 }
 
 export interface LiveGame {
+  id: string;
+  sport: string;
   league: string;
+  leagueLogo: string;
   homeTeam: string;
   awayTeam: string;
+  homeLogo: string;
+  awayLogo: string;
+  homeScore: string | null;
+  awayScore: string | null;
   status: string;
+  statusDetail: string;
+  state: "pre" | "in" | "post" | "unknown";
+  datetime: string;
   link: string;
 }
 
@@ -123,6 +134,26 @@ export interface LiveGameEmbed {
   embedLink: string;
 }
 
+export interface SportsLeague {
+  sport: string;
+  league: string;
+  displayName: string;
+}
+
+export interface TeamMetadata {
+  id: string;
+  name: string;
+  shortName: string | null;
+  badge: string | null;
+  logo: string | null;
+  jersey: string | null;
+  stadium: string | null;
+  stadiumImage: string | null;
+  country: string | null;
+  formedYear: string | null;
+  description: string | null;
+}
+
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
@@ -130,7 +161,9 @@ interface CacheEntry<T> {
 
 class MovieAPI {
   private apiClient: AxiosInstance;
+  // private baseURL: string = "http://192.168.1.118:3001/api";
   private baseURL: string = "https://bmoviebox-b.simdan.dev/api";
+  //192.168.1.118
   private movieCache: Map<string, CacheEntry<MoviesResponse>> = new Map();
   private seriesCache: Map<string, CacheEntry<MoviesResponse>> = new Map();
   private readonly CACHE_DURATION = 10 * 60 * 1000; // 10 minutes in milliseconds
@@ -162,7 +195,6 @@ class MovieAPI {
         Object.entries(parsed).forEach(([key, value]: [string, any]) => {
           this.movieCache.set(key, value);
         });
-        console.log("📦 Loaded persisted movies cache");
       }
 
       if (seriesData) {
@@ -170,7 +202,6 @@ class MovieAPI {
         Object.entries(parsed).forEach(([key, value]: [string, any]) => {
           this.seriesCache.set(key, value);
         });
-        console.log("📦 Loaded persisted series cache");
       }
     } catch (error) {
       console.error("Failed to load persisted cache:", error);
@@ -204,7 +235,6 @@ class MovieAPI {
     // Check if cache exists and is still valid (fresh cache)
     const cached = this.movieCache.get(cacheKey);
     if (cached && this.isCacheValid(cached)) {
-      console.log(`📦 Using fresh cached movies for page ${page}`);
       return cached.data;
     }
 
@@ -225,7 +255,6 @@ class MovieAPI {
     } catch (error) {
       // If API fails, try to use persistent cache (even if stale)
       if (cached && this.isPersistentCacheValid(cached)) {
-        console.log(`⚠️ API failed, using persistent cached movies for page ${page}`);
         return cached.data;
       }
       
@@ -239,7 +268,6 @@ class MovieAPI {
     // Check if cache exists and is still valid (fresh cache)
     const cached = this.seriesCache.get(cacheKey);
     if (cached && this.isCacheValid(cached)) {
-      console.log(`📦 Using fresh cached series for page ${page}`);
       return cached.data;
     }
 
@@ -260,7 +288,6 @@ class MovieAPI {
     } catch (error) {
       // If API fails, try to use persistent cache (even if stale)
       if (cached && this.isPersistentCacheValid(cached)) {
-        console.log(`⚠️ API failed, using persistent cached series for page ${page}`);
         return cached.data;
       }
 
@@ -369,32 +396,32 @@ class MovieAPI {
   clearMovieCache(page?: number): void {
     if (page !== undefined) {
       this.movieCache.delete(`page_${page}`);
-      console.log(`🗑️ Cleared movie cache for page ${page}`);
     } else {
       this.movieCache.clear();
-      console.log(`🗑️ Cleared all movie cache`);
     }
   }
 
   clearSeriesCache(page?: number): void {
     if (page !== undefined) {
       this.seriesCache.delete(`page_${page}`);
-      console.log(`🗑️ Cleared series cache for page ${page}`);
     } else {
       this.seriesCache.clear();
-      console.log(`🗑️ Cleared all series cache`);
     }
   }
 
   clearAllCache(): void {
     this.movieCache.clear();
     this.seriesCache.clear();
-    console.log(`🗑️ Cleared all cache`);
   }
 
-  async getLiveGames(): Promise<LiveGame[]> {
+  async getLiveGames(filter?: {
+    sport?: string;
+    league?: string;
+  }): Promise<LiveGame[]> {
     try {
-      const response = await this.apiClient.get<LiveGame[]>("/live/sportsurge-http");
+      const response = await this.apiClient.get<LiveGame[]>("/sports/games", {
+        params: filter,
+      });
       return response.data;
     } catch (error) {
       console.error("Error fetching live games:", error);
@@ -402,11 +429,35 @@ class MovieAPI {
     }
   }
 
+  async getSportsLeagues(): Promise<SportsLeague[]> {
+    try {
+      const response =
+        await this.apiClient.get<SportsLeague[]>("/sports/leagues");
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching sports leagues:", error);
+      throw this.handleError(error);
+    }
+  }
+
+  async getTeamMetadata(name: string): Promise<TeamMetadata | null> {
+    try {
+      const response = await this.apiClient.get<TeamMetadata | null>(
+        "/sports/team",
+        { params: { name } }
+      );
+      return response.data;
+    } catch {
+      return null;
+    }
+  }
+
   async getStreams(link: string): Promise<LiveStream[]> {
     try {
-      const response = await this.apiClient.get<LiveStream[]>("/live/streams-http", {
-        params: { link },
-      });
+      const response = await this.apiClient.get<LiveStream[]>(
+        "/sports/streams",
+        { params: { link } }
+      );
       return response.data;
     } catch (error) {
       console.error("Error fetching streams:", error);
@@ -416,12 +467,38 @@ class MovieAPI {
 
   async getLiveGameEmbed(link: string): Promise<LiveGameEmbed> {
     try {
-      const response = await this.apiClient.get<LiveGameEmbed>("/live/embed-http", {
-        params: { link },
-      });
+      const response = await this.apiClient.get<LiveGameEmbed>(
+        "/sports/embed",
+        { params: { link } }
+      );
       return response.data;
     } catch (error) {
       throw this.handleError(error);
+    }
+  }
+
+  // Calendar endpoints — gracefully fail if backend doesn't support them
+  async getCalendar(from: string, to: string): Promise<ReleaseEvent[]> {
+    try {
+      const response = await this.apiClient.get<ReleaseEvent[]>("/calendar", {
+        params: { from, to },
+      });
+      return response.data;
+    } catch {
+      // Endpoint may not exist — return empty
+      return [];
+    }
+  }
+
+  async getTitleReleaseSchedule(url: string): Promise<ReleaseEvent[]> {
+    try {
+      const response = await this.apiClient.get<ReleaseEvent[]>(
+        "/movies/release-schedule",
+        { params: { url } }
+      );
+      return response.data;
+    } catch {
+      return [];
     }
   }
 

@@ -18,7 +18,9 @@ import * as WebBrowser from "expo-web-browser";
 import { useTvApp } from "../context/TvAppContext";
 import { useUserData } from "../context/UserDataContext";
 import StarRating from "../components/StarRating";
+import StatusSelector from "../components/StatusSelector";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
+import { WatchStatus } from "../types/app";
 
 type MovieDetailsScreenProps = NativeStackScreenProps<any, "MovieDetails">;
 
@@ -27,8 +29,19 @@ export default function MovieDetailsScreen({
   navigation,
 }: MovieDetailsScreenProps) {
   const { isTvApp } = useTvApp();
-  const { isInWatchlist, toggleWatchlist, addToHistory, getRating, setRating } =
-    useUserData();
+  const {
+    isInWatchlist,
+    toggleWantToWatch,
+    addToHistory,
+    getRating,
+    setRating,
+    getLibraryItem,
+    setLibraryStatus,
+    removeFromLibrary,
+    updateLibraryItemOpened,
+    saveKnownTitleMetadata,
+    getReminderForTitle,
+  } = useUserData();
   const { slug } = route.params as { slug: string };
   const [movieDetails, setMovieDetails] = useState<MovieDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,6 +63,27 @@ export default function MovieDetailsScreen({
         url: movieDetails.url,
         isSeries: false,
         savedAt: Date.now(),
+      });
+
+      // Update lastOpenedAt in library
+      updateLibraryItemOpened(movieDetails.url);
+
+      // Save to known metadata cache
+      saveKnownTitleMetadata({
+        url: movieDetails.url,
+        title: movieDetails.title,
+        isSeries: false,
+        thumbnail: movieDetails.thumbnail,
+        coverImage: movieDetails.coverImage,
+        genres: movieDetails.genres,
+        runtime: movieDetails.duration,
+        releaseYear: movieDetails.releaseYear,
+        releaseDate: movieDetails.releaseDate,
+        imdbRating: movieDetails.ratings?.imdb ?? null,
+        directors: movieDetails.directors,
+        actors: movieDetails.actors,
+        countries: movieDetails.countries,
+        updatedAt: Date.now(),
       });
     }
   }, [movieDetails?.id]);
@@ -90,23 +124,35 @@ export default function MovieDetailsScreen({
     );
   }
 
+  const libraryItem = getLibraryItem(movieDetails.url);
+  const currentStatus = libraryItem?.status ?? null;
+
+  const handleStatusSelect = (status: WatchStatus) => {
+    setLibraryStatus({
+      url: movieDetails.url,
+      id: movieDetails.id,
+      title: movieDetails.title,
+      thumbnail: movieDetails.thumbnail,
+      releaseYear: movieDetails.releaseYear,
+      genres: movieDetails.genres,
+      imdbRating: movieDetails.ratings?.imdb ?? null,
+      isSeries: false,
+      status,
+    });
+  };
+
   const handlePlayPress = () => {
+    console.log("Available streaming servers:", movieDetails);
     if (movieDetails.streamingServers.length === 0) {
-      Alert.alert(
-        "No Servers",
-        "No streaming servers available for this movie",
-      );
+      Alert.alert("No Servers", "No streaming servers available for this movie");
       return;
     }
-
     if (movieDetails.streamingServers.length === 1) {
-      // If only one server, go directly to player
       navigation.navigate("VideoPlayer", {
         server: movieDetails.streamingServers[0],
         movieTitle: movieDetails.title,
       });
     } else {
-      // If multiple servers, show selection screen
       navigation.navigate("ServerSelection", {
         servers: movieDetails.streamingServers,
         movieTitle: movieDetails.title,
@@ -117,9 +163,7 @@ export default function MovieDetailsScreen({
   function extractYouTubeUrl(embedUrl: string): string | null {
     const match = embedUrl.match(/\/embed\/([a-zA-Z0-9_-]+)/);
     if (!match) return null;
-
-    const videoId = match[1];
-    return `https://www.youtube.com/watch?v=${videoId}`;
+    return `https://www.youtube.com/watch?v=${match[1]}`;
   }
 
   const handlePressTrailer = async () => {
@@ -139,6 +183,12 @@ export default function MovieDetailsScreen({
     }
   };
 
+  // Check if we have a future release date for reminder UI
+  const hasFutureRelease =
+    movieDetails.releaseDate &&
+    new Date(movieDetails.releaseDate) > new Date();
+  const existingReminder = getReminderForTitle(movieDetails.url);
+
   return (
     <ScrollView style={styles.container}>
       {/* Cover Image */}
@@ -154,7 +204,7 @@ export default function MovieDetailsScreen({
         <TouchableOpacity
           style={detailActionStyles.actionButton}
           onPress={() =>
-            toggleWatchlist({
+            toggleWantToWatch({
               id: movieDetails.id,
               title: movieDetails.title,
               thumbnail: movieDetails.thumbnail,
@@ -173,7 +223,7 @@ export default function MovieDetailsScreen({
             color={isInWatchlist(movieDetails.url) ? "#e74c3c" : "#fff"}
           />
           <Text style={detailActionStyles.actionText}>
-            {isInWatchlist(movieDetails.url) ? "Saved" : "Watchlist"}
+            {isInWatchlist(movieDetails.url) ? "Saved" : "Save"}
           </Text>
         </TouchableOpacity>
 
@@ -191,10 +241,10 @@ export default function MovieDetailsScreen({
         </TouchableOpacity>
       </View>
 
-      {/* Play Button */}
+      {/* Play Button — only when TV mode */}
       {isTvApp ? (
         <TouchableOpacity style={styles.playButton} onPress={handlePlayPress}>
-          <Text style={styles.playButtonText}>▶ PLAY</Text>
+          <Text style={styles.playButtonText}>PLAY</Text>
         </TouchableOpacity>
       ) : null}
 
@@ -205,17 +255,41 @@ export default function MovieDetailsScreen({
         <Text style={styles.trailerButtonText}>Watch Trailer</Text>
       </TouchableOpacity>
 
+      {/* Status Selector — default build */}
+      {!isTvApp && (
+        <View style={detailActionStyles.statusSection}>
+          <StatusSelector
+            currentStatus={currentStatus}
+            onSelect={handleStatusSelect}
+            onRemove={
+              libraryItem ? () => removeFromLibrary(movieDetails.url) : undefined
+            }
+          />
+          {libraryItem && (
+            <Text style={detailActionStyles.trackedLabel}>
+              Tracked in Library
+            </Text>
+          )}
+        </View>
+      )}
+
       {/* Movie Info */}
       <View style={styles.movieInfoContainer}>
         <Text style={styles.movieTitle}>{movieDetails.title}</Text>
 
-        {/* Year & Duration */}
+        {/* Year & Duration & Release Date */}
         <View style={styles.metaRow}>
           <Text style={styles.metaText}>{movieDetails.releaseYear}</Text>
           {movieDetails.duration && (
             <>
               <Text style={styles.metaDot}>•</Text>
               <Text style={styles.metaText}>{movieDetails.duration}</Text>
+            </>
+          )}
+          {movieDetails.releaseDate && (
+            <>
+              <Text style={styles.metaDot}>•</Text>
+              <Text style={styles.metaText}>{movieDetails.releaseDate}</Text>
             </>
           )}
         </View>
@@ -339,7 +413,7 @@ export default function MovieDetailsScreen({
         {movieDetails.views > 0 && (
           <View style={styles.section}>
             <Text style={styles.metaText}>
-              👁️ {movieDetails.views.toLocaleString()} views
+              {movieDetails.views.toLocaleString()} views
             </Text>
           </View>
         )}
@@ -372,5 +446,14 @@ const detailActionStyles = StyleSheet.create({
     backgroundColor: "#1a1a1a",
     padding: 16,
     borderRadius: 8,
+  },
+  statusSection: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  trackedLabel: {
+    color: "#2ecc71",
+    fontSize: 12,
+    marginTop: 4,
   },
 });

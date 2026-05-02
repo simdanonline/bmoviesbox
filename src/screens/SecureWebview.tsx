@@ -13,6 +13,7 @@ const ALLOWED_DOMAINS = [
   "vidsrc.me",
   "vidsrc.cc",
   "vidsrc.xyz",
+  "vsembed.ru",
   "2embed.cc",
   "2embed.to",
   "autoembed.cc",
@@ -53,288 +54,378 @@ const ALLOWED_DOMAINS = [
 // Quick check patterns for video files
 const VIDEO_FILE_PATTERNS = /\.(m3u8|mp4|ts|webm|mkv|mov|mpd|m4s|key)(\?|#|$)/i;
 
-// Ad blocker script
-const AD_BLOCK_SCRIPT = `
+// =============================================================================
+// BEFORE_CONTENT_LOAD: runs at document_start, in EVERY frame.
+// All API hooks must land here so ad scripts cannot see the originals.
+// =============================================================================
+const BEFORE_LOAD_SCRIPT = `
 (function() {
   'use strict';
-  
-  // ========== BLOCK ALL POPUPS/REDIRECTS ==========
-  
-  window.open = () => null;
-  
-  try {
-    Object.defineProperty(window, 'open', {
-      value: () => null,
-      writable: false,
-      configurable: false
-    });
-  } catch(e) {}
-  
-  // Block all location changes
-  const allowedHosts = ['multiembed.mov', 'streamingnow.mov'];
-  
-  const originalAssign = window.location.assign.bind(window.location);
-  const originalReplace = window.location.replace.bind(window.location);
-  
-  function isAllowedUrl(url) {
-    if (!url) return false;
+
+  var ALLOWED_HOSTS = [
+    'multiembed.mov','streamingnow.mov','moviesapi.club','moviesapi.to',
+    'vidsrc.to','vidsrc.me','vidsrc.cc','vidsrc.xyz', 'vsembed.ru',
+    '2embed.cc','2embed.to','autoembed.cc','vidora.stream','cloudnestra.com'
+  ];
+  var ALLOWED_NETWORK_NEEDLES = [
+    'multiembed','streamingnow','moviesapi','vidsrc','2embed','autoembed','cloudnestra','vidora',
+    'cloudflare','akamai','fastly','cloudfront','jwp','videojs','hls','bitmovin','mux.com',
+    'plyr.io','vimeocdn','jsdelivr','unpkg','bootstrapcdn','gstatic','googleapis'
+  ];
+  var VIDEO_RX = /\\.(m3u8|mp4|ts|webm|mkv|mov|mpd|m4s|key)(\\?|#|$)/i;
+
+  function send(tag, payload) {
     try {
-      const host = new URL(url, window.location.href).hostname;
-      return allowedHosts.some(h => host.includes(h));
-    } catch(e) {
-      return false;
-    }
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({tag: tag, data: payload}));
+      }
+    } catch(_) {}
   }
-  
-  window.location.assign = function(url) {
-    if (!isAllowedUrl(url)) {
-      console.log('[AdBlock] Blocked redirect:', url);
-      return;
-    }
-    return originalAssign(url);
-  };
-  
-  window.location.replace = function(url) {
-    if (!isAllowedUrl(url)) {
-      console.log('[AdBlock] Blocked redirect:', url);
-      return;
-    }
-    return originalReplace(url);
-  };
-  
-  // ========== REMOVE CLICK HIJACKERS ==========
-  
-  function removeOverlays() {
-    // Remove invisible overlays
-    document.querySelectorAll('div, a, span, aside').forEach(el => {
-      const style = window.getComputedStyle(el);
-      const zIndex = parseInt(style.zIndex) || 0;
-      const position = style.position;
-      
-      if ((position === 'fixed' || position === 'absolute') && zIndex > 50) {
-        const rect = el.getBoundingClientRect();
-        const opacity = parseFloat(style.opacity);
-        const bg = style.backgroundColor;
-        
-        // Large transparent/invisible overlay = click hijacker
-        if (rect.width > 100 && rect.height > 100) {
-          const isTransparent = opacity < 0.1 || bg === 'transparent' || bg === 'rgba(0, 0, 0, 0)';
-          const isNotPlayer = !el.querySelector('video, iframe') && 
-                              !el.closest('[class*="player"]') && 
-                              !el.closest('[id*="player"]') &&
-                              !(el.className || '').toString().includes('player') &&
-                              !(el.id || '').includes('player');
-          
-          if (isTransparent && isNotPlayer) {
-            el.remove();
-          }
-        }
-      }
-    });
-    
-    // Remove ad links that overlay content
-    document.querySelectorAll('a[href]').forEach(a => {
-      const href = a.href.toLowerCase();
-      const style = window.getComputedStyle(a);
-      
-      if ((style.position === 'absolute' || style.position === 'fixed') && 
-          !allowedHosts.some(h => href.includes(h))) {
-        a.remove();
-      }
-    });
+
+  function isAllowedHost(href) {
+    if (!href) return false;
+    try {
+      var h = new URL(href, location.href).hostname.toLowerCase();
+      return ALLOWED_HOSTS.some(function(a){ return h === a || h.endsWith('.' + a); });
+    } catch(_) { return false; }
   }
-  
-  // ========== REMOVE AD ELEMENTS ==========
-  
-  function removeAds() {
-    // Remove iframes that aren't from allowed domains
-    document.querySelectorAll('iframe').forEach(iframe => {
-      const src = (iframe.src || '').toLowerCase();
-      
-      // Keep player iframes
-      if (iframe.closest('[class*="player"]') || iframe.closest('[id*="player"]')) {
-        return;
-      }
-      
-      // Keep if it's from an allowed host
-      if (allowedHosts.some(h => src.includes(h))) {
-        return;
-      }
-      
-      // Remove hidden/tiny iframes (ad trackers)
-      const style = window.getComputedStyle(iframe);
-      if (style.display === 'none' || iframe.width === '0' || iframe.height === '0' ||
-          parseInt(style.width) < 10 || parseInt(style.height) < 10) {
-        iframe.remove();
-        return;
-      }
-      
-      // Remove about:blank iframes
-      if (src === '' || src === 'about:blank') {
-        iframe.remove();
-      }
-    });
-    
-    // Remove obvious ad elements
-    document.querySelectorAll('ins.adsbygoogle, div.adsbygoogle, [data-ad-client], [data-ad-slot]').forEach(el => el.remove());
-    
-    removeOverlays();
-  }
-  
-  // ========== BLOCK NETWORK REQUESTS ==========
-  
+
   function isAllowedNetworkUrl(url) {
     if (!url) return true;
-    const lower = url.toLowerCase();
-    
-    // Allow video files
-    if (/\\.(m3u8|mp4|ts|webm|key|mpd|m4s)(\\?|#|$)/i.test(url)) {
-      return true;
-    }
-    
-    // Allow whitelisted domains
-    const allowedNetworkDomains = [
-      'multiembed.mov', 'streamingnow.mov', 'moviesapi',
-      'cloudflare', 'akamai', 'fastly', 'cloudfront', 
-      'jwp', 'videojs', 'hls', 'bitmovin', 'mux.com'
-    ];
-    
-    return allowedNetworkDomains.some(d => lower.includes(d));
+    var s = ('' + url).toLowerCase();
+    if (s.indexOf('data:') === 0 || s.indexOf('blob:') === 0) return true;
+    if (VIDEO_RX.test(s)) return true;
+    return ALLOWED_NETWORK_NEEDLES.some(function(d){ return s.indexOf(d) !== -1; });
   }
-  
-  const originalFetch = window.fetch;
-  window.fetch = function(...args) {
-    const url = (args[0]?.url || args[0] || '').toString();
-    if (!isAllowedNetworkUrl(url)) {
-      console.log('[AdBlock] Blocked fetch:', url.substring(0, 50));
-      return Promise.resolve(new Response('', { status: 204 }));
-    }
-    return originalFetch.apply(this, args);
-  };
-  
-  const originalXHROpen = XMLHttpRequest.prototype.open;
-  XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-    if (!isAllowedNetworkUrl((url || '').toString())) {
-      console.log('[AdBlock] Blocked XHR:', (url || '').toString().substring(0, 50));
-      this._blocked = true;
-    }
-    return originalXHROpen.call(this, method, url, ...rest);
-  };
-  
-  const originalXHRSend = XMLHttpRequest.prototype.send;
-  XMLHttpRequest.prototype.send = function(...args) {
-    if (this._blocked) return;
-    return originalXHRSend.apply(this, args);
-  };
-  
-  // ========== BLOCK DYNAMIC ELEMENTS ==========
-  
-  const originalCreateElement = document.createElement.bind(document);
-  document.createElement = function(tagName) {
-    const el = originalCreateElement(tagName);
-    const tag = tagName.toLowerCase();
-    
-    if (tag === 'script' || tag === 'iframe') {
-      let blocked = false;
-      
-      const origSetAttr = el.setAttribute.bind(el);
-      el.setAttribute = function(name, value) {
-        if (name === 'src' && !isAllowedNetworkUrl(value)) {
-          console.log('[AdBlock] Blocked', tag, ':', value.substring(0, 50));
-          blocked = true;
-          return;
-        }
-        return origSetAttr(name, value);
-      };
-      
-      Object.defineProperty(el, 'src', {
-        get: () => blocked ? '' : el.getAttribute('src'),
-        set: (value) => {
-          if (!isAllowedNetworkUrl(value)) {
-            console.log('[AdBlock] Blocked', tag, 'src:', value.substring(0, 50));
-            blocked = true;
-            return;
-          }
-          el.setAttribute('src', value);
+
+  // ---------- window.open / popups ----------
+  try {
+    Object.defineProperty(window, 'open', {
+      value: function() { send('block', {kind:'open', url: arguments[0]||''}); return null; },
+      writable: false, configurable: false
+    });
+  } catch(_) { window.open = function(){ return null; }; }
+
+  // ---------- location traps ----------
+  try {
+    var origAssign = window.location.assign.bind(window.location);
+    var origReplace = window.location.replace.bind(window.location);
+    window.location.assign = function(u) {
+      if (!isAllowedHost(u)) { send('block',{kind:'assign',url:u}); return; }
+      return origAssign(u);
+    };
+    window.location.replace = function(u) {
+      if (!isAllowedHost(u)) { send('block',{kind:'replace',url:u}); return; }
+      return origReplace(u);
+    };
+  } catch(_) {}
+
+  // location.href setter
+  try {
+    var hrefDesc = Object.getOwnPropertyDescriptor(Location.prototype, 'href') ||
+                   Object.getOwnPropertyDescriptor(window.location, 'href');
+    if (hrefDesc && hrefDesc.set) {
+      var origHrefSet = hrefDesc.set;
+      Object.defineProperty(window.location, 'href', {
+        configurable: true,
+        get: hrefDesc.get,
+        set: function(u) {
+          if (!isAllowedHost(u)) { send('block',{kind:'href',url:u}); return; }
+          return origHrefSet.call(window.location, u);
         }
       });
     }
-    
-    return el;
-  };
-  
-  // ========== GLOBAL CLICK PROTECTION ==========
-  
-  document.addEventListener('click', function(e) {
-    let el = e.target;
-    while (el && el !== document.body) {
-      if (el.tagName === 'A') {
-        const href = (el.href || '').toLowerCase();
-        if (!allowedHosts.some(h => href.includes(h)) && !href.startsWith('javascript:void')) {
-          console.log('[AdBlock] Blocked click:', href.substring(0, 50));
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
+  } catch(_) {}
+
+  // beforeunload trap (ads use this for tab-trapping)
+  window.addEventListener('beforeunload', function(e){
+    e.preventDefault(); e.returnValue = ''; return '';
+  }, true);
+
+  // ---------- insertAdjacentHTML ----------
+  try {
+    var origInsert = Element.prototype.insertAdjacentHTML;
+    Element.prototype.insertAdjacentHTML = function(pos, html) {
+      var s = (html || '').toLowerCase();
+      if (s.indexOf('<scr' + 'ipt') !== -1 || s.indexOf('<ifr' + 'ame') !== -1 || s.indexOf('<emb' + 'ed') !== -1) {
+        send('block',{kind:'insertAdjacentHTML',preview:s.substring(0,80)});
+        return;
+      }
+      return origInsert.call(this, pos, html);
+    };
+  } catch(_) {}
+
+  // ---------- fetch / XHR ----------
+  try {
+    var origFetch = window.fetch;
+    window.fetch = function() {
+      var url = (arguments[0] && arguments[0].url) || arguments[0] || '';
+      if (!isAllowedNetworkUrl(url)) {
+        send('block',{kind:'fetch',url:('' + url).substring(0,80)});
+        return Promise.resolve(new Response('', {status: 204}));
+      }
+      return origFetch.apply(this, arguments);
+    };
+  } catch(_) {}
+
+  try {
+    var origXHROpen = XMLHttpRequest.prototype.open;
+    var origXHRSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function(m, u) {
+      if (!isAllowedNetworkUrl(u)) {
+        this.__blocked = true;
+        send('block',{kind:'xhr',url:('' + u).substring(0,80)});
+      }
+      return origXHROpen.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.send = function() {
+      if (this.__blocked) return;
+      return origXHRSend.apply(this, arguments);
+    };
+  } catch(_) {}
+
+  // ---------- sendBeacon (used by ad/tracking pings) ----------
+  try {
+    if (navigator.sendBeacon) {
+      var origBeacon = navigator.sendBeacon.bind(navigator);
+      navigator.sendBeacon = function(u, d) {
+        if (!isAllowedNetworkUrl(u)) {
+          send('block',{kind:'beacon',url:('' + u).substring(0,80)});
           return false;
         }
+        return origBeacon(u, d);
+      };
+    }
+  } catch(_) {}
+
+  // ---------- HTMLIFrameElement.src / HTMLScriptElement.src / embed / object ----------
+  function patchSrc(proto, tagLabel) {
+    try {
+      var d = Object.getOwnPropertyDescriptor(proto, 'src');
+      if (!d || !d.set) return;
+      var origSet = d.set;
+      Object.defineProperty(proto, 'src', {
+        configurable: true,
+        get: d.get,
+        set: function(v) {
+          if (!isAllowedNetworkUrl(v)) {
+            send('block',{kind:tagLabel+'.src',url:('' + v).substring(0,80)});
+            return;
+          }
+          return origSet.call(this, v);
+        }
+      });
+    } catch(_) {}
+  }
+  patchSrc(HTMLIFrameElement.prototype, 'iframe');
+  patchSrc(HTMLScriptElement.prototype, 'script');
+  if (typeof HTMLEmbedElement !== 'undefined') patchSrc(HTMLEmbedElement.prototype, 'embed');
+  if (typeof HTMLObjectElement !== 'undefined') patchSrc(HTMLObjectElement.prototype, 'object');
+
+  // ---------- createElement filter (catches setAttribute('src', ...) too) ----------
+  try {
+    var origCreate = document.createElement.bind(document);
+    document.createElement = function(tag) {
+      var el = origCreate(tag);
+      var t = (tag || '').toLowerCase();
+      if (t === 'script' || t === 'iframe' || t === 'embed' || t === 'object') {
+        var origSetAttr = el.setAttribute.bind(el);
+        el.setAttribute = function(name, value) {
+          if ((name === 'src' || name === 'data') && !isAllowedNetworkUrl(value)) {
+            send('block',{kind:t+'.setAttribute',url:('' + value).substring(0,80)});
+            return;
+          }
+          return origSetAttr(name, value);
+        };
+      }
+      // Force-unmute any new <video> element (Android Chrome auto-mutes autoplay)
+      if (t === 'video') {
+        ['loadedmetadata','play','playing','canplay','canplaythrough'].forEach(function(evt){
+          el.addEventListener(evt, function(){
+            try {
+              if (el.hasAttribute('muted')) el.removeAttribute('muted');
+              if (el.muted) el.muted = false;
+              if (el.volume < 1) el.volume = 1.0;
+            } catch(_) {}
+          });
+        });
+        el.addEventListener('volumechange', function(){
+          if (el.muted) {
+            try { el.muted = false; if (el.volume < 1) el.volume = 1.0; } catch(_) {}
+          }
+        });
+      }
+      return el;
+    };
+  } catch(_) {}
+
+  // ---------- DOM injection guard (catches appendChild / insertBefore tricks) ----------
+  try {
+    function guardChild(node) {
+      if (!node || !node.tagName) return node;
+      var tag = node.tagName.toLowerCase();
+      if (tag === 'script' || tag === 'iframe' || tag === 'embed' || tag === 'object') {
+        var src = node.src || node.getAttribute('src') || node.getAttribute('data') || '';
+        if (src && !isAllowedNetworkUrl(src)) {
+          send('block',{kind:tag+'.append',url:('' + src).substring(0,80)});
+          return document.createComment('blocked-' + tag);
+        }
+      }
+      return node;
+    }
+    var origAppend = Node.prototype.appendChild;
+    var origInsertNode = Node.prototype.insertBefore;
+    Node.prototype.appendChild = function(node) {
+      return origAppend.call(this, guardChild(node));
+    };
+    Node.prototype.insertBefore = function(node, ref) {
+      return origInsertNode.call(this, guardChild(node), ref);
+    };
+  } catch(_) {}
+
+  // ---------- click / pointer hijack guards ----------
+  function isHostileLink(el) {
+    while (el && el !== document.body) {
+      if (el.tagName === 'A') {
+        var href = (el.href || '').toLowerCase();
+        if (!href || href.indexOf('javascript:void') === 0) return false;
+        if (!isAllowedHost(href)) return true;
       }
       el = el.parentElement;
     }
-  }, true);
-  
-  // Block mousedown hijacking
-  ['mousedown', 'mouseup', 'pointerdown', 'pointerup', 'touchstart', 'touchend'].forEach(evt => {
-    document.addEventListener(evt, function(e) {
-      let el = e.target;
-      while (el && el !== document.body) {
-        if (el.tagName === 'A') {
-          const href = (el.href || '').toLowerCase();
-          if (!allowedHosts.some(h => href.includes(h))) {
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            return;
-          }
-        }
-        el = el.parentElement;
+    return false;
+  }
+
+  ['click','mousedown','mouseup','pointerdown','pointerup','touchstart','touchend','auxclick','contextmenu'].forEach(function(evt){
+    document.addEventListener(evt, function(e){
+      if (isHostileLink(e.target)) {
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        send('block',{kind:evt,target:String(e.target && e.target.tagName)});
       }
     }, true);
   });
-  
-  // ========== RUN ==========
-  
-  removeAds();
-  
-  const observer = new MutationObserver(removeAds);
-  
-  function init() {
-    if (document.body) {
-      observer.observe(document.body, { childList: true, subtree: true });
-      removeAds();
-    }
-  }
-  
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
-  
-  setInterval(removeAds, 800);
-  
-  console.log('[AdBlock] Whitelist mode active');
+
+  send('init', {frame: location.hostname});
 })();
 true;
 `;
 
-const CSS_INJECTION_SCRIPT = `
+// =============================================================================
+// AT_LOAD: runs at document_end. DOM cleanup + observer + CSS.
+// =============================================================================
+const RUNTIME_SCRIPT = `
 (function() {
-  const style = document.createElement('style');
-  style.textContent = \`
-    ins.adsbygoogle, div.adsbygoogle, [data-ad-client], [data-ad-slot] {
-      display: none !important;
-    }
-  \`;
+  'use strict';
+
+  var ALLOWED_HOSTS = [
+    'multiembed.mov','streamingnow.mov','moviesapi.club','moviesapi.to',
+    'vidsrc.to','vidsrc.me','vidsrc.cc','vidsrc.xyz', 'vsembed.ru',
+    '2embed.cc','2embed.to','autoembed.cc','vidora.stream','cloudnestra.com'
+  ];
+
+  function isAllowedHost(href) {
+    if (!href) return false;
+    try {
+      var h = new URL(href, location.href).hostname.toLowerCase();
+      return ALLOWED_HOSTS.some(function(a){ return h === a || h.endsWith('.' + a); });
+    } catch(_) { return false; }
+  }
+
+  // ---------- CSS rules ----------
+  var style = document.createElement('style');
+  style.textContent = [
+    'ins.adsbygoogle, div.adsbygoogle, [data-ad-client], [data-ad-slot] { display: none !important; }',
+    'iframe[src*="ads"], iframe[src*="adservice"], iframe[src*="doubleclick"] { display: none !important; }',
+    '[id*="ad-banner"], [id*="ad_banner"], [class*="ad-banner"], [class*="ad_banner"] { display: none !important; }',
+    'body { overscroll-behavior: contain !important; }'
+  ].join('\\n');
   (document.head || document.documentElement).appendChild(style);
+
+  // ---------- DOM cleanup ----------
+  function removeOverlays() {
+    var els = document.querySelectorAll('div, a, span, aside, section');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      var st;
+      try { st = window.getComputedStyle(el); } catch(_) { continue; }
+      var z = parseInt(st.zIndex) || 0;
+      var pos = st.position;
+      if ((pos === 'fixed' || pos === 'absolute') && z > 50) {
+        var rect = el.getBoundingClientRect();
+        var op = parseFloat(st.opacity);
+        var bg = st.backgroundColor;
+        if (rect.width > 100 && rect.height > 100) {
+          var transparent = op < 0.1 || bg === 'transparent' || bg === 'rgba(0, 0, 0, 0)';
+          var notPlayer = !el.querySelector('video, iframe') &&
+                          !el.closest('[class*="player"]') &&
+                          !el.closest('[id*="player"]') &&
+                          !((el.className || '') + '').includes('player') &&
+                          !((el.id || '') + '').includes('player');
+          if (transparent && notPlayer) {
+            try { el.remove(); } catch(_) {}
+          }
+        }
+      }
+    }
+  }
+
+  function removeAds() {
+    var iframes = document.querySelectorAll('iframe');
+    for (var i = 0; i < iframes.length; i++) {
+      var ifr = iframes[i];
+      if (ifr.closest('[class*="player"]') || ifr.closest('[id*="player"]')) continue;
+      var src = (ifr.src || '').toLowerCase();
+      if (isAllowedHost(src)) continue;
+      var st;
+      try { st = window.getComputedStyle(ifr); } catch(_) { st = null; }
+      if (st && (st.display === 'none' || ifr.width === '0' || ifr.height === '0' ||
+          parseInt(st.width) < 10 || parseInt(st.height) < 10)) {
+        try { ifr.remove(); } catch(_) {}
+        continue;
+      }
+      if (src === '' || src === 'about:blank') {
+        try { ifr.remove(); } catch(_) {}
+        continue;
+      }
+      if (src) {
+        try { ifr.remove(); } catch(_) {}
+      }
+    }
+
+    var ads = document.querySelectorAll(
+      'ins.adsbygoogle, div.adsbygoogle, [data-ad-client], [data-ad-slot], [id*="banner_ad"], [class*="banner_ad"]'
+    );
+    for (var j = 0; j < ads.length; j++) { try { ads[j].remove(); } catch(_) {} }
+
+    removeOverlays();
+  }
+
+  function unmuteAllVideos() {
+    var vids = document.querySelectorAll('video');
+    for (var k = 0; k < vids.length; k++) {
+      var v = vids[k];
+      try {
+        if (v.hasAttribute('muted')) v.removeAttribute('muted');
+        if (v.muted) v.muted = false;
+        if (v.volume < 1) v.volume = 1.0;
+      } catch(_) {}
+    }
+  }
+
+  removeAds();
+  unmuteAllVideos();
+  try {
+    var observer = new MutationObserver(function(){ removeAds(); unmuteAllVideos(); });
+    if (document.body) {
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['muted']
+      });
+    }
+  } catch(_) {}
+  setInterval(function(){ removeAds(); unmuteAllVideos(); }, 800);
 })();
 true;
 `;
@@ -344,9 +435,7 @@ export default function SecureVideoWebView({ url }: { url: string }) {
   const [loading, setLoading] = useState(true);
   const initialUrlRef = useRef(url);
 
-  console.log("Loading video URL in secure webview:", url);
 
-  // Extract initial hostname for same-origin checks
   const getInitialHost = useCallback(() => {
     try {
       return new URL(initialUrlRef.current).hostname;
@@ -357,55 +446,32 @@ export default function SecureVideoWebView({ url }: { url: string }) {
 
   const handleRequest = useCallback(
     ({ url: reqUrl }: { url: string }) => {
-      // Allow data/blob URLs
       if (!reqUrl || reqUrl.startsWith("data:") || reqUrl.startsWith("blob:")) {
         return true;
       }
-
-      // BLOCK about:blank - this is always an ad popup
       if (reqUrl === "about:blank") {
         console.log("[AdBlock] ✗ Blocked: about:blank");
         return false;
       }
 
       const lower = reqUrl.toLowerCase();
+      if (VIDEO_FILE_PATTERNS.test(reqUrl)) return true;
 
-      // Allow video file extensions
-      if (VIDEO_FILE_PATTERNS.test(reqUrl)) {
-        console.log("[AdBlock] ✓ Video file:", reqUrl.substring(0, 60));
-        return true;
-      }
+      const isAllowed = ALLOWED_DOMAINS.some((d) => lower.includes(d));
+      if (isAllowed) return true;
 
-      // Check against whitelist
-      const isAllowed = ALLOWED_DOMAINS.some((domain) =>
-        lower.includes(domain)
-      );
-      if (isAllowed) {
-        console.log("[AdBlock] ✓ Whitelist:", reqUrl.substring(0, 60));
-        return true;
-      }
-
-      // Allow same-origin
       try {
         const initialHost = getInitialHost();
         const reqHost = new URL(reqUrl).hostname;
         if (reqHost === initialHost || reqHost.endsWith("." + initialHost)) {
-          console.log("[AdBlock] ✓ Same-origin:", reqUrl.substring(0, 60));
           return true;
         }
-
-        // Also allow if the request host is a subdomain pattern we've seen
-        if (
-          reqHost.includes("multiembed") ||
-          reqHost.includes("streamingnow")
-        ) {
-          console.log("[AdBlock] ✓ Streaming domain:", reqUrl.substring(0, 60));
+        if (reqHost.includes("multiembed") || reqHost.includes("streamingnow")) {
           return true;
         }
-      } catch (e) {}
+      } catch {}
 
-      // BLOCK everything else - this is the key change!
-      console.log("[AdBlock] ✗ Blocked:", reqUrl.substring(0, 60));
+      console.log("[AdBlock] ✗ Blocked nav:", reqUrl.substring(0, 60));
       return false;
     },
     [getInitialHost]
@@ -437,17 +503,25 @@ export default function SecureVideoWebView({ url }: { url: string }) {
           allowsInlineMediaPlayback
           allowsFullscreenVideo
           mediaPlaybackRequiresUserAction={false}
-          injectedJavaScriptBeforeContentLoaded={CSS_INJECTION_SCRIPT}
-          injectedJavaScript={AD_BLOCK_SCRIPT}
+          // Inject into EVERY frame (incl. ad iframes), at document_start AND end
+          injectedJavaScriptBeforeContentLoaded={BEFORE_LOAD_SCRIPT}
+          injectedJavaScript={RUNTIME_SCRIPT}
+          injectedJavaScriptForMainFrameOnly={false}
+          injectedJavaScriptBeforeContentLoadedForMainFrameOnly={false}
           onShouldStartLoadWithRequest={handleRequest}
           originWhitelist={["*"]}
-          mixedContentMode="always"
+          mixedContentMode="compatibility"
           allowFileAccess
           allowFileAccessFromFileURLs
           allowUniversalAccessFromFileURLs
-          thirdPartyCookiesEnabled
-          sharedCookiesEnabled
+          thirdPartyCookiesEnabled={false}
+          sharedCookiesEnabled={false}
           setSupportMultipleWindows={false}
+          javaScriptCanOpenWindowsAutomatically={false}
+          // Android-specific
+          androidLayerType="hardware"
+          cacheEnabled={false}
+          incognito
           userAgent={
             Platform.OS === "ios"
               ? "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
@@ -461,9 +535,22 @@ export default function SecureVideoWebView({ url }: { url: string }) {
               e.nativeEvent.url
             )
           }
-          onMessage={(event) =>
-            console.log("[WebView]:", event.nativeEvent.data)
-          }
+          onMessage={(event) => {
+            try {
+              const msg = JSON.parse(event.nativeEvent.data);
+              if (msg && msg.tag === "block") {
+                console.log(
+                  "[AdBlock] ✗",
+                  msg.data?.kind,
+                  msg.data?.url ?? msg.data?.preview ?? ""
+                );
+              } else if (msg && msg.tag === "init") {
+                console.log("[AdBlock] init in frame:", msg.data?.frame);
+              }
+            } catch {
+              console.log("[WebView]:", event.nativeEvent.data);
+            }
+          }}
         />
       )}
     </View>

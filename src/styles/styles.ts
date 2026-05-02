@@ -199,13 +199,12 @@ export const styles = StyleSheet.create({
   },
   playButton: {
     marginHorizontal: 16,
-    marginTop: -50,
+    marginTop: 12,
     marginBottom: 20,
     backgroundColor: "#e74c3c",
     paddingVertical: 16,
     borderRadius: 8,
     alignItems: "center",
-    zIndex: 10,
   },
   playButtonText: {
     color: "#fff",

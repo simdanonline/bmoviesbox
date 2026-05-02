@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   ActivityIndicator,
   Alert,
   TouchableOpacity,
-  FlatList,
   StyleSheet,
   Platform,
   Share,
@@ -19,7 +18,9 @@ import MovieAPI, { Episode, SeriesDetail } from "../services/MovieAPI";
 import { useTvApp } from "../context/TvAppContext";
 import { useUserData } from "../context/UserDataContext";
 import StarRating from "../components/StarRating";
+import StatusSelector from "../components/StatusSelector";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
+import { WatchStatus } from "../types/app";
 
 type SeriesDetailsScreenProps = NativeStackScreenProps<any, "SeriesDetails">;
 
@@ -28,8 +29,23 @@ export default function SeriesDetailsScreen({
   navigation,
 }: SeriesDetailsScreenProps) {
   const { isTvApp } = useTvApp();
-  const { isInWatchlist, toggleWatchlist, addToHistory, getRating, setRating } =
-    useUserData();
+  const {
+    isInWatchlist,
+    toggleWantToWatch,
+    addToHistory,
+    getRating,
+    setRating,
+    getLibraryItem,
+    setLibraryStatus,
+    removeFromLibrary,
+    updateLibraryItemOpened,
+    saveKnownTitleMetadata,
+    markEpisodeWatched,
+    markEpisodeUnwatched,
+    isEpisodeWatched,
+    getSeriesProgress,
+    updateLibraryEpisodeContext,
+  } = useUserData();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { url } = route.params as { url: string };
@@ -37,7 +53,8 @@ export default function SeriesDetailsScreen({
   const [selectedEpisode, setSelectedEpisode] = useState<number | null>(null);
   const [seriesData, setSeriesData] = useState<SeriesDetail | null>(null);
   const [gettingLinks, setGettingLinks] = useState(false);
-  React.useEffect(() => {
+
+  useEffect(() => {
     const fetchDetails = async () => {
       try {
         setLoading(true);
@@ -46,7 +63,7 @@ export default function SeriesDetailsScreen({
         setSeriesData(details);
       } catch (err) {
         const errorMessage =
-          err instanceof Error ? err.message : "Failed to load movie details";
+          err instanceof Error ? err.message : "Failed to load series details";
         setError(errorMessage);
         Alert.alert("Error", errorMessage);
       } finally {
@@ -69,6 +86,25 @@ export default function SeriesDetailsScreen({
         isSeries: true,
         savedAt: Date.now(),
       });
+
+      updateLibraryItemOpened(seriesData.url);
+
+      saveKnownTitleMetadata({
+        url: seriesData.url,
+        title: seriesData.title,
+        isSeries: true,
+        thumbnail: seriesData.thumbnail,
+        coverImage: seriesData.coverImage,
+        genres: seriesData.genres,
+        runtime: seriesData.duration,
+        releaseYear: seriesData.releaseYear,
+        releaseDate: seriesData.releaseDate,
+        imdbRating: seriesData.ratings?.imdb ?? null,
+        directors: seriesData.directors,
+        actors: seriesData.actors,
+        countries: seriesData.countries,
+        updatedAt: Date.now(),
+      });
     }
   }, [seriesData?.id]);
 
@@ -77,26 +113,91 @@ export default function SeriesDetailsScreen({
   );
   const currentEpisodes = currentSeason?.episodes || [];
 
+  const seriesProgress = useMemo(
+    () => (seriesData ? getSeriesProgress(seriesData.url) : []),
+    [seriesData?.url, getSeriesProgress]
+  );
+
+  const watchedCount = useMemo(
+    () => seriesProgress.filter((p) => p.watched).length,
+    [seriesProgress]
+  );
+
+  const totalEpisodes = useMemo(() => {
+    if (!seriesData) return 0;
+    return seriesData.seasons.reduce((sum, s) => sum + s.episodes.length, 0);
+  }, [seriesData]);
+
+  // Season-level progress
+  const seasonWatchedCount = useMemo(() => {
+    return seriesProgress.filter(
+      (p) => p.watched && p.seasonNumber === selectedSeason
+    ).length;
+  }, [seriesProgress, selectedSeason]);
+
+  const libraryItem = seriesData ? getLibraryItem(seriesData.url) : undefined;
+  const currentStatus = libraryItem?.status ?? null;
+
+  const handleStatusSelect = (status: WatchStatus) => {
+    if (!seriesData) return;
+    setLibraryStatus({
+      url: seriesData.url,
+      id: seriesData.id,
+      title: seriesData.title,
+      thumbnail: seriesData.thumbnail,
+      releaseYear: seriesData.releaseYear,
+      genres: seriesData.genres,
+      imdbRating: seriesData.ratings?.imdb ?? null,
+      isSeries: true,
+      status,
+    });
+  };
+
+  const handleToggleEpisodeWatched = (episode: Episode) => {
+    if (!seriesData) return;
+    const epUrl = episode.episodeUrl;
+    if (isEpisodeWatched(epUrl)) {
+      markEpisodeUnwatched(seriesData.url, epUrl);
+    } else {
+      markEpisodeWatched({
+        seriesUrl: seriesData.url,
+        episodeUrl: epUrl,
+        episodeTitle: episode.episodeTitle,
+        seasonNumber: selectedSeason,
+        episodeNumber: episode.episodeNumber,
+      });
+      updateLibraryEpisodeContext(
+        seriesData.url,
+        epUrl,
+        selectedSeason,
+        episode.episodeNumber
+      );
+    }
+  };
+
   const handlePlayEpisode = async (episode: Episode) => {
     setSelectedEpisode(episode.episodeNumber);
     setGettingLinks(true);
-    const links = await MovieAPI.getSeriesServer(episode.episodeUrl);
-    setGettingLinks(false);
-    const servers = links.videoLinks;
-    const movieTitle = `${seriesData?.title} - S${selectedSeason}E${episode.episodeNumber} ${episode.episodeTitle}`;
+    try {
+      const links = await MovieAPI.getSeriesServer(episode.episodeUrl);
+      setGettingLinks(false);
+      const servers = links.videoLinks;
+      const movieTitle = `${seriesData?.title} - S${selectedSeason}E${episode.episodeNumber} ${episode.episodeTitle}`;
 
-    if (servers.length === 1) {
-      // If only one server, go directly to player
-      navigation.navigate("VideoPlayer", {
-        server: servers[0],
-        movieTitle: movieTitle,
-      });
-    } else {
-      // If multiple servers, show selection screen
-      navigation.navigate("ServerSelection", {
-        servers: servers,
-        movieTitle: movieTitle,
-      });
+      if (servers.length === 1) {
+        navigation.navigate("VideoPlayer", {
+          server: servers[0],
+          movieTitle,
+        });
+      } else {
+        navigation.navigate("ServerSelection", {
+          servers,
+          movieTitle,
+        });
+      }
+    } catch {
+      setGettingLinks(false);
+      Alert.alert("Error", "Failed to get streaming links.");
     }
   };
 
@@ -123,9 +224,7 @@ export default function SeriesDetailsScreen({
   function extractYouTubeUrl(embedUrl: string): string | null {
     const match = embedUrl.match(/\/embed\/([a-zA-Z0-9_-]+)/);
     if (!match) return null;
-
-    const videoId = match[1];
-    return `https://www.youtube.com/watch?v=${videoId}`;
+    return `https://www.youtube.com/watch?v=${match[1]}`;
   }
 
   const handlePressTrailer = async () => {
@@ -141,9 +240,14 @@ export default function SeriesDetailsScreen({
         }
       }
     } else {
-      Alert.alert("No Trailer", "Trailer not available for this movie");
+      Alert.alert("No Trailer", "Trailer not available for this series");
     }
   };
+
+  // Resume action for default build
+  const lastProgress = libraryItem?.lastEpisodeNumber
+    ? `S${libraryItem.lastSeasonNumber}E${libraryItem.lastEpisodeNumber}`
+    : null;
 
   return (
     <ScrollView
@@ -163,7 +267,7 @@ export default function SeriesDetailsScreen({
         <TouchableOpacity
           style={detailActionStyles.actionButton}
           onPress={() =>
-            toggleWatchlist({
+            toggleWantToWatch({
               id: seriesData.id,
               title: seriesData.title,
               thumbnail: seriesData.thumbnail,
@@ -182,7 +286,7 @@ export default function SeriesDetailsScreen({
             color={isInWatchlist(seriesData.url) ? "#e74c3c" : "#fff"}
           />
           <Text style={detailActionStyles.actionText}>
-            {isInWatchlist(seriesData.url) ? "Saved" : "Watchlist"}
+            {isInWatchlist(seriesData.url) ? "Saved" : "Save"}
           </Text>
         </TouchableOpacity>
 
@@ -200,14 +304,46 @@ export default function SeriesDetailsScreen({
         </TouchableOpacity>
       </View>
 
-      {/* Play Trailer Button */}
+      {/* Trailer Button */}
       {seriesData.trailerUrl && (
         <TouchableOpacity
           style={seriesStyles.trailerButton}
           onPress={handlePressTrailer}
         >
-          <Text style={seriesStyles.trailerButtonText}>▶ Watch Trailer</Text>
+          <Text style={seriesStyles.trailerButtonText}>Watch Trailer</Text>
         </TouchableOpacity>
+      )}
+
+      {/* Status Selector — default build */}
+      {!isTvApp && (
+        <View style={detailActionStyles.statusSection}>
+          <StatusSelector
+            currentStatus={currentStatus}
+            onSelect={handleStatusSelect}
+            onRemove={
+              libraryItem
+                ? () => removeFromLibrary(seriesData.url)
+                : undefined
+            }
+          />
+          {libraryItem && (
+            <Text style={detailActionStyles.trackedLabel}>
+              Tracked in Library
+            </Text>
+          )}
+        </View>
+      )}
+
+      {/* Resume from last episode — default build */}
+      {!isTvApp && lastProgress && watchedCount > 0 && (
+        <View style={detailActionStyles.resumeSection}>
+          <Text style={detailActionStyles.resumeLabel}>
+            Pick up where you left off — {lastProgress}
+          </Text>
+          <Text style={detailActionStyles.progressLabel}>
+            {watchedCount}/{totalEpisodes} episodes watched
+          </Text>
+        </View>
       )}
 
       {/* Series Info */}
@@ -233,6 +369,29 @@ export default function SeriesDetailsScreen({
             </>
           )}
         </View>
+
+        {/* Progress Summary */}
+        {watchedCount > 0 && (
+          <View style={seriesStyles.progressSummary}>
+            <View style={seriesStyles.progressBar}>
+              <View
+                style={[
+                  seriesStyles.progressFill,
+                  {
+                    width: `${
+                      totalEpisodes > 0
+                        ? (watchedCount / totalEpisodes) * 100
+                        : 0
+                    }%`,
+                  },
+                ]}
+              />
+            </View>
+            <Text style={seriesStyles.progressText}>
+              {watchedCount}/{totalEpisodes} episodes
+            </Text>
+          </View>
+        )}
 
         {/* Genres */}
         {seriesData.genres.length > 0 && (
@@ -303,56 +462,76 @@ export default function SeriesDetailsScreen({
           </View>
         )}
 
-        {/* Seasons & Episodes */}
-        {isTvApp ? <View>
-          {seriesData.seasons.length > 0 && (
-            <View style={seriesStyles.section}>
-              <Text style={seriesStyles.sectionTitle}>Episodes</Text>
+        {/* Episodes Section — visible in BOTH builds now */}
+        {seriesData.seasons.length > 0 && (
+          <View style={seriesStyles.section}>
+            <Text style={seriesStyles.sectionTitle}>
+              Episodes{" "}
+              {seasonWatchedCount > 0 &&
+                `(${seasonWatchedCount}/${currentEpisodes.length} watched)`}
+            </Text>
 
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={seriesStyles.seasonSelector}
-              >
-                {seriesData.seasons.map((season) => (
-                  <TouchableOpacity
-                    key={season.seasonNumber}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={seriesStyles.seasonSelector}
+            >
+              {seriesData.seasons.map((season) => (
+                <TouchableOpacity
+                  key={season.seasonNumber}
+                  style={[
+                    seriesStyles.seasonButton,
+                    selectedSeason === season.seasonNumber &&
+                      seriesStyles.seasonButtonActive,
+                  ]}
+                  onPress={() => setSelectedSeason(season.seasonNumber)}
+                >
+                  <Text
                     style={[
-                      seriesStyles.seasonButton,
+                      seriesStyles.seasonButtonText,
                       selectedSeason === season.seasonNumber &&
-                        seriesStyles.seasonButtonActive,
+                        seriesStyles.seasonButtonTextActive,
                     ]}
-                    onPress={() => setSelectedSeason(season.seasonNumber)}
                   >
-                    <Text
-                      style={[
-                        seriesStyles.seasonButtonText,
-                        selectedSeason === season.seasonNumber &&
-                          seriesStyles.seasonButtonTextActive,
-                      ]}
-                    >
-                      S{season.seasonNumber}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+                    S{season.seasonNumber}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
 
-              <View style={seriesStyles.episodesGrid}>
-                {currentEpisodes.map((episode) => (
+            <View style={seriesStyles.episodesGrid}>
+              {currentEpisodes.map((episode) => {
+                const watched = isEpisodeWatched(episode.episodeUrl);
+                return (
                   <TouchableOpacity
                     key={episode.episodeNumber}
-                    style={seriesStyles.episodeCard}
-                    onPress={() => handlePlayEpisode(episode)}
-                    disabled={gettingLinks}
+                    style={[
+                      seriesStyles.episodeCard,
+                      watched && seriesStyles.episodeCardWatched,
+                    ]}
+                    onPress={() => {
+                      if (isTvApp) {
+                        handlePlayEpisode(episode);
+                      } else {
+                        handleToggleEpisodeWatched(episode);
+                      }
+                    }}
+                    disabled={gettingLinks && isTvApp}
                   >
                     {gettingLinks &&
-                    selectedEpisode === episode.episodeNumber ? (
+                    selectedEpisode === episode.episodeNumber &&
+                    isTvApp ? (
                       <View style={seriesStyles.centered}>
                         <ActivityIndicator />
                       </View>
                     ) : (
                       <>
-                        <View style={seriesStyles.episodeNumber}>
+                        <View
+                          style={[
+                            seriesStyles.episodeNumber,
+                            watched && seriesStyles.episodeNumberWatched,
+                          ]}
+                        >
                           <Text style={seriesStyles.episodeNumberText}>
                             E{episode.episodeNumber}
                           </Text>
@@ -363,17 +542,25 @@ export default function SeriesDetailsScreen({
                         >
                           {episode.episodeTitle}
                         </Text>
-                        <View style={seriesStyles.playIconSmall}>
-                          <Text style={seriesStyles.playIcon}>▶</Text>
-                        </View>
+                        {isTvApp ? (
+                          <View style={seriesStyles.playIconSmall}>
+                            <Text style={seriesStyles.playIcon}>▶</Text>
+                          </View>
+                        ) : (
+                          <FontAwesome
+                            name={watched ? "check-circle" : "circle-o"}
+                            size={22}
+                            color={watched ? "#2ecc71" : "#555"}
+                          />
+                        )}
                       </>
                     )}
                   </TouchableOpacity>
-                ))}
-              </View>
+                );
+              })}
             </View>
-          )}
-        </View> : null}
+          </View>
+        )}
 
         {/* Directors */}
         {seriesData.directors.length > 0 && (
@@ -427,7 +614,7 @@ export default function SeriesDetailsScreen({
         {seriesData.views > 0 && (
           <View style={seriesStyles.section}>
             <Text style={seriesStyles.metaText}>
-              👁️ {seriesData.views.toLocaleString()} views
+              {seriesData.views.toLocaleString()} views
             </Text>
           </View>
         )}
@@ -486,6 +673,25 @@ const seriesStyles = StyleSheet.create({
   metaDot: {
     color: "#666",
     marginHorizontal: 8,
+  },
+  progressSummary: {
+    marginBottom: 14,
+  },
+  progressBar: {
+    height: 4,
+    backgroundColor: "#333",
+    borderRadius: 2,
+    overflow: "hidden",
+    marginBottom: 6,
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: "#e74c3c",
+    borderRadius: 2,
+  },
+  progressText: {
+    color: "#888",
+    fontSize: 12,
   },
   genresContainer: {
     flexDirection: "row",
@@ -598,6 +804,10 @@ const seriesStyles = StyleSheet.create({
     borderColor: "#333",
     alignItems: "center",
   },
+  episodeCardWatched: {
+    borderColor: "#2ecc71",
+    backgroundColor: "#0a1a0a",
+  },
   episodeNumber: {
     width: 40,
     height: 40,
@@ -606,6 +816,9 @@ const seriesStyles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 8,
+  },
+  episodeNumberWatched: {
+    backgroundColor: "#2ecc71",
   },
   episodeNumberText: {
     color: "#fff",
@@ -656,5 +869,33 @@ const detailActionStyles = StyleSheet.create({
     backgroundColor: "#1a1a1a",
     padding: 16,
     borderRadius: 8,
+  },
+  statusSection: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  trackedLabel: {
+    color: "#2ecc71",
+    fontSize: 12,
+    marginTop: 4,
+  },
+  resumeSection: {
+    backgroundColor: "#1a1a1a",
+    marginHorizontal: 16,
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: "#e74c3c",
+    marginBottom: 8,
+  },
+  resumeLabel: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  progressLabel: {
+    color: "#888",
+    fontSize: 12,
+    marginTop: 4,
   },
 });

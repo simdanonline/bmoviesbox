@@ -50,9 +50,7 @@ export default function VideoExtractor({ url }: VideoExtractorProps) {
 
   const onMessage = (event: any) => {
     const msg = event.nativeEvent.data;
-    console.log("WebView message received:", msg);
     if (msg && !videoUrl) {
-      console.log("Detected video URL:", msg);
       setVideoUrl(msg);
       webRef.current?.stopLoading();
     }

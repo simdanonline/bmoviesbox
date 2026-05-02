@@ -14,6 +14,7 @@ import { styles } from "../styles/styles";
 import AdBlockingVideoPlayer from "./AdBlockingVideoPlayer";
 import { SafeAreaView } from "react-native-safe-area-context";
 import SecureVideoWebView from "./SecureWebview";
+import VideoHintToast from "../components/VideoHintToast";
 
 type VideoPlayerScreenProps = NativeStackScreenProps<any, "VideoPlayer">;
 
@@ -67,6 +68,7 @@ export default function VideoPlayerScreen({
         )}
 
         <SecureVideoWebView url={server.url} />
+        <VideoHintToast />
       </View>
 
       <View style={styles.playerFooter}>

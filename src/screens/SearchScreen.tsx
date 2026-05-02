@@ -7,71 +7,110 @@ import {
   ActivityIndicator,
   StyleSheet,
   Platform,
+  TouchableOpacity,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import MovieAPI, { Movie } from "../services/MovieAPI";
 import MovieCard from "../components/MovieCard";
-import { width, styles } from "../styles/styles";
 
 type SearchScreenNavigationProp = NativeStackNavigationProp<any>;
+type Tab = "movies" | "series";
 
 const SearchScreen = () => {
   const navigation = useNavigation<SearchScreenNavigationProp>();
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Movie[]>([]);
+  const [movies, setMovies] = useState<Movie[]>([]);
+  const [series, setSeries] = useState<Movie[]>([]);
+  const [activeTab, setActiveTab] = useState<Tab>("movies");
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     const search = async () => {
       try {
         if (query.length > 2) {
           setLoading(true);
           setSearched(true);
           const response = await MovieAPI.searchMovies(query);
-          setResults([...response.results, ...response.series]);
-          setLoading(false);
+          if (cancelled) return;
+
+          const nextMovies = response.results ?? [];
+          const nextSeries = response.series ?? [];
+          setMovies(nextMovies);
+          setSeries(nextSeries);
+
+          // If the user's current tab has no results but the other does,
+          // switch to the populated tab so they see something useful.
+          setActiveTab((prev) => {
+            const prevHas = prev === "movies" ? nextMovies.length : nextSeries.length;
+            if (prevHas > 0) return prev;
+            if (nextMovies.length > 0) return "movies";
+            if (nextSeries.length > 0) return "series";
+            return prev;
+          });
         } else {
-          setResults([]);
-          if (query.length === 0) {
-            setSearched(false);
-          }
+          setMovies([]);
+          setSeries([]);
+          if (query.length === 0) setSearched(false);
         }
-      } catch (error) {
-        setLoading(false);
+      } catch {
+        // swallow — UI shows empty state
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     };
 
     const timer = setTimeout(search, 500);
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [query]);
 
   const handleMoviePress = (movie: Movie) => {
-    // Extract slug from URL
-    const urlParts = movie.url.split("/").filter(Boolean);
-    const slug = urlParts[urlParts.length - 1];
-    if(movie.isSeries) {
+    if (movie.isSeries) {
       navigation.navigate("SeriesDetails", { url: movie.url });
       return;
     }
+    const urlParts = movie.url.split("/").filter(Boolean);
+    const slug = urlParts[urlParts.length - 1];
     navigation.navigate("MovieDetails", { slug, movie });
   };
 
+  const activeResults = activeTab === "movies" ? movies : series;
+  const showTabs = searched && !loading && (movies.length > 0 || series.length > 0);
+
   return (
     <View style={localStyles.container}>
-      {/* Search Header */}
       <View style={localStyles.searchHeader}>
         <TextInput
           style={localStyles.searchInput}
           onChangeText={setQuery}
           value={query}
-          placeholder="Search for movies..."
+          placeholder="Search for movies, series..."
           placeholderTextColor="#666"
         />
       </View>
 
-      {/* No search yet */}
+      {showTabs && (
+        <View style={localStyles.tabRow}>
+          <TabButton
+            label="Movies"
+            count={movies.length}
+            active={activeTab === "movies"}
+            onPress={() => setActiveTab("movies")}
+          />
+          <TabButton
+            label="TV"
+            count={series.length}
+            active={activeTab === "series"}
+            onPress={() => setActiveTab("series")}
+          />
+        </View>
+      )}
+
       {!searched && (
         <View style={localStyles.emptyContainer}>
           <Text style={localStyles.emptyText}>🔍 Search for movies</Text>
@@ -81,7 +120,6 @@ const SearchScreen = () => {
         </View>
       )}
 
-      {/* Loading state */}
       {loading && (
         <View style={localStyles.loadingContainer}>
           <ActivityIndicator size="large" color="#e74c3c" />
@@ -89,20 +127,26 @@ const SearchScreen = () => {
         </View>
       )}
 
-      {/* Results */}
-      {!loading && searched && results.length === 0 && (
+      {!loading && searched && activeResults.length === 0 && (
         <View style={localStyles.emptyContainer}>
           <Text style={localStyles.emptyText}>😔 No results found</Text>
           <Text style={localStyles.emptySubText}>
-            Try searching with different keywords
+            {activeTab === "movies"
+              ? series.length > 0
+                ? `Try the TV tab — ${series.length} match${series.length === 1 ? "" : "es"}`
+                : "Try searching with different keywords"
+              : movies.length > 0
+                ? `Try the Movies tab — ${movies.length} match${movies.length === 1 ? "" : "es"}`
+                : "Try searching with different keywords"}
           </Text>
         </View>
       )}
 
-      {!loading && results.length > 0 && (
+      {!loading && activeResults.length > 0 && (
         <FlatList
-          data={results}
-          keyExtractor={(item) => item.id.toString()}
+          key={activeTab}
+          data={activeResults}
+          keyExtractor={(item) => `${activeTab}-${item.id}`}
           numColumns={Platform.OS === "web" ? 4 : 2}
           columnWrapperStyle={localStyles.columnWrapper}
           contentContainerStyle={localStyles.listContent}
@@ -116,6 +160,45 @@ const SearchScreen = () => {
     </View>
   );
 };
+
+interface TabButtonProps {
+  label: string;
+  count: number;
+  active: boolean;
+  onPress: () => void;
+}
+
+const TabButton: React.FC<TabButtonProps> = ({
+  label,
+  count,
+  active,
+  onPress,
+}) => (
+  <TouchableOpacity
+    style={[localStyles.tab, active && localStyles.tabActive]}
+    onPress={onPress}
+    activeOpacity={0.8}
+  >
+    <Text style={[localStyles.tabLabel, active && localStyles.tabLabelActive]}>
+      {label}
+    </Text>
+    <View
+      style={[
+        localStyles.tabCountBadge,
+        active && localStyles.tabCountBadgeActive,
+      ]}
+    >
+      <Text
+        style={[
+          localStyles.tabCountText,
+          active && localStyles.tabCountTextActive,
+        ]}
+      >
+        {count}
+      </Text>
+    </View>
+  </TouchableOpacity>
+);
 
 const localStyles = StyleSheet.create({
   container: {
@@ -138,6 +221,56 @@ const localStyles = StyleSheet.create({
     fontSize: 16,
     borderWidth: 1,
     borderColor: "#444",
+  },
+  tabRow: {
+    flexDirection: "row",
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 4,
+    gap: 8,
+  },
+  tab: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "#1a1a1a",
+    borderWidth: 1,
+    borderColor: "#333",
+  },
+  tabActive: {
+    backgroundColor: "#e74c3c",
+    borderColor: "#e74c3c",
+  },
+  tabLabel: {
+    color: "#bbb",
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+  tabLabelActive: {
+    color: "#fff",
+  },
+  tabCountBadge: {
+    marginLeft: 8,
+    backgroundColor: "#2a2a2a",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 999,
+    minWidth: 22,
+    alignItems: "center",
+  },
+  tabCountBadgeActive: {
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+  },
+  tabCountText: {
+    color: "#999",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  tabCountTextActive: {
+    color: "#fff",
   },
   columnWrapper: {
     justifyContent: "space-between",

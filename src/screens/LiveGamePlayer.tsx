@@ -5,496 +5,475 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import WebView from "react-native-webview";
 import MovieAPI from "../services/MovieAPI";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { SafeAreaView } from "react-native-safe-area-context";
+import VideoHintToast from "../components/VideoHintToast";
 
-// Comprehensive list of ad domains to block
-const AD_DOMAINS = [
-  "doubleclick.net",
-  "googlesyndication.com",
-  "googleadservices.com",
-  "google-analytics.com",
-  "googletagmanager.com",
-  "googletagservices.com",
-  "adservice.google.com",
-  "pagead2.googlesyndication.com",
-  "facebook.com/tr",
-  "connect.facebook.net",
-  "amazon-adsystem.com",
-  "ads.yahoo.com",
-  "ads.twitter.com",
-  "ads.linkedin.com",
-  "adsrvr.org",
-  "adnxs.com",
-  "rubiconproject.com",
-  "pubmatic.com",
-  "openx.net",
-  "criteo.com",
-  "criteo.net",
-  "outbrain.com",
-  "taboola.com",
-  "mgid.com",
-  "revcontent.com",
-  "adroll.com",
-  "bidswitch.net",
-  "casalemedia.com",
-  "contextweb.com",
-  "indexww.com",
-  "lijit.com",
-  "mathtag.com",
-  "media.net",
-  "moatads.com",
-  "popads.net",
-  "popcash.net",
-  "propellerads.com",
-  "richaudience.com",
-  "scorecardresearch.com",
-  "sharethis.com",
-  "sharethrough.com",
-  "smartadserver.com",
-  "spotxchange.com",
-  "statcounter.com",
-  "stickyadstv.com",
-  "tapad.com",
-  "teads.tv",
-  "tradedoubler.com",
-  "tremorhub.com",
-  "tribalfusion.com",
-  "turn.com",
-  "undertone.com",
-  "yieldmo.com",
-  "zedo.com",
-  "adcolony.com",
-  "unity3d.com",
-  "applovin.com",
-  "mopub.com",
-  "inmobi.com",
-  "chartboost.com",
-  "vungle.com",
-  "ironsrc.com",
-  "adjust.com",
-  "branch.io",
-  "kochava.com",
-  "appsflyer.com",
-  "amplitude.com",
-  "mixpanel.com",
-  "segment.com",
-  "hotjar.com",
-  "crazyegg.com",
-  "clicktale.net",
-  "newrelic.com",
-  "nr-data.net",
-  "onesignal.com",
-  "pushwoosh.com",
-  "leanplum.com",
-  "braze.com",
-  "clevertap.com",
-  "webengage.com",
-  "exoclick.com",
-  "juicyads.com",
-  "trafficjunky.com",
-  "adsterra.com",
-  "hilltopads.com",
-  "clickadu.com",
-  "admaven.com",
-  "ad-maven.com",
-  "propellerclick.com",
-  "onclickmax.com",
-  "pushame.com",
-  "pushengage.com",
-  "exosrv.com",
-  "realsrv.com",
-  "tsyndicate.com",
-  "betrad.com",
-  "bongacams",
-  "livejasmin",
-  "stripchat",
-  "chaturbate",
-  "1xbet",
-  "bet365",
-  "betway",
-  "sponsor.",
-  "banner.",
-  "popunder",
-  "popup",
-  "clicktrack",
-  "tracking.",
+// Generic CDN / video infrastructure allowlist (host substring match).
+// The init host (the embed URL hostname) is added at runtime.
+const NETWORK_ALLOW_NEEDLES = [
+  // Generic CDNs
+  "cloudflare",
+  "akamai",
+  "fastly",
+  "cloudfront",
+  "edgecast",
+  "stackpath",
+  "bootstrapcdn",
+  "jsdelivr",
+  "unpkg",
+  // Video player infra
+  "jwp",
+  "videojs",
+  "hls",
+  "bitmovin",
+  "mux.com",
+  "plyr.io",
+  "vimeocdn",
+  "vidcdn",
+  // Google fonts (NOT analytics/ads)
+  "fonts.googleapis.com",
+  "fonts.gstatic.com",
 ];
 
-// CSS selectors for common ad elements
-const AD_SELECTORS = [
-  '[class*="ad-"]',
-  '[class*="ads-"]',
-  '[class*="advert"]',
-  '[class*="sponsored"]',
-  '[class*="banner"]',
-  '[id*="ad-"]',
-  '[id*="ads-"]',
-  '[id*="advert"]',
-  '[id*="google_ads"]',
-  '[id*="sponsored"]',
-  "[data-ad]",
-  "[data-ads]",
-  "[data-ad-slot]",
-  "[data-ad-client]",
-  "[data-google-query-id]",
-  'iframe[src*="doubleclick"]',
-  'iframe[src*="googlesyndication"]',
-  'iframe[src*="googleads"]',
-  'iframe[id*="google_ads"]',
-  "ins.adsbygoogle",
-  "div.adsbygoogle",
-  ".google-auto-placed",
-  "amp-ad",
-  "amp-embed",
-  "amp-sticky-ad",
-  '[aria-label*="advertisement"]',
-  '[aria-label*="Advertisement"]',
-  '[aria-label*="Sponsored"]',
-  ".ad-container",
-  ".ad-wrapper",
-  ".ad-slot",
-  ".ad-unit",
-  ".ad-banner",
-  ".ad-leaderboard",
-  ".ad-sidebar",
-  ".ad-footer",
-  ".ad-header",
-  ".ad-interstitial",
-  ".ad-overlay",
-  ".ad-popup",
-  ".ad-sticky",
-  ".ad-float",
-  ".ad-fixed",
-  "#ad-container",
-  "#ad-wrapper",
-  "#advertisement",
-  "#sponsorship",
-  'aside[class*="ad"]',
-  'section[class*="ad"]',
-  'div[class*="outbrain"]',
-  'div[class*="taboola"]',
-  ".OUTBRAIN",
-  ".taboola",
-  "#taboola-below-article",
-  "#outbrain-widget",
-  ".promoted-content",
-  ".native-ad",
-  ".dfp-ad",
-  ".gpt-ad",
-  '[class*="popup"]',
-  '[class*="modal"]:not([class*="video"])',
-  '[class*="overlay"]:not([class*="video"])',
-  '[id*="popup"]',
-  '[id*="modal"]:not([id*="video"])',
-  ".push-notification",
-  '[class*="notification-prompt"]',
-  '[class*="subscribe-popup"]',
-  '[class*="newsletter"]',
-  ".floating-ad",
-  ".sticky-ad",
-  ".bottom-ad",
-  ".top-ad",
-  '[class*="adplacement"]',
-  '[class*="adspot"]',
-  '[class*="adzone"]',
-];
+const VIDEO_FILE_PATTERNS = /\.(m3u8|mp4|ts|webm|mkv|mov|mpd|m4s|key)(\?|#|$)/i;
 
-// Comprehensive ad blocker and redirect blocker script
-const AD_BLOCK_SCRIPT = `
+// =============================================================================
+// BEFORE_CONTENT_LOAD: runs at document_start in EVERY frame.
+// {{INIT_HOST}} is replaced with the embed URL's hostname at render time.
+// =============================================================================
+const BEFORE_LOAD_TEMPLATE = `
 (function() {
   'use strict';
-  
-  const adDomains = ${JSON.stringify(AD_DOMAINS)};
-  const adSelectors = ${JSON.stringify(AD_SELECTORS)};
-  
-  // ========== REDIRECT BLOCKING ==========
-  
-  // Block window.open
-  window.open = function() {
-    console.log('[AdBlock] Blocked window.open:', arguments[0]);
-    return null;
-  };
-  
-  // Block location changes via assignment
-  let currentLocation = window.location.href;
-  const locationDescriptor = Object.getOwnPropertyDescriptor(window, 'location');
-  
-  // Intercept location.href, location.replace, location.assign
-  const originalReplace = window.location.replace;
-  const originalAssign = window.location.assign;
-  
-  window.location.replace = function(url) {
-    if (adDomains.some(d => url.includes(d))) {
-      console.log('[AdBlock] Blocked location.replace:', url);
-      return;
-    }
-    return originalReplace.call(this, url);
-  };
-  
-  window.location.assign = function(url) {
-    if (adDomains.some(d => url.includes(d))) {
-      console.log('[AdBlock] Blocked location.assign:', url);
-      return;
-    }
-    return originalAssign.call(this, url);
-  };
-  
-  // Block meta refresh redirects
-  function removeMetaRefresh() {
-    document.querySelectorAll('meta[http-equiv="refresh"]').forEach(tag => tag.remove());
-  }
-  removeMetaRefresh();
-  
-  // ========== AD ELEMENT REMOVAL ==========
-  
-  function removeAds() {
-    const selector = adSelectors.join(', ');
+
+  var INIT_HOST = {{INIT_HOST}};
+  var ALLOWED_NETWORK_NEEDLES = {{ALLOW_NEEDLES}};
+  var VIDEO_RX = /\\.(m3u8|mp4|ts|webm|mkv|mov|mpd|m4s|key)(\\?|#|$)/i;
+
+  function send(tag, payload) {
     try {
-      document.querySelectorAll(selector).forEach(el => el.remove());
-    } catch(e) {}
-    
-    // Remove iframes from ad domains
-    document.querySelectorAll('iframe').forEach(iframe => {
-      const src = (iframe.src || '').toLowerCase();
-      if (adDomains.some(domain => src.includes(domain))) {
-        iframe.remove();
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({tag: tag, data: payload}));
       }
-    });
-    
-    // Remove scripts from ad domains
-    document.querySelectorAll('script').forEach(script => {
-      const src = (script.src || '').toLowerCase();
-      if (adDomains.some(domain => src.includes(domain))) {
-        script.remove();
-      }
-    });
-    
-    // Remove suspicious high z-index overlays (likely popups/ads)
-    document.querySelectorAll('div, aside, section').forEach(el => {
-      const style = window.getComputedStyle(el);
-      const zIndex = parseInt(style.zIndex) || 0;
-      const position = style.position;
-      
-      if (zIndex > 9000 && (position === 'fixed' || position === 'absolute')) {
-        const rect = el.getBoundingClientRect();
-        // If it covers significant screen area, it's likely an overlay ad
-        if (rect.width > window.innerWidth * 0.5 || rect.height > window.innerHeight * 0.5) {
-          // Don't remove if it contains video elements
-          if (!el.querySelector('video, iframe[src*="player"], iframe[src*="embed"]')) {
-            el.remove();
-          }
-        }
-      }
-    });
-    
-    removeMetaRefresh();
+    } catch(_) {}
   }
-  
-  // ========== NETWORK REQUEST BLOCKING ==========
-  
-  // Block fetch requests to ad domains
-  const originalFetch = window.fetch;
-  window.fetch = function(...args) {
-    const url = (args[0]?.url || args[0] || '').toString().toLowerCase();
-    if (adDomains.some(domain => url.includes(domain))) {
-      console.log('[AdBlock] Blocked fetch:', url);
-      return Promise.reject(new Error('Blocked by ad blocker'));
-    }
-    return originalFetch.apply(this, args);
-  };
-  
-  // Block XMLHttpRequest to ad domains
-  const originalXHROpen = XMLHttpRequest.prototype.open;
-  XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-    const urlLower = (url || '').toString().toLowerCase();
-    if (adDomains.some(domain => urlLower.includes(domain))) {
-      console.log('[AdBlock] Blocked XHR:', url);
-      this._blocked = true;
-      return;
-    }
-    return originalXHROpen.call(this, method, url, ...rest);
-  };
-  
-  const originalXHRSend = XMLHttpRequest.prototype.send;
-  XMLHttpRequest.prototype.send = function(...args) {
-    if (this._blocked) return;
-    return originalXHRSend.apply(this, args);
-  };
-  
-  // ========== ELEMENT CREATION INTERCEPTION ==========
-  
-  const originalCreateElement = document.createElement.bind(document);
-  document.createElement = function(tagName) {
-    const element = originalCreateElement(tagName);
-    const tag = tagName.toLowerCase();
-    
-    if (tag === 'script' || tag === 'iframe' || tag === 'img') {
-      const originalSetAttribute = element.setAttribute.bind(element);
-      element.setAttribute = function(name, value) {
-        if (name === 'src' && adDomains.some(domain => value.toLowerCase().includes(domain))) {
-          console.log('[AdBlock] Blocked ' + tag + ' src:', value);
-          return;
-        }
-        return originalSetAttribute(name, value);
-      };
-      
-      let blockedSrc = false;
-      Object.defineProperty(element, 'src', {
-        set: function(value) {
-          if (adDomains.some(domain => value.toLowerCase().includes(domain))) {
-            console.log('[AdBlock] Blocked ' + tag + ' src property:', value);
-            blockedSrc = true;
-            return;
-          }
-          element.setAttribute('src', value);
-        },
-        get: function() {
-          return blockedSrc ? '' : element.getAttribute('src');
+
+  function hostOf(href) {
+    try { return new URL(href, location.href).hostname.toLowerCase(); }
+    catch(_) { return ''; }
+  }
+
+  function isAllowedHost(href) {
+    if (!href) return false;
+    var h = hostOf(href);
+    if (!h) return false;
+    if (INIT_HOST && (h === INIT_HOST || h.endsWith('.' + INIT_HOST))) return true;
+    return ALLOWED_NETWORK_NEEDLES.some(function(n){ return h.indexOf(n) !== -1; });
+  }
+
+  function isAllowedNetworkUrl(url) {
+    if (!url) return true;
+    var s = ('' + url).toLowerCase();
+    if (s.indexOf('data:') === 0 || s.indexOf('blob:') === 0) return true;
+    if (VIDEO_RX.test(s)) return true;
+    return isAllowedHost(s);
+  }
+
+  // ---------- window.open / popups (non-reassignable) ----------
+  try {
+    Object.defineProperty(window, 'open', {
+      value: function() { send('block', {kind:'open', url: arguments[0]||''}); return null; },
+      writable: false, configurable: false
+    });
+  } catch(_) { window.open = function(){ return null; }; }
+
+  // ---------- location traps ----------
+  try {
+    var origAssign = window.location.assign.bind(window.location);
+    var origReplace = window.location.replace.bind(window.location);
+    window.location.assign = function(u) {
+      if (!isAllowedHost(u)) { send('block',{kind:'assign',url:u}); return; }
+      return origAssign(u);
+    };
+    window.location.replace = function(u) {
+      if (!isAllowedHost(u)) { send('block',{kind:'replace',url:u}); return; }
+      return origReplace(u);
+    };
+  } catch(_) {}
+
+  try {
+    var hrefDesc = Object.getOwnPropertyDescriptor(Location.prototype, 'href') ||
+                   Object.getOwnPropertyDescriptor(window.location, 'href');
+    if (hrefDesc && hrefDesc.set) {
+      var origHrefSet = hrefDesc.set;
+      Object.defineProperty(window.location, 'href', {
+        configurable: true,
+        get: hrefDesc.get,
+        set: function(u) {
+          if (!isAllowedHost(u)) { send('block',{kind:'href',url:u}); return; }
+          return origHrefSet.call(window.location, u);
         }
       });
     }
-    
-    // Block meta refresh creation
-    if (tag === 'meta') {
-      const originalSetAttribute = element.setAttribute.bind(element);
-      element.setAttribute = function(name, value) {
-        if (name.toLowerCase() === 'http-equiv' && value.toLowerCase() === 'refresh') {
-          console.log('[AdBlock] Blocked meta refresh');
-          return;
+  } catch(_) {}
+
+  // beforeunload trap
+  window.addEventListener('beforeunload', function(e){
+    e.preventDefault(); e.returnValue = ''; return '';
+  }, true);
+
+  // ---------- meta refresh ----------
+  function killMetaRefresh() {
+    try {
+      document.querySelectorAll('meta[http-equiv="refresh"]').forEach(function(t){ t.remove(); });
+    } catch(_) {}
+  }
+  killMetaRefresh();
+
+  // ---------- insertAdjacentHTML ----------
+  try {
+    var origInsert = Element.prototype.insertAdjacentHTML;
+    Element.prototype.insertAdjacentHTML = function(pos, html) {
+      var s = (html || '').toLowerCase();
+      if (s.indexOf('<scr' + 'ipt') !== -1 || s.indexOf('<ifr' + 'ame') !== -1 || s.indexOf('<emb' + 'ed') !== -1) {
+        send('block',{kind:'insertAdjacentHTML',preview:s.substring(0,80)});
+        return;
+      }
+      return origInsert.call(this, pos, html);
+    };
+  } catch(_) {}
+
+  // ---------- fetch ----------
+  try {
+    var origFetch = window.fetch.bind(window);
+    window.fetch = function() {
+      var url = (arguments[0] && arguments[0].url) || arguments[0] || '';
+      if (!isAllowedNetworkUrl(url)) {
+        send('block',{kind:'fetch',url:('' + url).substring(0,80)});
+        return Promise.resolve(new Response('', {status: 204}));
+      }
+      return origFetch.apply(null, arguments);
+    };
+  } catch(_) {}
+
+  // ---------- XHR ----------
+  try {
+    var origXHROpen = XMLHttpRequest.prototype.open;
+    var origXHRSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function(m, u) {
+      if (!isAllowedNetworkUrl(u)) {
+        this.__blocked = true;
+        send('block',{kind:'xhr',url:('' + u).substring(0,80)});
+      }
+      return origXHROpen.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.send = function() {
+      if (this.__blocked) return;
+      return origXHRSend.apply(this, arguments);
+    };
+  } catch(_) {}
+
+  // ---------- sendBeacon ----------
+  try {
+    if (navigator.sendBeacon) {
+      var origBeacon = navigator.sendBeacon.bind(navigator);
+      navigator.sendBeacon = function(u, d) {
+        if (!isAllowedNetworkUrl(u)) {
+          send('block',{kind:'beacon',url:('' + u).substring(0,80)});
+          return false;
         }
-        return originalSetAttribute(name, value);
+        return origBeacon(u, d);
       };
     }
-    
-    return element;
-  };
-  
-  // ========== VISIBILITY API SPOOFING (prevents "tab hidden" ads) ==========
-  
-  Object.defineProperty(document, 'hidden', { value: false, writable: false });
-  Object.defineProperty(document, 'visibilityState', { value: 'visible', writable: false });
-  document.addEventListener('visibilitychange', e => e.stopImmediatePropagation(), true);
-  
-  // ========== STUB AD LIBRARIES ==========
-  
-  window.googletag = window.googletag || { cmd: [], pubads: () => ({ set: () => {}, refresh: () => {} }) };
-  window.ga = window.ga || function() {};
-  window.gtag = window.gtag || function() {};
-  window.__gads = null;
-  window._gaq = window._gaq || [];
-  window.adsbygoogle = window.adsbygoogle || { loaded: true, push: function() {} };
-  window.google_ad_client = '';
-  window.google_ad_slot = '';
-  
-  // ========== MUTATION OBSERVER ==========
-  
-  const observer = new MutationObserver((mutations) => {
-    let shouldClean = false;
-    mutations.forEach(mutation => {
-      if (mutation.addedNodes.length > 0) {
-        mutation.addedNodes.forEach(node => {
-          if (node.nodeType === 1) {
-            const el = node;
-            const className = (el.className || '').toString().toLowerCase();
-            const id = (el.id || '').toLowerCase();
-            const tagName = (el.tagName || '').toLowerCase();
-            
-            // Quick check for obvious ad elements
-            if (className.includes('ad') || className.includes('popup') || 
-                className.includes('modal') || className.includes('overlay') ||
-                id.includes('ad') || id.includes('popup')) {
-              // Don't remove video-related elements
-              if (!el.querySelector('video') && !className.includes('video') && !id.includes('video')) {
-                shouldClean = true;
-              }
-            }
-            
-            // Check iframes and scripts
-            if (tagName === 'iframe' || tagName === 'script') {
-              const src = (el.src || '').toLowerCase();
-              if (adDomains.some(d => src.includes(d))) {
-                el.remove();
-              }
-            }
+  } catch(_) {}
+
+  // ---------- iframe / script / embed / object .src setters ----------
+  function patchSrc(proto, tagLabel) {
+    try {
+      var d = Object.getOwnPropertyDescriptor(proto, 'src');
+      if (!d || !d.set) return;
+      var origSet = d.set;
+      Object.defineProperty(proto, 'src', {
+        configurable: true,
+        get: d.get,
+        set: function(v) {
+          if (!isAllowedNetworkUrl(v)) {
+            send('block',{kind:tagLabel+'.src',url:('' + v).substring(0,80)});
+            return;
           }
+          return origSet.call(this, v);
+        }
+      });
+    } catch(_) {}
+  }
+  // Iframes are intentionally NOT host-whitelisted — sports stream embeds
+  // commonly nest a player iframe on a rotating CDN that we cannot enumerate.
+  // Popup/redirect/click defenses still apply inside those iframes via
+  // injectedJavaScriptForMainFrameOnly={false}.
+  patchSrc(HTMLScriptElement.prototype, 'script');
+  if (typeof HTMLEmbedElement !== 'undefined') patchSrc(HTMLEmbedElement.prototype, 'embed');
+  if (typeof HTMLObjectElement !== 'undefined') patchSrc(HTMLObjectElement.prototype, 'object');
+
+  // ---------- createElement filter ----------
+  try {
+    var origCreate = document.createElement.bind(document);
+    document.createElement = function(tag) {
+      var el = origCreate(tag);
+      var t = (tag || '').toLowerCase();
+      // Iframe intentionally excluded — see note on patchSrc above.
+      if (t === 'script' || t === 'embed' || t === 'object') {
+        var origSetAttr = el.setAttribute.bind(el);
+        el.setAttribute = function(name, value) {
+          if ((name === 'src' || name === 'data') && !isAllowedNetworkUrl(value)) {
+            send('block',{kind:t+'.setAttribute',url:('' + value).substring(0,80)});
+            return;
+          }
+          return origSetAttr(name, value);
+        };
+      }
+      // Block meta http-equiv=refresh creation
+      if (t === 'meta') {
+        var origMetaSetAttr = el.setAttribute.bind(el);
+        el.setAttribute = function(name, value) {
+          if (name && name.toLowerCase() === 'http-equiv' &&
+              value && value.toLowerCase() === 'refresh') {
+            send('block',{kind:'meta-refresh'});
+            return;
+          }
+          return origMetaSetAttr(name, value);
+        };
+      }
+      return el;
+    };
+  } catch(_) {}
+
+  // ---------- DOM injection guard ----------
+  try {
+    function guardChild(node) {
+      if (!node || !node.tagName) return node;
+      var tag = node.tagName.toLowerCase();
+      // Iframes intentionally excluded — see note on patchSrc above.
+      if (tag === 'script' || tag === 'embed' || tag === 'object') {
+        var src = node.src || node.getAttribute('src') || node.getAttribute('data') || '';
+        if (src && !isAllowedNetworkUrl(src)) {
+          send('block',{kind:tag+'.append',url:('' + src).substring(0,80)});
+          return document.createComment('blocked-' + tag);
+        }
+      }
+      return node;
+    }
+    var origAppend = Node.prototype.appendChild;
+    var origInsertNode = Node.prototype.insertBefore;
+    Node.prototype.appendChild = function(node) {
+      return origAppend.call(this, guardChild(node));
+    };
+    Node.prototype.insertBefore = function(node, ref) {
+      return origInsertNode.call(this, guardChild(node), ref);
+    };
+  } catch(_) {}
+
+  // ---------- visibility spoofing (kills "tab hidden" ad nags) ----------
+  try {
+    Object.defineProperty(document, 'hidden', { value: false, writable: false, configurable: false });
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', writable: false, configurable: false });
+    document.addEventListener('visibilitychange', function(e){ e.stopImmediatePropagation(); }, true);
+  } catch(_) {}
+
+  // ---------- ad-library stubs ----------
+  try {
+    window.googletag = window.googletag || { cmd: [], pubads: function(){ return { set: function(){}, refresh: function(){} }; } };
+    window.ga = window.ga || function(){};
+    window.gtag = window.gtag || function(){};
+    window.adsbygoogle = window.adsbygoogle || { loaded: true, push: function(){} };
+  } catch(_) {}
+
+  // ---------- force-unmute video (Android Chrome auto-mutes on autoplay) ----------
+  function unmuteVideo(v) {
+    try {
+      if (v.hasAttribute('muted')) v.removeAttribute('muted');
+      if (v.muted) v.muted = false;
+      if (v.volume < 1) v.volume = 1.0;
+    } catch(_) {}
+  }
+  try {
+    var origVideoCreate = document.createElement.bind(document);
+    document.createElement = function(tag) {
+      var el = origVideoCreate(tag);
+      if ((tag || '').toLowerCase() === 'video') {
+        ['loadedmetadata','play','playing','canplay','canplaythrough'].forEach(function(evt){
+          el.addEventListener(evt, function(){ unmuteVideo(el); });
+        });
+        el.addEventListener('volumechange', function(){
+          if (el.muted) unmuteVideo(el);
         });
       }
-    });
-    if (shouldClean) {
-      removeAds();
-    }
-  });
-  
-  if (document.body) {
-    observer.observe(document.body, { childList: true, subtree: true });
-  } else {
-    document.addEventListener('DOMContentLoaded', () => {
-      observer.observe(document.body, { childList: true, subtree: true });
-    });
-  }
-  
-  // ========== PERIODIC CLEANUP ==========
-  
-  removeAds();
-  setInterval(removeAds, 1500);
-  
-  // ========== CLICK HIJACKING PROTECTION ==========
-  
-  document.addEventListener('click', function(e) {
-    const target = e.target;
-    if (target.tagName === 'A') {
-      const href = (target.href || '').toLowerCase();
-      if (adDomains.some(d => href.includes(d))) {
-        e.preventDefault();
-        e.stopPropagation();
-        console.log('[AdBlock] Blocked ad link click:', href);
+      return el;
+    };
+  } catch(_) {}
+
+  // ---------- click / pointer hijack guards ----------
+  function isHostileLink(el) {
+    while (el && el !== document.body) {
+      if (el.tagName === 'A') {
+        var href = (el.href || '').toLowerCase();
+        if (!href || href.indexOf('javascript:void') === 0) return false;
+        if (!isAllowedHost(href)) return true;
       }
+      el = el.parentElement;
     }
-  }, true);
-  
-  console.log('[AdBlock] Strict ad blocker activated');
+    return false;
+  }
+
+  ['click','mousedown','mouseup','pointerdown','pointerup','touchstart','touchend','auxclick','contextmenu'].forEach(function(evt){
+    document.addEventListener(evt, function(e){
+      if (isHostileLink(e.target)) {
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        send('block',{kind:evt,target:String(e.target && e.target.tagName)});
+      }
+    }, true);
+  });
+
+  send('init', {frame: location.hostname});
 })();
 true;
 `;
 
-// CSS injection to hide ads before JS runs
-const AD_BLOCK_CSS = `
-${AD_SELECTORS.map((s) => s).join(",\n")} {
-  display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-  height: 0 !important;
-  width: 0 !important;
-  max-height: 0 !important;
-  max-width: 0 !important;
-  overflow: hidden !important;
-  position: absolute !important;
-  left: -9999px !important;
-}
-
-div[style*="z-index: 9999"],
-div[style*="z-index:9999"],
-div[style*="z-index: 99999"],
-div[style*="position: fixed"][style*="inset: 0"] {
-  display: none !important;
-}
-`;
-
-const CSS_INJECTION_SCRIPT = `
+// =============================================================================
+// AT_LOAD: tighter CSS selectors (no [class*="modal"] / overlay / popup
+// because those false-positive on player UI). DOM cleanup observer.
+// =============================================================================
+const RUNTIME_TEMPLATE = `
 (function() {
-  const style = document.createElement('style');
-  style.type = 'text/css';
-  style.id = 'adblock-css';
-  style.appendChild(document.createTextNode(\`${AD_BLOCK_CSS.replace(
-    /`/g,
-    "\\`"
-  )}\`));
+  'use strict';
+
+  var INIT_HOST = {{INIT_HOST}};
+  var ALLOWED_NETWORK_NEEDLES = {{ALLOW_NEEDLES}};
+
+  function hostOf(href) {
+    try { return new URL(href, location.href).hostname.toLowerCase(); }
+    catch(_) { return ''; }
+  }
+  function isAllowedHost(href) {
+    if (!href) return false;
+    var h = hostOf(href);
+    if (!h) return false;
+    if (INIT_HOST && (h === INIT_HOST || h.endsWith('.' + INIT_HOST))) return true;
+    return ALLOWED_NETWORK_NEEDLES.some(function(n){ return h.indexOf(n) !== -1; });
+  }
+
+  // ---------- CSS rules (conservative — won't hide player chrome) ----------
+  var style = document.createElement('style');
+  style.textContent = [
+    'ins.adsbygoogle, div.adsbygoogle, [data-ad-client], [data-ad-slot] { display: none !important; }',
+    '[class*="adsbygoogle"], [id*="google_ads"], [aria-label*="Advertisement"], [aria-label*="advertisement"] { display: none !important; }',
+    'iframe[src*="doubleclick"], iframe[src*="googlesyndication"], iframe[src*="adservice"] { display: none !important; }',
+    '[id*="ad-banner"], [id*="ad_banner"], [class*="ad-banner"], [class*="ad_banner"] { display: none !important; }',
+    '.ad-container, .ad-wrapper, .ad-slot, .ad-unit, .ad-leaderboard, .ad-sidebar, .ad-interstitial, .ad-overlay, .ad-sticky, .ad-float, .ad-fixed { display: none !important; }',
+    '.OUTBRAIN, .taboola, #taboola-below-article, #outbrain-widget, .promoted-content, .native-ad, .dfp-ad, .gpt-ad { display: none !important; }',
+    'amp-ad, amp-embed, amp-sticky-ad { display: none !important; }',
+    'body { overscroll-behavior: contain !important; }'
+  ].join('\\n');
   (document.head || document.documentElement).appendChild(style);
+
+  function killMetaRefresh() {
+    try {
+      document.querySelectorAll('meta[http-equiv="refresh"]').forEach(function(t){ t.remove(); });
+    } catch(_) {}
+  }
+
+  function removeOverlays() {
+    var els = document.querySelectorAll('div, aside, section');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      var st;
+      try { st = window.getComputedStyle(el); } catch(_) { continue; }
+      var z = parseInt(st.zIndex) || 0;
+      var pos = st.position;
+      // Higher z-index threshold than movie blocker — sports streams stack player chrome
+      if (z > 9000 && (pos === 'fixed' || pos === 'absolute')) {
+        var rect = el.getBoundingClientRect();
+        var op = parseFloat(st.opacity);
+        var bg = st.backgroundColor;
+        if (rect.width > window.innerWidth * 0.5 || rect.height > window.innerHeight * 0.5) {
+          var transparent = op < 0.1 || bg === 'transparent' || bg === 'rgba(0, 0, 0, 0)';
+          var hasMedia = el.querySelector('video, iframe[src*="player"], iframe[src*="embed"], iframe[src*="stream"]');
+          var className = ((el.className || '') + '').toLowerCase();
+          var idStr = ((el.id || '') + '').toLowerCase();
+          var isPlayer = className.indexOf('player') !== -1 || className.indexOf('video') !== -1 ||
+                         idStr.indexOf('player') !== -1 || idStr.indexOf('video') !== -1;
+          if (transparent && !hasMedia && !isPlayer) {
+            try { el.remove(); } catch(_) {}
+          }
+        }
+      }
+    }
+  }
+
+  function removeAds() {
+    var iframes = document.querySelectorAll('iframe');
+    for (var i = 0; i < iframes.length; i++) {
+      var ifr = iframes[i];
+      // Never touch the actual player iframe
+      if (ifr.closest('[class*="player"]') || ifr.closest('[id*="player"]')) continue;
+      var src = (ifr.src || '').toLowerCase();
+      var st;
+      try { st = window.getComputedStyle(ifr); } catch(_) { st = null; }
+      // Hidden / tiny iframes are tracking pixels
+      if (st && (st.display === 'none' || ifr.width === '0' || ifr.height === '0' ||
+          parseInt(st.width) < 10 || parseInt(st.height) < 10)) {
+        try { ifr.remove(); } catch(_) {}
+        continue;
+      }
+      if (src === '' || src === 'about:blank') {
+        try { ifr.remove(); } catch(_) {}
+        continue;
+      }
+      // NOTE: do NOT remove iframes purely because the host isn't on the
+      // allowlist. Stream embeds (especially F1) commonly nest a player
+      // iframe pointing at a rotating, no-name CDN — killing them
+      // breaks playback. The src-setter, fetch, XHR, sendBeacon, click,
+      // and popup hooks already fail-close on those hosts.
+    }
+
+    var ads = document.querySelectorAll(
+      'ins.adsbygoogle, div.adsbygoogle, [data-ad-client], [data-ad-slot], ' +
+      '[id*="banner_ad"], [class*="banner_ad"], .ad-container, .ad-wrapper, .ad-slot, ' +
+      '.OUTBRAIN, .taboola, .promoted-content, .native-ad, amp-ad, amp-embed, amp-sticky-ad'
+    );
+    for (var j = 0; j < ads.length; j++) { try { ads[j].remove(); } catch(_) {} }
+
+    killMetaRefresh();
+    removeOverlays();
+  }
+
+  function unmuteAllVideos() {
+    var vids = document.querySelectorAll('video');
+    for (var k = 0; k < vids.length; k++) {
+      var v = vids[k];
+      try {
+        if (v.hasAttribute('muted')) v.removeAttribute('muted');
+        if (v.muted) v.muted = false;
+        if (v.volume < 1) v.volume = 1.0;
+      } catch(_) {}
+    }
+  }
+
+  removeAds();
+  unmuteAllVideos();
+  try {
+    var observer = new MutationObserver(function(){ removeAds(); unmuteAllVideos(); });
+    if (document.body) {
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['muted']
+      });
+    }
+  } catch(_) {}
+  setInterval(function(){ removeAds(); unmuteAllVideos(); }, 1000);
 })();
 true;
 `;
@@ -525,69 +504,78 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
     }
   };
 
-  // Check if URL should be blocked
-  const shouldBlockUrl = useCallback((requestUrl: string): boolean => {
-    const lowercaseUrl = requestUrl.toLowerCase();
-    return AD_DOMAINS.some((domain) => lowercaseUrl.includes(domain));
-  }, []);
+  // Derive init host from the embed URL
+  const initHost = useMemo(() => {
+    if (!embedLink) return "";
+    try {
+      return new URL(embedLink).hostname.toLowerCase();
+    } catch {
+      return "";
+    }
+  }, [embedLink]);
 
+  // Build the injection scripts with the init host baked in
+  const { beforeLoadScript, runtimeScript } = useMemo(() => {
+    const allowJson = JSON.stringify(NETWORK_ALLOW_NEEDLES);
+    const hostJson = JSON.stringify(initHost);
+    return {
+      beforeLoadScript: BEFORE_LOAD_TEMPLATE.replace(
+        /\{\{INIT_HOST\}\}/g,
+        hostJson
+      ).replace(/\{\{ALLOW_NEEDLES\}\}/g, allowJson),
+      runtimeScript: RUNTIME_TEMPLATE.replace(
+        /\{\{INIT_HOST\}\}/g,
+        hostJson
+      ).replace(/\{\{ALLOW_NEEDLES\}\}/g, allowJson),
+    };
+  }, [initHost]);
+
+  // Native-side request guard. On iOS this fires for every sub-resource
+  // (including nested player iframes); on Android only main-frame nav.
+  // We deliberately keep this LENIENT — the in-frame JS hooks
+  // (popup/redirect/fetch/click) handle the bulk of ad blocking, and
+  // sports stream embeds commonly nest player iframes on rotating CDNs we
+  // can't enumerate. We only deny obvious hostile patterns here.
   const handleShouldStartLoadWithRequest = useCallback(
     (request: { url: string }) => {
-      // Block ad domain requests
-      if (shouldBlockUrl(request.url)) {
-        console.log("[AdBlock] Blocked navigation to:", request.url);
-        return false;
-      }
-
-      // Allow data URLs
-      if (request.url.startsWith("data:") || request.url.startsWith("blob:")) {
+      const reqUrl = request.url;
+      if (!reqUrl) return true;
+      if (reqUrl.startsWith("data:") || reqUrl.startsWith("blob:")) {
         return true;
       }
-
-      // Allow the initial embed URL
-      if (!embedLink) return true;
-
-      try {
-        const initialDomain = new URL(embedLink).hostname;
-        const requestDomain = new URL(request.url).hostname;
-
-        // Allow same-domain and subdomains
-        if (
-          requestDomain === initialDomain ||
-          requestDomain.endsWith("." + initialDomain)
-        ) {
-          return true;
-        }
-
-        // Allow common CDNs and video hosts
-        const allowedDomains = [
-          "cloudflare.com",
-          "jsdelivr.net",
-          "cdnjs.cloudflare.com",
-          "akamaized.net",
-          "fastly.net",
-          "cloudfront.net",
-          "googleapis.com",
-          "gstatic.com",
-          "jwpcdn.com",
-          "jwplayer.com",
-          "videojs.com",
-          "vimeocdn.com",
-          "vidcdn.pro",
-          "hlsjs.video-cdn",
-        ];
-
-        if (allowedDomains.some((d) => requestDomain.includes(d))) {
-          return true;
-        }
-
-        console.log("[AdBlock] Blocked external navigation to:", request.url);
+      if (reqUrl === "about:blank") {
+        console.log("[AdBlock] ✗ Blocked: about:blank");
         return false;
-      } catch (e) {
-        return true;
       }
+      if (
+        reqUrl.startsWith("file:") ||
+        reqUrl.startsWith("javascript:")
+      ) {
+        return false;
+      }
+      // Known-bad ad-network hosts (small, conservative blacklist).
+      const lower = reqUrl.toLowerCase();
+      const HARD_BLOCK = [
+        "doubleclick.net",
+        "googlesyndication.com",
+        "googleadservices.com",
+        "adservice.google.com",
+        "popads.net",
+        "popcash.net",
+        "propellerads.com",
+        "exoclick.com",
+        "juicyads.com",
+        "adsterra.com",
+        "hilltopads.com",
+        "trafficjunky.com",
+      ];
+      if (HARD_BLOCK.some((d) => lower.includes(d))) {
+        console.log("[AdBlock] ✗ Hard-blocked nav:", reqUrl.substring(0, 60));
+        return false;
+      }
+      return true;
     },
-    [embedLink, shouldBlockUrl]
+    []
   );
 
   if (loading) {
@@ -637,6 +625,7 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
           <Text style={styles.headerSource}>Stream: {stream.source}</Text>
         )}
       </View>
+      <View style={styles.playerArea}>
       {Platform.OS === "web" ? (
         <iframe
           src={embedLink}
@@ -648,7 +637,7 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
           source={{
             uri: embedLink,
             headers: {
-              Referer: "https://sportytrend.net/",
+              Referer: link || embedLink,
               "User-Agent":
                 Platform.OS === "ios"
                   ? "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
@@ -656,19 +645,28 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
             },
           }}
           style={styles.webview}
-          injectedJavaScriptBeforeContentLoaded={CSS_INJECTION_SCRIPT}
-          injectedJavaScript={AD_BLOCK_SCRIPT}
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-          startInLoadingState={true}
-          allowsInlineMediaPlayback={true}
+          // Inject into EVERY frame, at document_start AND document_end
+          injectedJavaScriptBeforeContentLoaded={beforeLoadScript}
+          injectedJavaScript={runtimeScript}
+          injectedJavaScriptForMainFrameOnly={false}
+          injectedJavaScriptBeforeContentLoadedForMainFrameOnly={false}
+          javaScriptEnabled
+          domStorageEnabled
+          startInLoadingState
+          allowsInlineMediaPlayback
+          allowsFullscreenVideo
           mediaPlaybackRequiresUserAction={false}
-          scalesPageToFit={true}
+          scalesPageToFit
           thirdPartyCookiesEnabled={false}
           sharedCookiesEnabled={false}
           allowFileAccess={false}
           allowUniversalAccessFromFileURLs={false}
           mixedContentMode="compatibility"
+          setSupportMultipleWindows={false}
+          javaScriptCanOpenWindowsAutomatically={false}
+          androidLayerType="hardware"
+          cacheEnabled={false}
+          incognito
           onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
           renderLoading={() => (
             <View style={styles.loadingContainer}>
@@ -680,11 +678,25 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
             console.warn("WebView error: ", nativeEvent);
           }}
           onMessage={(event) => {
-            // Log messages from ad blocker script
-            console.log("[WebView]:", event.nativeEvent.data);
+            try {
+              const msg = JSON.parse(event.nativeEvent.data);
+              if (msg && msg.tag === "block") {
+                console.log(
+                  "[AdBlock] ✗",
+                  msg.data?.kind,
+                  msg.data?.url ?? msg.data?.preview ?? ""
+                );
+              } else if (msg && msg.tag === "init") {
+                console.log("[AdBlock] init in frame:", msg.data?.frame);
+              }
+            } catch {
+              console.log("[WebView]:", event.nativeEvent.data);
+            }
           }}
         />
       )}
+        <VideoHintToast />
+      </View>
     </SafeAreaView>
   );
 };
@@ -726,6 +738,10 @@ const styles = StyleSheet.create({
   },
   webview: {
     flex: 1,
+  },
+  playerArea: {
+    flex: 1,
+    position: "relative",
   },
   loadingContainer: {
     ...StyleSheet.absoluteFillObject,

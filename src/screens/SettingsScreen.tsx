@@ -8,6 +8,8 @@ import {
   StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { styles } from "../styles/styles";
 import { useUserData } from "../context/UserDataContext";
 import MovieAPI from "../services/MovieAPI";
@@ -15,14 +17,25 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 
 export default function SettingsScreen() {
-  const { watchlist, history, ratings, clearHistory } = useUserData();
+  const navigation = useNavigation<NativeStackNavigationProp<any>>();
+  const {
+    watchlist,
+    history,
+    ratings,
+    clearHistory,
+    library,
+    reminders,
+    resetTasteProfile,
+    isOnboardingComplete,
+  } = useUserData();
 
   const ratingsCount = Object.keys(ratings).length;
+  const activeReminders = reminders.filter((r) => r.active).length;
 
   const handleClearCache = () => {
     Alert.alert(
       "Clear Cache",
-      "This will clear all cached movie and series data. Your watchlist and ratings will be kept.",
+      "This will clear all cached movie and series data. Your library and ratings will be kept.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -52,6 +65,24 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleResetOnboarding = () => {
+    Alert.alert(
+      "Reset Profile & Onboarding",
+      "This will clear your taste preferences. On the next app launch, onboarding will appear again.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset",
+          style: "destructive",
+          onPress: () => {
+            resetTasteProfile();
+            Alert.alert("Done", "Taste profile has been reset.");
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -64,9 +95,9 @@ export default function SettingsScreen() {
           <Text style={settingsStyles.sectionTitle}>Your Activity</Text>
           <View style={settingsStyles.statsRow}>
             <View style={settingsStyles.statCard}>
-              <FontAwesome name="bookmark" size={20} color="#e74c3c" />
-              <Text style={settingsStyles.statNumber}>{watchlist.length}</Text>
-              <Text style={settingsStyles.statLabel}>In Watchlist</Text>
+              <FontAwesome name="folder-open" size={20} color="#e74c3c" />
+              <Text style={settingsStyles.statNumber}>{library.length}</Text>
+              <Text style={settingsStyles.statLabel}>In Library</Text>
             </View>
             <View style={settingsStyles.statCard}>
               <FontAwesome name="eye" size={20} color="#e74c3c" />
@@ -79,6 +110,71 @@ export default function SettingsScreen() {
               <Text style={settingsStyles.statLabel}>Rated</Text>
             </View>
           </View>
+        </View>
+
+        {/* Preferences */}
+        <View style={settingsStyles.section}>
+          <Text style={settingsStyles.sectionTitle}>Preferences</Text>
+
+          <TouchableOpacity
+            style={settingsStyles.settingRow}
+            onPress={() => navigation.navigate("Preferences")}
+          >
+            <View style={settingsStyles.settingLeft}>
+              <FontAwesome name="sliders" size={18} color="#aaa" />
+              <View style={settingsStyles.settingTextContainer}>
+                <Text style={settingsStyles.settingText}>
+                  Edit Taste Preferences
+                </Text>
+                <Text style={settingsStyles.settingDetail}>
+                  {isOnboardingComplete
+                    ? "Customize your recommendations"
+                    : "Not set up yet"}
+                </Text>
+              </View>
+            </View>
+            <FontAwesome name="chevron-right" size={14} color="#555" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={settingsStyles.settingRow}
+            onPress={handleResetOnboarding}
+          >
+            <View style={settingsStyles.settingLeft}>
+              <FontAwesome name="refresh" size={18} color="#aaa" />
+              <View style={settingsStyles.settingTextContainer}>
+                <Text style={settingsStyles.settingText}>
+                  Reset Onboarding & Profile
+                </Text>
+                <Text style={settingsStyles.settingDetail}>
+                  Clear taste preferences
+                </Text>
+              </View>
+            </View>
+            <FontAwesome name="chevron-right" size={14} color="#555" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Reminders */}
+        <View style={settingsStyles.section}>
+          <Text style={settingsStyles.sectionTitle}>Notifications</Text>
+          <View style={settingsStyles.settingRow}>
+            <View style={settingsStyles.settingLeft}>
+              <FontAwesome name="bell" size={18} color="#aaa" />
+              <View style={settingsStyles.settingTextContainer}>
+                <Text style={settingsStyles.settingText}>
+                  Active Reminders
+                </Text>
+                <Text style={settingsStyles.settingDetail}>
+                  {activeReminders} reminder{activeReminders !== 1 ? "s" : ""}{" "}
+                  set
+                </Text>
+              </View>
+            </View>
+          </View>
+          <Text style={settingsStyles.hintText}>
+            Manage reminders from the Calendar tab or individual title pages.
+          </Text>
         </View>
 
         {/* Data Management */}
@@ -209,5 +305,11 @@ const settingsStyles = StyleSheet.create({
   settingDetail: {
     color: "#888",
     fontSize: 13,
+  },
+  hintText: {
+    color: "#666",
+    fontSize: 12,
+    marginTop: 8,
+    lineHeight: 16,
   },
 });

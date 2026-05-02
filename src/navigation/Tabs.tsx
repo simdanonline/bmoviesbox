@@ -2,7 +2,8 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Text } from "react-native";
 import HomeScreen from "../screens/HomeScreen";
 import SeriesList from "../screens/SeriesList";
-import WatchlistScreen from "../screens/WatchlistScreen";
+import LibraryScreen from "../screens/LibraryScreen";
+import CalendarScreen from "../screens/CalendarScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import AntDesign from "@expo/vector-icons/build/AntDesign";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
@@ -38,13 +39,24 @@ function MyTabs() {
         }}
       />
       <Tab.Screen
-        name="Watchlist"
-        component={WatchlistScreen}
+        name="Library"
+        component={LibraryScreen}
         options={{
           headerShown: false,
-          tabBarLabel: () => <Text style={{ color: "#fff" }}>Watchlist</Text>,
+          tabBarLabel: () => <Text style={{ color: "#fff" }}>Library</Text>,
           tabBarIcon: ({ focused }) => (
-            <FontAwesome name="bookmark" size={24} color={focused ? "#fff" : "#999"} />
+            <FontAwesome name="folder-open" size={22} color={focused ? "#fff" : "#999"} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Calendar"
+        component={CalendarScreen}
+        options={{
+          headerShown: false,
+          tabBarLabel: () => <Text style={{ color: "#fff" }}>Calendar</Text>,
+          tabBarIcon: ({ focused }) => (
+            <FontAwesome name="calendar" size={22} color={focused ? "#fff" : "#999"} />
           ),
         }}
       />

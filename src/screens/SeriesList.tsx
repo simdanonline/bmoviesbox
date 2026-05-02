@@ -72,7 +72,6 @@ export default function SeriesList({ navigation }: SeriesListProps) {
     // Extract slug from URL
     const urlParts = movie.url.split("/").filter(Boolean);
     const slug = urlParts[urlParts.length - 1];
-    console.log("Navigating to SeriesDetails with slug:", movie.url);
     navigation.navigate("SeriesDetails", { url: movie.url });
   };
 
