@@ -50,7 +50,7 @@ export default function MovieCard({ movie, onPress, style }: MovieCardProps) {
 
         {movie.imdbRating && (
           <View style={styles.cardRating}>
-            <Text style={styles.cardRatingText}>⭐ {movie.imdbRating}</Text>
+            <Text style={styles.cardRatingText}>⭐ {(parseFloat(movie?.imdbRating || "0")).toFixed(1)}</Text>
           </View>
         )}
 
