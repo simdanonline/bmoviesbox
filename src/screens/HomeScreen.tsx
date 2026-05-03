@@ -305,6 +305,14 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           </View>
         )}
 
+        {/* Featured Movie */}
+        {featuredMovie && (
+          <FeaturedMovie
+            movie={featuredMovie}
+            onPress={() => handleMoviePress(featuredMovie)}
+          />
+        )}
+
         {/* Continue Watching */}
         {!isTvApp && (
           <ContinueWatchingSection
@@ -322,14 +330,6 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             onPress={handleMoviePress}
           />
         ))}
-
-        {/* Featured Movie */}
-        {featuredMovie && (
-          <FeaturedMovie
-            movie={featuredMovie}
-            onPress={() => handleMoviePress(featuredMovie)}
-          />
-        )}
 
         {/* Genre Filters */}
         {allGenres.length > 0 && (

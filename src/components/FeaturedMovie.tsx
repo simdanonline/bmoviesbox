@@ -61,7 +61,7 @@ export default function FeaturedMovie({ movie, onPress }: FeaturedMovieProps) {
         {movie.imdbRating && (
           <View style={styles.ratingBadge}>
             <Text style={styles.ratingBadgeText}>
-              ⭐ {movie.imdbRating}/10
+              ⭐ {(parseFloat(movie?.imdbRating || "0").toFixed(1))}/10
             </Text>
           </View>
         )}
