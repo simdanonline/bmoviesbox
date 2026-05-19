@@ -19,7 +19,6 @@
     },
     "tv": {
       "extends": "preview",
-      "platform": "android",
       "env": { "EXPO_TV": "1" },
       "channel": "tv",
       "android": {
