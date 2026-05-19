@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -25,6 +25,11 @@ const SearchScreen = () => {
   const [activeTab, setActiveTab] = useState<Tab>("movies");
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (Platform.isTV) inputRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,6 +91,7 @@ const SearchScreen = () => {
     <View style={localStyles.container}>
       <View style={localStyles.searchHeader}>
         <TextInput
+          ref={inputRef}
           style={localStyles.searchInput}
           onChangeText={setQuery}
           value={query}
