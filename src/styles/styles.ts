@@ -139,6 +139,16 @@ export const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: "#1a1a1a",
   },
+  cardFocused: {
+    transform: [{ scale: 1.08 }],
+    borderWidth: 3,
+    borderColor: "#e74c3c",
+    shadowColor: "#e74c3c",
+    shadowOpacity: 0.6,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 12,
+  },
   cardImageWrapper: {
     position: "relative",
     width: "100%",
