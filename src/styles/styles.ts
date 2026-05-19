@@ -2,6 +2,15 @@ import { StyleSheet, Dimensions, Platform } from "react-native";
 
 export const { width, height } = Dimensions.get("window");
 
+// TV-aware card sizing. Google TV is always landscape (typically 1920x1080).
+// On phones, cards stay percentage-based ("48%"/"24%"). On TV, target ~7 cards
+// visible per row at 1920px wide for a comfortable across-the-room density.
+const TV_CARD_WIDTH = Math.min(width / 7, 260);
+const TV_CARD_IMAGE_HEIGHT = Math.min((width / 7) * 1.5, 390);
+// TV overscan: many TVs clip ~3-5% on the edges. Bump horizontal padding so
+// rails/grids don't get cropped.
+const TV_HORIZONTAL_PADDING = Math.round(width * 0.05);
+
 export const styles = StyleSheet.create({
   // Global
   container: {
@@ -116,7 +125,7 @@ export const styles = StyleSheet.create({
 
   // Movies Section
   moviesSection: {
-    paddingHorizontal: 16,
+    paddingHorizontal: Platform.isTV ? TV_HORIZONTAL_PADDING : 16,
     paddingVertical: 20,
   },
   sectionTitle: {
@@ -133,7 +142,11 @@ export const styles = StyleSheet.create({
 
   // Movie Card
   movieCardContainer: {
-    width: Platform.OS === "web" ? "24%" : "48%",
+    width: Platform.isTV
+      ? TV_CARD_WIDTH
+      : Platform.OS === "web"
+        ? "24%"
+        : "48%",
     marginBottom: 16,
     borderRadius: 8,
     overflow: "hidden",
@@ -152,7 +165,7 @@ export const styles = StyleSheet.create({
   cardImageWrapper: {
     position: "relative",
     width: "100%",
-    height: 200,
+    height: Platform.isTV ? TV_CARD_IMAGE_HEIGHT : 200,
     backgroundColor: "#2a2a2a",
   },
   cardImage: {
