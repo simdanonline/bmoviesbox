@@ -27,8 +27,13 @@
     },
     "plugins": [
       [
-        "expo-video"
+        "@react-native-tvos/config-tv",
+        {
+          "androidTVBanner": "./assets/images/tv-banner.png",
+          "isTV": true
+        }
       ],
+      ["expo-video"],
       "expo-web-browser",
       [
         "expo-notifications",
