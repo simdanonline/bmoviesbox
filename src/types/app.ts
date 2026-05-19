@@ -1,4 +1,8 @@
-export type WatchStatus = "want_to_watch" | "watching" | "completed" | "dropped";
+export type WatchStatus =
+  | "want_to_watch"
+  | "watching"
+  | "completed"
+  | "dropped";
 
 export type Mood =
   | "exciting"
@@ -25,7 +29,14 @@ export const RUNTIME_LABELS: Record<RuntimeBucket, string> = {
   over_120: "Over 2 hours",
 };
 
-export const DECADES = ["2020s", "2010s", "2000s", "1990s", "1980s", "Classic (pre-1980)"];
+export const DECADES = [
+  "2020s",
+  "2010s",
+  "2000s",
+  "1990s",
+  "1980s",
+  "Classic (pre-1980)",
+];
 
 export const ALL_GENRES = [
   "Action",
@@ -142,6 +153,32 @@ export interface TitleReminder {
   leadTime: "at_time" | "1_hour_before" | "1_day_before";
   notificationId: string | null;
   active: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type WatchPlanStatus = "planned" | "done" | "skipped";
+
+export interface WatchPlanItem {
+  id: string;
+  titleUrl: string;
+  detailSlug?: string | null;
+  title: string;
+  isSeries: boolean;
+  thumbnail?: string | null;
+  plannedFor: string;
+  note: string;
+  status: WatchPlanStatus;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface TitleNote {
+  titleUrl: string;
+  title: string;
+  isSeries: boolean;
+  thumbnail?: string | null;
+  body: string;
   createdAt: number;
   updatedAt: number;
 }

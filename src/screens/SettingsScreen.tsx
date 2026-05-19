@@ -25,12 +25,18 @@ export default function SettingsScreen() {
     clearHistory,
     library,
     reminders,
+    watchPlans,
+    titleNotes,
     resetTasteProfile,
     isOnboardingComplete,
   } = useUserData();
 
   const ratingsCount = Object.keys(ratings).length;
   const activeReminders = reminders.filter((r) => r.active).length;
+  const activePlans = watchPlans.filter(
+    (plan) => plan.status === "planned",
+  ).length;
+  const noteCount = Object.keys(titleNotes).length;
 
   const handleClearCache = () => {
     Alert.alert(
@@ -50,7 +56,7 @@ export default function SettingsScreen() {
             Alert.alert("Done", "Cache cleared successfully.");
           },
         },
-      ]
+      ],
     );
   };
 
@@ -61,7 +67,7 @@ export default function SettingsScreen() {
       [
         { text: "Cancel", style: "cancel" },
         { text: "Clear", style: "destructive", onPress: clearHistory },
-      ]
+      ],
     );
   };
 
@@ -79,7 +85,7 @@ export default function SettingsScreen() {
             Alert.alert("Done", "Taste profile has been reset.");
           },
         },
-      ]
+      ],
     );
   };
 
@@ -108,6 +114,11 @@ export default function SettingsScreen() {
               <FontAwesome name="star" size={20} color="#ffc107" />
               <Text style={settingsStyles.statNumber}>{ratingsCount}</Text>
               <Text style={settingsStyles.statLabel}>Rated</Text>
+            </View>
+            <View style={settingsStyles.statCard}>
+              <FontAwesome name="calendar-check-o" size={20} color="#e74c3c" />
+              <Text style={settingsStyles.statNumber}>{activePlans}</Text>
+              <Text style={settingsStyles.statLabel}>Planned</Text>
             </View>
           </View>
         </View>
@@ -155,6 +166,44 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Planner & Notes */}
+        <View style={settingsStyles.section}>
+          <Text style={settingsStyles.sectionTitle}>Planner & Notes</Text>
+          <TouchableOpacity
+            style={settingsStyles.settingRow}
+            onPress={() => navigation.navigate("Planner")}
+          >
+            <View style={settingsStyles.settingLeft}>
+              <FontAwesome name="calendar-check-o" size={18} color="#aaa" />
+              <View style={settingsStyles.settingTextContainer}>
+                <Text style={settingsStyles.settingText}>Upcoming Plans</Text>
+                <Text style={settingsStyles.settingDetail}>
+                  {activePlans} title{activePlans !== 1 ? "s" : ""} scheduled
+                </Text>
+              </View>
+            </View>
+            <FontAwesome name="chevron-right" size={14} color="#555" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={settingsStyles.settingRow}
+            onPress={() => navigation.navigate("Planner")}
+          >
+            <View style={settingsStyles.settingLeft}>
+              <FontAwesome name="pencil-square-o" size={18} color="#aaa" />
+              <View style={settingsStyles.settingTextContainer}>
+                <Text style={settingsStyles.settingText}>Private Notes</Text>
+                <Text style={settingsStyles.settingDetail}>
+                  {noteCount} note{noteCount !== 1 ? "s" : ""} saved locally
+                </Text>
+              </View>
+            </View>
+            <FontAwesome name="chevron-right" size={14} color="#555" />
+          </TouchableOpacity>
+          <Text style={settingsStyles.hintText}>
+            Add plans and private notes from movie and series detail pages.
+          </Text>
+        </View>
+
         {/* Reminders */}
         <View style={settingsStyles.section}>
           <Text style={settingsStyles.sectionTitle}>Notifications</Text>
@@ -162,9 +211,7 @@ export default function SettingsScreen() {
             <View style={settingsStyles.settingLeft}>
               <FontAwesome name="bell" size={18} color="#aaa" />
               <View style={settingsStyles.settingTextContainer}>
-                <Text style={settingsStyles.settingText}>
-                  Active Reminders
-                </Text>
+                <Text style={settingsStyles.settingText}>Active Reminders</Text>
                 <Text style={settingsStyles.settingDetail}>
                   {activeReminders} reminder{activeReminders !== 1 ? "s" : ""}{" "}
                   set

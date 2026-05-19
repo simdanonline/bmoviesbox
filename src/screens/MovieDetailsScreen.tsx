@@ -19,10 +19,17 @@ import { useTvApp } from "../context/TvAppContext";
 import { useUserData } from "../context/UserDataContext";
 import StarRating from "../components/StarRating";
 import StatusSelector from "../components/StatusSelector";
+import TitlePlanningPanel from "../components/TitlePlanningPanel";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import { WatchStatus } from "../types/app";
 
 type MovieDetailsScreenProps = NativeStackScreenProps<any, "MovieDetails">;
+
+function getSlugFromUrl(value?: string | null): string | null {
+  if (!value) return null;
+  const urlParts = value.split("/").filter(Boolean);
+  return urlParts[urlParts.length - 1] ?? null;
+}
 
 export default function MovieDetailsScreen({
   route,
@@ -40,16 +47,20 @@ export default function MovieDetailsScreen({
     removeFromLibrary,
     updateLibraryItemOpened,
     saveKnownTitleMetadata,
-    getReminderForTitle,
   } = useUserData();
-  const { slug } = route.params as { slug: string };
+  const { slug, url, movie } = route.params as {
+    slug?: string;
+    url?: string;
+    movie?: { url?: string };
+  };
+  const detailsSlug = slug ?? getSlugFromUrl(movie?.url) ?? getSlugFromUrl(url);
   const [movieDetails, setMovieDetails] = useState<MovieDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchMovieDetails();
-  }, [slug]);
+  }, [detailsSlug]);
 
   useEffect(() => {
     if (movieDetails) {
@@ -92,7 +103,10 @@ export default function MovieDetailsScreen({
     try {
       setLoading(true);
       setError(null);
-      const details = await MovieAPI.getMovieDetailsBySlug(slug);
+      if (!detailsSlug) {
+        throw new Error("Movie reference is missing.");
+      }
+      const details = await MovieAPI.getMovieDetailsBySlug(detailsSlug);
       setMovieDetails(details);
     } catch (err) {
       const errorMessage =
@@ -126,6 +140,8 @@ export default function MovieDetailsScreen({
 
   const libraryItem = getLibraryItem(movieDetails.url);
   const currentStatus = libraryItem?.status ?? null;
+  const canonicalMovieUrl = movieDetails.url;
+  const canonicalMovieSlug = detailsSlug ?? movieDetails.id;
 
   const handleStatusSelect = (status: WatchStatus) => {
     setLibraryStatus({
@@ -144,7 +160,10 @@ export default function MovieDetailsScreen({
   const handlePlayPress = () => {
     console.log("Available streaming servers:", movieDetails);
     if (movieDetails.streamingServers.length === 0) {
-      Alert.alert("No Servers", "No streaming servers available for this movie");
+      Alert.alert(
+        "No Servers",
+        "No streaming servers available for this movie",
+      );
       return;
     }
     if (movieDetails.streamingServers.length === 1) {
@@ -182,12 +201,6 @@ export default function MovieDetailsScreen({
       Alert.alert("No Trailer", "Trailer not available for this movie");
     }
   };
-
-  // Check if we have a future release date for reminder UI
-  const hasFutureRelease =
-    movieDetails.releaseDate &&
-    new Date(movieDetails.releaseDate) > new Date();
-  const existingReminder = getReminderForTitle(movieDetails.url);
 
   return (
     <ScrollView style={styles.container}>
@@ -262,7 +275,9 @@ export default function MovieDetailsScreen({
             currentStatus={currentStatus}
             onSelect={handleStatusSelect}
             onRemove={
-              libraryItem ? () => removeFromLibrary(movieDetails.url) : undefined
+              libraryItem
+                ? () => removeFromLibrary(movieDetails.url)
+                : undefined
             }
           />
           {libraryItem && (
@@ -352,6 +367,14 @@ export default function MovieDetailsScreen({
             onRate={(r) => setRating(movieDetails.url, r)}
           />
         </View>
+
+        <TitlePlanningPanel
+          titleUrl={canonicalMovieUrl}
+          detailSlug={canonicalMovieSlug}
+          title={movieDetails.title}
+          isSeries={false}
+          thumbnail={movieDetails.thumbnail}
+        />
 
         {/* Description */}
         {movieDetails.description && (

@@ -130,7 +130,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   // Recommendation rails
   const historyUrls = useMemo(
     () => new Set(history.map((h) => h.url)),
-    [history]
+    [history],
   );
 
   const rails = useMemo((): RailType[] => {
@@ -142,14 +142,22 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       library,
       knownMetadata,
       ratings,
-      historyUrls
+      historyUrls,
     );
     return getPersonalizedRails(pool, tasteProfile, ratings);
-  }, [movies, bgSeries, tasteProfile, library, knownMetadata, ratings, historyUrls]);
+  }, [
+    movies,
+    bgSeries,
+    tasteProfile,
+    library,
+    knownMetadata,
+    ratings,
+    historyUrls,
+  ]);
 
   const continueWatching = useMemo(
     () => getContinueWatchingItems(),
-    [getContinueWatchingItems]
+    [getContinueWatchingItems],
   );
 
   const handleMoviePress = (movie: Movie) => {
@@ -222,9 +230,12 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             if (text) {
               const success = await unlockTvApp(text);
               if (!success) Alert.alert("Invalid Key", "");
+              if (success) {
+                checkForUpdate();
+              }
             }
           },
-          "secure-text"
+          "secure-text",
         );
       } else {
         setShowAccessModal(true);
@@ -235,11 +246,17 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   const checkForUpdate = async () => {
     try {
       if (__DEV__) {
-        Alert.alert("Development Mode", "Updates are not available in development mode.");
+        Alert.alert(
+          "Development Mode",
+          "Updates are not available in development mode.",
+        );
         return;
       }
       if (!Device.isDevice) {
-        Alert.alert("Device Required", "Updates can only be checked on physical devices.");
+        Alert.alert(
+          "Device Required",
+          "Updates can only be checked on physical devices.",
+        );
         return;
       }
       const update = await Updates.checkForUpdateAsync();
@@ -247,13 +264,18 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         await Updates.fetchUpdateAsync();
         Updates.reloadAsync();
       } else {
-        Alert.alert("Up to Date", "You are using the latest version.", [{ text: "OK" }]);
+        Alert.alert("Up to Date", "You are using the latest version.", [
+          { text: "OK" },
+        ]);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       console.error("Error checking for update:", error);
       if (message.includes("HTTP response error 400")) {
-        Alert.alert("Configuration Error", "Update service is not properly configured.");
+        Alert.alert(
+          "Configuration Error",
+          "Update service is not properly configured.",
+        );
       } else {
         Alert.alert("Error", "Failed to check for updates: " + message);
       }
@@ -265,6 +287,9 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     setAccessKey("");
     setShowAccessModal(false);
     if (!success) Alert.alert("Invalid Key", "");
+    if (success) {
+      checkForUpdate();
+    }
   };
 
   const handleAccessCancel = () => {

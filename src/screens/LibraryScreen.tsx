@@ -10,7 +10,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useUserData } from "../context/UserDataContext";
-import { LibraryItem, WatchStatus, STATUS_LABELS, STATUS_COLORS } from "../types/app";
+import {
+  LibraryItem,
+  WatchStatus,
+  STATUS_LABELS,
+  STATUS_COLORS,
+} from "../types/app";
 import MovieCard from "../components/MovieCard";
 import { styles } from "../styles/styles";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
@@ -72,7 +77,7 @@ export default function LibraryScreen({
           style: "destructive",
           onPress: () => removeFromLibrary(item.url),
         },
-      ]
+      ],
     );
   };
 
@@ -89,6 +94,14 @@ export default function LibraryScreen({
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={[styles.header, styles.row]}>
           <Text style={styles.headerTitle}>Library</Text>
+          <TouchableOpacity
+            style={libStyles.headerButton}
+            onPress={() => navigation.navigate("Planner")}
+            activeOpacity={0.7}
+          >
+            <FontAwesome name="calendar-check-o" size={22} color="#fff" />
+            <Text style={libStyles.headerButtonText}>Planner</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Type filter */}
@@ -125,7 +138,13 @@ export default function LibraryScreen({
           contentContainerStyle={libStyles.filterRow}
         >
           {(
-            ["all", "want_to_watch", "watching", "completed", "dropped"] as StatusFilter[]
+            [
+              "all",
+              "want_to_watch",
+              "watching",
+              "completed",
+              "dropped",
+            ] as StatusFilter[]
           ).map((s) => {
             const isActive = statusFilter === s;
             const label = s === "all" ? "All" : STATUS_LABELS[s as WatchStatus];
@@ -191,7 +210,8 @@ export default function LibraryScreen({
         ) : (
           <View style={styles.moviesSection}>
             <Text style={styles.sectionTitle}>
-              {filteredItems.length} title{filteredItems.length !== 1 ? "s" : ""}
+              {filteredItems.length} title
+              {filteredItems.length !== 1 ? "s" : ""}
             </Text>
             <View style={styles.moviesGrid}>
               {filteredItems.map((item, idx) => (
@@ -223,7 +243,10 @@ export default function LibraryScreen({
                       <View style={libStyles.progressBadge}>
                         <Text style={libStyles.progressBadgeText}>
                           {item.completedEpisodes}
-                          {item.totalEpisodes ? `/${item.totalEpisodes}` : ""} ep
+                          {item.totalEpisodes
+                            ? `/${item.totalEpisodes}`
+                            : ""}{" "}
+                          ep
                         </Text>
                       </View>
                     )}
@@ -239,6 +262,22 @@ export default function LibraryScreen({
 }
 
 const libStyles = StyleSheet.create({
+  headerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#1a1a1a",
+    borderWidth: 1,
+    borderColor: "#333",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  headerButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
   filterRow: {
     paddingHorizontal: 16,
     paddingBottom: 8,

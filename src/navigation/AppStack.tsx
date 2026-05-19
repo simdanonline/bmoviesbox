@@ -16,6 +16,7 @@ import LiveGamePlayer from "../screens/LiveGamePlayer";
 import StreamSelection from "../screens/StreamSelection";
 import OnboardingScreen from "../screens/OnboardingScreen";
 import PreferencesScreen from "../screens/PreferencesScreen";
+import PlannerScreen from "../screens/PlannerScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -24,7 +25,14 @@ function AppNavigator() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#000", justifyContent: "center", alignItems: "center" }}>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "#000",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
         <ActivityIndicator size="large" color="#e74c3c" />
       </View>
     );
@@ -100,6 +108,11 @@ function AppNavigator() {
           name="Preferences"
           component={PreferencesScreen}
           options={{ title: "Edit Preferences", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="Planner"
+          component={PlannerScreen}
+          options={{ title: "Planner", headerBackTitle: "Back" }}
         />
       </Stack.Navigator>
     </>

@@ -19,6 +19,7 @@ import { useTvApp } from "../context/TvAppContext";
 import { useUserData } from "../context/UserDataContext";
 import StarRating from "../components/StarRating";
 import StatusSelector from "../components/StatusSelector";
+import TitlePlanningPanel from "../components/TitlePlanningPanel";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import { WatchStatus } from "../types/app";
 
@@ -109,18 +110,18 @@ export default function SeriesDetailsScreen({
   }, [seriesData?.id]);
 
   const currentSeason = seriesData?.seasons?.find(
-    (s) => s.seasonNumber === selectedSeason
+    (s) => s.seasonNumber === selectedSeason,
   );
   const currentEpisodes = currentSeason?.episodes || [];
 
   const seriesProgress = useMemo(
     () => (seriesData ? getSeriesProgress(seriesData.url) : []),
-    [seriesData?.url, getSeriesProgress]
+    [seriesData?.url, getSeriesProgress],
   );
 
   const watchedCount = useMemo(
     () => seriesProgress.filter((p) => p.watched).length,
-    [seriesProgress]
+    [seriesProgress],
   );
 
   const totalEpisodes = useMemo(() => {
@@ -131,7 +132,7 @@ export default function SeriesDetailsScreen({
   // Season-level progress
   const seasonWatchedCount = useMemo(() => {
     return seriesProgress.filter(
-      (p) => p.watched && p.seasonNumber === selectedSeason
+      (p) => p.watched && p.seasonNumber === selectedSeason,
     ).length;
   }, [seriesProgress, selectedSeason]);
 
@@ -170,7 +171,7 @@ export default function SeriesDetailsScreen({
         seriesData.url,
         epUrl,
         selectedSeason,
-        episode.episodeNumber
+        episode.episodeNumber,
       );
     }
   };
@@ -321,9 +322,7 @@ export default function SeriesDetailsScreen({
             currentStatus={currentStatus}
             onSelect={handleStatusSelect}
             onRemove={
-              libraryItem
-                ? () => removeFromLibrary(seriesData.url)
-                : undefined
+              libraryItem ? () => removeFromLibrary(seriesData.url) : undefined
             }
           />
           {libraryItem && (
@@ -451,6 +450,13 @@ export default function SeriesDetailsScreen({
             onRate={(r) => setRating(seriesData.url, r)}
           />
         </View>
+
+        <TitlePlanningPanel
+          titleUrl={seriesData.url}
+          title={seriesData.title}
+          isSeries={true}
+          thumbnail={seriesData.thumbnail}
+        />
 
         {/* Description */}
         {seriesData.description && (
