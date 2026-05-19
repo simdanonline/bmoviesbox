@@ -2,7 +2,7 @@ import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Platform, View } from "react-native";
 import { TvAppProvider } from "../context/TvAppContext";
 import { UserDataProvider, useUserData } from "../context/UserDataContext";
 import MovieDetailsScreen from "../screens/MovieDetailsScreen";
@@ -11,6 +11,7 @@ import VideoPlayerScreen from "../screens/VideoPlayerScreen";
 import TrailerScreen from "../screens/TrailerScreen";
 import SearchScreen from "../screens/SearchScreen";
 import MyTabs from "./Tabs";
+import TvTabs from "./TvTabs";
 import SeriesDetailsScreen from "../screens/SeriesDetailScreen";
 import LiveGamePlayer from "../screens/LiveGamePlayer";
 import StreamSelection from "../screens/StreamSelection";
@@ -61,7 +62,7 @@ function AppNavigator() {
         )}
         <Stack.Screen
           name="Home"
-          component={MyTabs}
+          component={Platform.isTV ? TvTabs : MyTabs}
           options={{ headerShown: false }}
         />
         <Stack.Screen
