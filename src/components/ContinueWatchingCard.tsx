@@ -3,13 +3,13 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
   StyleSheet,
   Dimensions,
   Platform,
 } from "react-native";
 import { Image } from "expo-image";
 import { LibraryItem } from "../types/app";
+import Focusable from "./Focusable";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CW_CARD_WIDTH = Platform.isTV ? Math.min(SCREEN_WIDTH / 6, 320) : 140;
@@ -37,11 +37,10 @@ export default function ContinueWatchingSection({
         contentContainerStyle={cwStyles.scroll}
       >
         {items.map((item, idx) => (
-          <TouchableOpacity
+          <Focusable
             key={item.url + idx}
             style={cwStyles.card}
             onPress={() => onPress(item)}
-            activeOpacity={0.7}
           >
             <View style={cwStyles.imageWrapper}>
               <Image
@@ -67,7 +66,7 @@ export default function ContinueWatchingSection({
             <Text style={cwStyles.cardTitle} numberOfLines={2}>
               {item.title}
             </Text>
-          </TouchableOpacity>
+          </Focusable>
         ))}
       </ScrollView>
     </View>

@@ -37,8 +37,9 @@ export default function Focusable({
         setFocused(false);
         rest.onBlur?.(e);
       }}
-      style={[
+      style={({ pressed }) => [
         style,
+        !isTV && pressed && { opacity: 0.7 },
         isTV && focused && (focusedStyle ?? styles.cardFocused),
       ]}
     >
