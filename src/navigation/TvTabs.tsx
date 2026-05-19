@@ -1,5 +1,6 @@
-import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
-import { View, StyleSheet } from "react-native";
+import React, { useState } from "react";
+import { View, Text, StyleSheet, Dimensions } from "react-native";
+import Focusable from "../components/Focusable";
 import HomeScreen from "../screens/HomeScreen";
 import SeriesList from "../screens/SeriesList";
 import LibraryScreen from "../screens/LibraryScreen";
@@ -8,34 +9,91 @@ import SettingsScreen from "../screens/SettingsScreen";
 import LiveTab from "../screens/LiveTab";
 import { useTvApp } from "../context/TvAppContext";
 
-const Tab = createMaterialTopTabNavigator();
+const { width } = Dimensions.get("window");
 
-export default function TvTabs() {
+type TabKey = "Movies" | "Series" | "Library" | "Calendar" | "Settings" | "Live";
+
+export default function TvTabs({ navigation, route }: any) {
   const { isTvApp } = useTvApp();
+  const [activeTab, setActiveTab] = useState<TabKey>("Movies");
+
+  const tabs: Array<{ key: TabKey; label: string }> = [
+    { key: "Movies", label: "Movies" },
+    { key: "Series", label: "Series" },
+    { key: "Library", label: "Library" },
+    { key: "Calendar", label: "Calendar" },
+    { key: "Settings", label: "Settings" },
+    ...(isTvApp ? [{ key: "Live" as TabKey, label: "Live" }] : []),
+  ];
+
+  const renderActive = () => {
+    const screenProps = { navigation, route };
+    switch (activeTab) {
+      case "Movies":
+        return <HomeScreen {...screenProps} />;
+      case "Series":
+        return <SeriesList {...screenProps} />;
+      case "Library":
+        return <LibraryScreen {...screenProps} />;
+      case "Calendar":
+        return <CalendarScreen {...screenProps} />;
+      case "Settings":
+        return <SettingsScreen {...screenProps} />;
+      case "Live":
+        return <LiveTab {...screenProps} />;
+    }
+  };
 
   return (
     <View style={styles.container}>
-      <Tab.Navigator
-        screenOptions={{
-          swipeEnabled: false,
-          tabBarStyle: { backgroundColor: "#000" },
-          tabBarIndicatorStyle: { backgroundColor: "#e74c3c", height: 3 },
-          tabBarActiveTintColor: "#fff",
-          tabBarInactiveTintColor: "#999",
-          tabBarLabelStyle: { fontSize: 16, fontWeight: "600" },
-        }}
-      >
-        <Tab.Screen name="Movies" component={HomeScreen} />
-        <Tab.Screen name="Series" component={SeriesList} />
-        <Tab.Screen name="Library" component={LibraryScreen} />
-        <Tab.Screen name="Calendar" component={CalendarScreen} />
-        <Tab.Screen name="SettingsTab" component={SettingsScreen} options={{ title: "Settings" }} />
-        {isTvApp && <Tab.Screen name="LiveTab" component={LiveTab} options={{ title: "Live" }} />}
-      </Tab.Navigator>
+      <View style={styles.tabBar}>
+        {tabs.map((t) => {
+          const active = t.key === activeTab;
+          return (
+            <Focusable
+              key={t.key}
+              style={[styles.tabButton, active && styles.tabButtonActive]}
+              focusedStyle={styles.tabButtonFocused}
+              onPress={() => setActiveTab(t.key)}
+            >
+              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
+                {t.label}
+              </Text>
+            </Focusable>
+          );
+        })}
+      </View>
+      <View style={styles.screenHost}>{renderActive()}</View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
+  tabBar: {
+    flexDirection: "row",
+    backgroundColor: "#000",
+    paddingVertical: 12,
+    paddingHorizontal: Math.round(width * 0.05),
+    gap: 8,
+  },
+  tabButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  tabButtonActive: {
+    borderBottomColor: "#e74c3c",
+    borderBottomWidth: 3,
+  },
+  tabButtonFocused: {
+    borderColor: "#e74c3c",
+    backgroundColor: "rgba(231, 76, 60, 0.15)",
+    transform: [{ scale: 1.05 }],
+  },
+  tabLabel: { color: "#999", fontSize: 18, fontWeight: "600" },
+  tabLabelActive: { color: "#fff" },
+  screenHost: { flex: 1 },
 });

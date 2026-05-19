@@ -1,10 +1,6 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  Image,
-  ImageBackground,
-} from 'react-native';
+import { View, Text, ImageBackground } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Movie } from '../services/MovieAPI';
 import { styles } from '../styles/styles';
 import Focusable from './Focusable';
@@ -18,6 +14,7 @@ export default function FeaturedMovie({ movie, onPress }: FeaturedMovieProps) {
   return (
     <Focusable
       style={styles.featuredContainer}
+      focusedStyle={styles.featuredFocused}
       onPress={onPress}
       hasTVPreferredFocus={true}
     >
@@ -25,10 +22,18 @@ export default function FeaturedMovie({ movie, onPress }: FeaturedMovieProps) {
         source={{ uri: movie.thumbnail?.trim() }}
         style={styles.featuredImage}
         imageStyle={{ borderRadius: 12 }}
-        resizeMode='contain'
+        resizeMode='cover'
       >
-        <View style={styles.featuredOverlay}>
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.85)"]}
+          style={styles.featuredGradient}
+        >
           <Text style={styles.featuredBadge}>FEATURED</Text>
+          <Text style={styles.featuredHeroTitle} numberOfLines={2}>
+            {movie.title}
+          </Text>
+        </LinearGradient>
+        <View style={styles.featuredPlayWrap}>
           <View style={styles.playButtonLarge}>
             <Text style={styles.playIconLarge}>▶</Text>
           </View>

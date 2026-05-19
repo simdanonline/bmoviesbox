@@ -18,6 +18,7 @@ import FeaturedMovie from "../components/FeaturedMovie";
 import MovieCard from "../components/MovieCard";
 import RecommendationRail from "../components/RecommendationRail";
 import ContinueWatchingSection from "../components/ContinueWatchingCard";
+import Focusable from "../components/Focusable";
 import { styles } from "../styles/styles";
 import { useTvApp } from "../context/TvAppContext";
 import { useUserData } from "../context/UserDataContext";
@@ -312,12 +313,20 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       >
         {/* Header */}
         <View style={[styles.header, styles.row]}>
-          <Text onPress={handleHeaderTap} style={styles.headerTitle}>
-            BMovieBox
-          </Text>
-          <TouchableOpacity onPress={onclickSearch}>
+          <Focusable
+            style={styles.headerLogoWrap}
+            focusedStyle={styles.iconButtonFocused}
+            onPress={handleHeaderTap}
+          >
+            <Text style={styles.headerTitle}>BMovieBox</Text>
+          </Focusable>
+          <Focusable
+            style={styles.headerIconWrap}
+            focusedStyle={styles.iconButtonFocused}
+            onPress={onclickSearch}
+          >
             <FontAwesome name="search" size={30} color={"#fff"} />
-          </TouchableOpacity>
+          </Focusable>
         </View>
 
         {/* Welcome hint if onboarding was skipped */}
