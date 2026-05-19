@@ -13,14 +13,12 @@ interface RecommendationRailProps {
   title: string;
   items: Movie[];
   onPress: (movie: Movie) => void;
-  isFirstRail?: boolean;
 }
 
 export default function RecommendationRail({
   title,
   items,
   onPress,
-  isFirstRail,
 }: RecommendationRailProps) {
   if (items.length === 0) return null;
 
@@ -37,7 +35,6 @@ export default function RecommendationRail({
             key={item.id + idx}
             style={railStyles.card}
             onPress={() => onPress(item)}
-            hasTVPreferredFocus={isFirstRail && idx === 0}
           >
             <Image
               source={{ uri: item.thumbnail?.trim() }}
