@@ -1,7 +1,18 @@
-import React, { useRef, useState, useCallback } from "react";
+import React, {
+  useRef,
+  useState,
+  useCallback,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
 import { View, ActivityIndicator, StyleSheet, Platform } from "react-native";
 import { WebView } from "react-native-webview";
 import { width } from "../styles/styles";
+
+export interface SecureVideoWebViewHandle {
+  injectJavaScript: (script: string) => void;
+  reload: () => void;
+}
 
 // WHITELIST: Only these domains are allowed
 const ALLOWED_DOMAINS = [
@@ -430,10 +441,24 @@ const RUNTIME_SCRIPT = `
 true;
 `;
 
-export default function SecureVideoWebView({ url }: { url: string }) {
+const SecureVideoWebView = forwardRef<SecureVideoWebViewHandle, { url: string }>(
+  function SecureVideoWebView({ url }, ref) {
   const webRef = useRef<WebView>(null);
   const [loading, setLoading] = useState(true);
   const initialUrlRef = useRef(url);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      injectJavaScript: (script: string) => {
+        webRef.current?.injectJavaScript(script);
+      },
+      reload: () => {
+        webRef.current?.reload();
+      },
+    }),
+    []
+  );
 
 
   const getInitialHost = useCallback(() => {
@@ -555,7 +580,10 @@ export default function SecureVideoWebView({ url }: { url: string }) {
       )}
     </View>
   );
-}
+  }
+);
+
+export default SecureVideoWebView;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
