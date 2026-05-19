@@ -6,10 +6,6 @@ import {
   Platform,
   StatusBar,
 } from "react-native";
-// NOTE: D-pad arrow seeking (left/right ±10s) was prototyped but requires
-// the react-native-tvos fork's TVEventHandler API, which isn't in vanilla
-// RN 0.81. Back button works via BackHandler; play/pause relies on the
-// embed's own controls or a focused button overlay (future work).
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { StreamingServer } from "../services/MovieAPI";
 import { styles } from "../styles/styles";
@@ -33,6 +29,7 @@ export default function VideoPlayerScreen({
   };
 
   const [error, setError] = useState<string | null>(null);
+  const [showPlayOverlay, setShowPlayOverlay] = useState(Platform.isTV);
   const controlsVisible = true;
   const webViewRef = useRef<SecureVideoWebViewHandle>(null);
 
@@ -93,6 +90,37 @@ export default function VideoPlayerScreen({
 
         <SecureVideoWebView ref={webViewRef} url={server.url} />
         {controlsVisible && <VideoHintToast />}
+
+        {Platform.isTV && showPlayOverlay && (
+          <View style={styles.tvPlayOverlay} pointerEvents="box-none">
+            <Focusable
+              style={styles.tvPlayButton}
+              focusedStyle={styles.tvPlayButtonFocused}
+              hasTVPreferredFocus
+              onPress={() => {
+                webViewRef.current?.injectJavaScript(
+                  "(function(){try{var v=document.querySelector('video');if(v){v.play();}}catch(e){}})(); true;"
+                );
+                setShowPlayOverlay(false);
+              }}
+            >
+              <Text style={styles.tvPlayButtonIcon}>▶</Text>
+              <Text style={styles.tvPlayButtonLabel}>Press OK to play</Text>
+            </Focusable>
+          </View>
+        )}
+
+        {Platform.isTV && !showPlayOverlay && (
+          <View style={styles.tvShowControlsWrap}>
+            <Focusable
+              style={styles.tvShowControlsButton}
+              focusedStyle={styles.tvShowControlsButtonFocused}
+              onPress={() => setShowPlayOverlay(true)}
+            >
+              <Text style={styles.tvShowControlsLabel}>Show controls</Text>
+            </Focusable>
+          </View>
+        )}
       </View>
 
       <View style={styles.playerFooter}>
