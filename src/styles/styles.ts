@@ -113,6 +113,14 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  featuredImageBg: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 12,
+  },
   featuredOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0, 0, 0, 0.3)",
@@ -196,6 +204,15 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  tvFeaturedImageBg: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
+  },
   tvFeaturedPlayWrap: {
     alignItems: "center",
     justifyContent: "center",
@@ -244,14 +261,9 @@ export const styles = StyleSheet.create({
     backgroundColor: "#1a1a1a",
   },
   cardFocused: {
-    transform: [{ scale: 1.08 }],
     borderWidth: 4,
     borderColor: "#fff",
-    shadowColor: "#fff",
-    shadowOpacity: 1,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 16,
+    borderRadius: 8,
     zIndex: 10,
   },
   cardImageWrapper: {

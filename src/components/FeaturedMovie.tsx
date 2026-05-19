@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { View, Text, ImageBackground, Platform } from 'react-native';
+import { View, Text, Platform } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Movie } from '../services/MovieAPI';
 import { styles } from '../styles/styles';
@@ -24,18 +25,19 @@ function FeaturedMovie({ movie, onPress }: FeaturedMovieProps) {
         onPress={onPress}
         hasTVPreferredFocus={true}
       >
-        <ImageBackground
-          source={source}
-          style={styles.tvFeaturedImage}
-          imageStyle={{ borderTopLeftRadius: 12, borderBottomLeftRadius: 12 }}
-          resizeMode="cover"
-        >
+        <View style={styles.tvFeaturedImage}>
+          <Image
+            source={source}
+            style={styles.tvFeaturedImageBg}
+            contentFit="cover"
+            transition={200}
+          />
           <View style={styles.tvFeaturedPlayWrap}>
             <View style={styles.playButtonLarge}>
               <Text style={styles.playIconLarge}>▶</Text>
             </View>
           </View>
-        </ImageBackground>
+        </View>
 
         <View style={styles.tvFeaturedInfo}>
           <Text style={styles.featuredBadge}>FEATURED</Text>
@@ -81,12 +83,13 @@ function FeaturedMovie({ movie, onPress }: FeaturedMovieProps) {
       onPress={onPress}
       hasTVPreferredFocus={true}
     >
-      <ImageBackground
-        source={source}
-        style={styles.featuredImage}
-        imageStyle={{ borderRadius: 12 }}
-        resizeMode='cover'
-      >
+      <View style={styles.featuredImage}>
+        <Image
+          source={source}
+          style={styles.featuredImageBg}
+          contentFit="cover"
+          transition={200}
+        />
         <LinearGradient
           colors={["transparent", "rgba(0,0,0,0.85)"]}
           style={styles.featuredGradient}
@@ -101,7 +104,7 @@ function FeaturedMovie({ movie, onPress }: FeaturedMovieProps) {
             <Text style={styles.playIconLarge}>▶</Text>
           </View>
         </View>
-      </ImageBackground>
+      </View>
 
       <View style={styles.featuredInfo}>
         <Text style={styles.featuredTitle} numberOfLines={2}>
