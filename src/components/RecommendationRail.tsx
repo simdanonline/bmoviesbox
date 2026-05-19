@@ -4,10 +4,18 @@ import {
   Text,
   ScrollView,
   StyleSheet,
+  Dimensions,
+  Platform,
 } from "react-native";
 import { Image } from "expo-image";
 import { Movie } from "../services/MovieAPI";
 import Focusable from "./Focusable";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const RAIL_CARD_WIDTH = Platform.isTV ? Math.min(SCREEN_WIDTH / 7, 240) : 120;
+const RAIL_CARD_HEIGHT = Platform.isTV
+  ? Math.round(Math.min(SCREEN_WIDTH / 7, 240) * 1.5)
+  : 170;
 
 interface RecommendationRailProps {
   title: string;
@@ -72,11 +80,11 @@ const railStyles = StyleSheet.create({
     gap: 12,
   },
   card: {
-    width: 120,
+    width: RAIL_CARD_WIDTH,
   },
   image: {
-    width: 120,
-    height: 170,
+    width: RAIL_CARD_WIDTH,
+    height: RAIL_CARD_HEIGHT,
     borderRadius: 8,
     backgroundColor: "#1a1a1a",
   },

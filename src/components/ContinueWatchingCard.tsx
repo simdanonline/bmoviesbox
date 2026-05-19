@@ -5,9 +5,17 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  Dimensions,
+  Platform,
 } from "react-native";
 import { Image } from "expo-image";
 import { LibraryItem } from "../types/app";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const CW_CARD_WIDTH = Platform.isTV ? Math.min(SCREEN_WIDTH / 6, 320) : 140;
+const CW_CARD_HEIGHT = Platform.isTV
+  ? Math.round((Math.min(SCREEN_WIDTH / 6, 320) * 9) / 16)
+  : 90;
 
 interface ContinueWatchingSectionProps {
   items: LibraryItem[];
@@ -82,14 +90,14 @@ const cwStyles = StyleSheet.create({
     gap: 12,
   },
   card: {
-    width: 140,
+    width: CW_CARD_WIDTH,
   },
   imageWrapper: {
     position: "relative",
   },
   image: {
-    width: 140,
-    height: 90,
+    width: CW_CARD_WIDTH,
+    height: CW_CARD_HEIGHT,
     borderRadius: 8,
     backgroundColor: "#1a1a1a",
   },
