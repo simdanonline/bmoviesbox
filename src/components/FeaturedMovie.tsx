@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ImageBackground } from 'react-native';
+import { View, Text, ImageBackground, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Movie } from '../services/MovieAPI';
 import { styles } from '../styles/styles';
@@ -11,6 +11,64 @@ interface FeaturedMovieProps {
 }
 
 export default function FeaturedMovie({ movie, onPress }: FeaturedMovieProps) {
+  if (Platform.isTV) {
+    return (
+      <Focusable
+        style={styles.tvFeaturedContainer}
+        focusedStyle={styles.featuredFocused}
+        onPress={onPress}
+        hasTVPreferredFocus={true}
+      >
+        <ImageBackground
+          source={{ uri: movie.thumbnail?.trim() }}
+          style={styles.tvFeaturedImage}
+          imageStyle={{ borderTopLeftRadius: 12, borderBottomLeftRadius: 12 }}
+          resizeMode="cover"
+        >
+          <View style={styles.tvFeaturedPlayWrap}>
+            <View style={styles.playButtonLarge}>
+              <Text style={styles.playIconLarge}>▶</Text>
+            </View>
+          </View>
+        </ImageBackground>
+
+        <View style={styles.tvFeaturedInfo}>
+          <Text style={styles.featuredBadge}>FEATURED</Text>
+          <Text style={styles.tvFeaturedTitle} numberOfLines={2}>
+            {movie.title}
+          </Text>
+
+          <View style={styles.featuredMeta}>
+            {movie.releaseYear && (
+              <Text style={styles.featuredMetaText}>{movie.releaseYear}</Text>
+            )}
+            {movie.runtime && (
+              <>
+                <Text style={styles.metaDot}>•</Text>
+                <Text style={styles.featuredMetaText}>{movie.runtime}</Text>
+              </>
+            )}
+          </View>
+
+          {movie.genres.length > 0 && (
+            <Text style={styles.genresList}>
+              {movie.genres.slice(0, 3).join(', ')}
+            </Text>
+          )}
+
+          {movie.imdbRating && (
+            <View style={styles.ratingBadge}>
+              <Text style={styles.ratingBadgeText}>
+                ⭐ {(parseFloat(movie?.imdbRating || "0").toFixed(1))}/10
+              </Text>
+            </View>
+          )}
+        </View>
+      </Focusable>
+    );
+  }
+
+  // Phone layout — unchanged from current
   return (
     <Focusable
       style={styles.featuredContainer}

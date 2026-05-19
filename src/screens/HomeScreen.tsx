@@ -56,9 +56,20 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const tapCountRef = useRef(0);
   const lastTapTimeRef = useRef(0);
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     fetchMovies();
+  }, []);
+
+  useEffect(() => {
+    if (Platform.isTV) {
+      // Small delay so the layout has measured by the time we scroll
+      const t = setTimeout(() => {
+        scrollRef.current?.scrollTo({ y: 120, animated: false });
+      }, 150);
+      return () => clearTimeout(t);
+    }
   }, []);
 
   // Background-fetch a few pages of movies + series for recommendation pool
@@ -301,6 +312,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl

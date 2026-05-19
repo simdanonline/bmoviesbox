@@ -180,6 +180,40 @@ export const styles = StyleSheet.create({
     fontSize: 12,
   },
 
+  // TV Featured Movie (horizontal split layout)
+  tvFeaturedContainer: {
+    flexDirection: "row",
+    height: Math.round(height * 0.38),
+    marginHorizontal: Math.round(width * 0.05),
+    marginTop: 12,
+    marginBottom: 24,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#1a1a1a",
+  },
+  tvFeaturedImage: {
+    flex: 1.4, // ~58% (image side wider than info)
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  tvFeaturedPlayWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tvFeaturedInfo: {
+    flex: 1, // ~42%
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    justifyContent: "center",
+  },
+  tvFeaturedTitle: {
+    color: "#fff",
+    fontSize: 32,
+    fontWeight: "800",
+    marginTop: 8,
+    marginBottom: 12,
+  },
+
   // Movies Section
   moviesSection: {
     paddingHorizontal: Platform.isTV ? TV_HORIZONTAL_PADDING : 16,
