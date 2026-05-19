@@ -1,12 +1,15 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   Platform,
   StatusBar,
-  TVEventHandler,
 } from "react-native";
+// NOTE: D-pad arrow seeking (left/right ±10s) was prototyped but requires
+// the react-native-tvos fork's TVEventHandler API, which isn't in vanilla
+// RN 0.81. Back button works via BackHandler; play/pause relies on the
+// embed's own controls or a focused button overlay (future work).
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { StreamingServer } from "../services/MovieAPI";
 import { styles } from "../styles/styles";
@@ -20,31 +23,6 @@ import { useTVBackHandler } from "../hooks/useTVBackHandler";
 
 type VideoPlayerScreenProps = NativeStackScreenProps<any, "VideoPlayer">;
 
-// JS snippets dispatched to the embedded WebView <video> element so the
-// Google TV D-pad can drive playback even though we don't own a native player.
-const TOGGLE_PLAY_PAUSE_JS = `
-(function() {
-  try {
-    var v = document.querySelector('video');
-    if (!v) return true;
-    if (v.paused) { v.play(); } else { v.pause(); }
-  } catch (_) {}
-  true;
-})();
-`;
-
-const seekJs = (deltaSeconds: number) => `
-(function() {
-  try {
-    var v = document.querySelector('video');
-    if (!v || !isFinite(v.duration)) return true;
-    var next = Math.max(0, Math.min(v.duration, v.currentTime + (${deltaSeconds})));
-    v.currentTime = next;
-  } catch (_) {}
-  true;
-})();
-`;
-
 export default function VideoPlayerScreen({
   route,
   navigation,
@@ -55,35 +33,11 @@ export default function VideoPlayerScreen({
   };
 
   const [error, setError] = useState<string | null>(null);
-  const [controlsVisible, setControlsVisible] = useState(true);
+  const controlsVisible = true;
   const webViewRef = useRef<SecureVideoWebViewHandle>(null);
 
   // Remote back/menu button returns to the previous screen on TV.
   useTVBackHandler(() => navigation.goBack());
-
-  // D-pad handling for Google TV. Touch devices skip this entirely.
-  useEffect(() => {
-    if (!Platform.isTV) return;
-    const handler = new TVEventHandler();
-    handler.enable(null, (_cmp, evt: { eventType?: string }) => {
-      switch (evt?.eventType) {
-        case "select":
-          webViewRef.current?.injectJavaScript(TOGGLE_PLAY_PAUSE_JS);
-          break;
-        case "right":
-          webViewRef.current?.injectJavaScript(seekJs(10));
-          break;
-        case "left":
-          webViewRef.current?.injectJavaScript(seekJs(-10));
-          break;
-        case "up":
-        case "down":
-          setControlsVisible(true);
-          break;
-      }
-    });
-    return () => handler.disable();
-  }, []);
 
   return (
     <SafeAreaView style={styles.playerContainer}>

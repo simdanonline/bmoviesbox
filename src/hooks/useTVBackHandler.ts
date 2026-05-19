@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Platform, TVEventHandler } from "react-native";
+import { Platform, BackHandler } from "react-native";
 
 export function useTVBackHandler(onBack: () => void) {
   const onBackRef = useRef(onBack);
@@ -7,10 +7,10 @@ export function useTVBackHandler(onBack: () => void) {
 
   useEffect(() => {
     if (!Platform.isTV) return;
-    const handler = new TVEventHandler();
-    handler.enable(null, (_cmp, evt: { eventType?: string }) => {
-      if (evt?.eventType === "menu") onBackRef.current();
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      onBackRef.current();
+      return true;
     });
-    return () => handler.disable();
+    return () => sub.remove();
   }, []);
 }
