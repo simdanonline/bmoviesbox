@@ -2,12 +2,12 @@ import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   ScrollView,
   StyleSheet,
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Focusable from "../components/Focusable";
 import { useUserData } from "../context/UserDataContext";
 import {
   ALL_GENRES,
@@ -64,11 +64,10 @@ export default function PreferencesScreen({ navigation }: any) {
       {items.map((item) => {
         const isActive = selected.includes(item);
         return (
-          <TouchableOpacity
+          <Focusable
             key={item}
             style={[prefStyles.chip, isActive && prefStyles.chipActive]}
             onPress={() => onToggle(item)}
-            activeOpacity={0.7}
           >
             <Text
               style={[
@@ -78,7 +77,7 @@ export default function PreferencesScreen({ navigation }: any) {
             >
               {labelMap ? labelMap[item] : item}
             </Text>
-          </TouchableOpacity>
+          </Focusable>
         );
       })}
     </View>
@@ -158,16 +157,20 @@ export default function PreferencesScreen({ navigation }: any) {
         </View>
 
         {/* Reset */}
-        <TouchableOpacity onPress={handleReset} style={prefStyles.resetBtn}>
+        <Focusable onPress={handleReset} style={prefStyles.resetBtn}>
           <Text style={prefStyles.resetText}>Reset All Preferences</Text>
-        </TouchableOpacity>
+        </Focusable>
       </ScrollView>
 
       {/* Save button */}
       <View style={prefStyles.bottomBar}>
-        <TouchableOpacity onPress={handleSave} style={prefStyles.saveBtn}>
+        <Focusable
+          onPress={handleSave}
+          style={prefStyles.saveBtn}
+          hasTVPreferredFocus={true}
+        >
           <Text style={prefStyles.saveText}>Save Preferences</Text>
-        </TouchableOpacity>
+        </Focusable>
       </View>
     </SafeAreaView>
   );

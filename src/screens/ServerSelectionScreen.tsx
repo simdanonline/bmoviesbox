@@ -3,10 +3,10 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
   Alert,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import Focusable from '../components/Focusable';
 import { StreamingServer } from '../services/MovieAPI';
 import { styles } from '../styles/styles';
 
@@ -38,17 +38,18 @@ export default function ServerSelectionScreen({
 
         <View style={styles.serversGrid}>
           {servers.map((server, index) => (
-            <TouchableOpacity
+            <Focusable
               key={index}
               style={styles.serverCard}
               onPress={() => handleServerSelect(server)}
+              hasTVPreferredFocus={index === 0}
             >
               <Text style={styles.serverName}>{server.serverName || server.name}</Text>
               {server.quality && (
                 <Text style={styles.serverQuality}>{server.quality}</Text>
               )}
               <Text style={styles.serverNumber}>Server {server.serverNumber || index + 1}</Text>
-            </TouchableOpacity>
+            </Focusable>
           ))}
         </View>
       </View>

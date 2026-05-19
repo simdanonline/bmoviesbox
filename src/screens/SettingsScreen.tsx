@@ -3,7 +3,6 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
   Alert,
   StyleSheet,
 } from "react-native";
@@ -11,6 +10,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { styles } from "../styles/styles";
+import Focusable from "../components/Focusable";
 import { useUserData } from "../context/UserDataContext";
 import MovieAPI from "../services/MovieAPI";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -127,9 +127,10 @@ export default function SettingsScreen() {
         <View style={settingsStyles.section}>
           <Text style={settingsStyles.sectionTitle}>Preferences</Text>
 
-          <TouchableOpacity
+          <Focusable
             style={settingsStyles.settingRow}
             onPress={() => navigation.navigate("Preferences")}
+            hasTVPreferredFocus={true}
           >
             <View style={settingsStyles.settingLeft}>
               <FontAwesome name="sliders" size={18} color="#aaa" />
@@ -145,9 +146,9 @@ export default function SettingsScreen() {
               </View>
             </View>
             <FontAwesome name="chevron-right" size={14} color="#555" />
-          </TouchableOpacity>
+          </Focusable>
 
-          <TouchableOpacity
+          <Focusable
             style={settingsStyles.settingRow}
             onPress={handleResetOnboarding}
           >
@@ -163,13 +164,13 @@ export default function SettingsScreen() {
               </View>
             </View>
             <FontAwesome name="chevron-right" size={14} color="#555" />
-          </TouchableOpacity>
+          </Focusable>
         </View>
 
         {/* Planner & Notes */}
         <View style={settingsStyles.section}>
           <Text style={settingsStyles.sectionTitle}>Planner & Notes</Text>
-          <TouchableOpacity
+          <Focusable
             style={settingsStyles.settingRow}
             onPress={() => navigation.navigate("Planner")}
           >
@@ -183,8 +184,8 @@ export default function SettingsScreen() {
               </View>
             </View>
             <FontAwesome name="chevron-right" size={14} color="#555" />
-          </TouchableOpacity>
-          <TouchableOpacity
+          </Focusable>
+          <Focusable
             style={settingsStyles.settingRow}
             onPress={() => navigation.navigate("Planner")}
           >
@@ -198,7 +199,7 @@ export default function SettingsScreen() {
               </View>
             </View>
             <FontAwesome name="chevron-right" size={14} color="#555" />
-          </TouchableOpacity>
+          </Focusable>
           <Text style={settingsStyles.hintText}>
             Add plans and private notes from movie and series detail pages.
           </Text>
@@ -227,7 +228,7 @@ export default function SettingsScreen() {
         {/* Data Management */}
         <View style={settingsStyles.section}>
           <Text style={settingsStyles.sectionTitle}>Data Management</Text>
-          <TouchableOpacity
+          <Focusable
             style={settingsStyles.settingRow}
             onPress={handleClearCache}
           >
@@ -241,9 +242,9 @@ export default function SettingsScreen() {
               </View>
             </View>
             <FontAwesome name="chevron-right" size={14} color="#555" />
-          </TouchableOpacity>
+          </Focusable>
 
-          <TouchableOpacity
+          <Focusable
             style={settingsStyles.settingRow}
             onPress={handleClearHistory}
           >
@@ -259,7 +260,7 @@ export default function SettingsScreen() {
               </View>
             </View>
             <FontAwesome name="chevron-right" size={14} color="#555" />
-          </TouchableOpacity>
+          </Focusable>
         </View>
 
         {/* About */}

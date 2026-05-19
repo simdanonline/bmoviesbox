@@ -2,12 +2,12 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   ScrollView,
   StyleSheet,
   Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Focusable from "../components/Focusable";
 import { useUserData } from "../context/UserDataContext";
 import {
   ALL_GENRES,
@@ -64,18 +64,17 @@ export default function OnboardingScreen() {
       {items.map((item) => {
         const isActive = selected.includes(item);
         return (
-          <TouchableOpacity
+          <Focusable
             key={item}
             style={[obStyles.chip, isActive && obStyles.chipActive]}
             onPress={() => onToggle(item)}
-            activeOpacity={0.7}
           >
             <Text
               style={[obStyles.chipText, isActive && obStyles.chipTextActive]}
             >
               {labelMap ? labelMap[item] : item}
             </Text>
-          </TouchableOpacity>
+          </Focusable>
         );
       })}
     </View>
@@ -208,20 +207,24 @@ export default function OnboardingScreen() {
       <View style={obStyles.bottomBar}>
         <View style={obStyles.navRow}>
           {step > 0 ? (
-            <TouchableOpacity onPress={handleBack} style={obStyles.backBtn}>
+            <Focusable onPress={handleBack} style={obStyles.backBtn}>
               <Text style={obStyles.backText}>Back</Text>
-            </TouchableOpacity>
+            </Focusable>
           ) : (
-            <TouchableOpacity onPress={handleSkip} style={obStyles.skipBtn}>
+            <Focusable onPress={handleSkip} style={obStyles.skipBtn}>
               <Text style={obStyles.skipText}>Skip for now</Text>
-            </TouchableOpacity>
+            </Focusable>
           )}
 
-          <TouchableOpacity onPress={handleNext} style={obStyles.nextBtn}>
+          <Focusable
+            onPress={handleNext}
+            style={obStyles.nextBtn}
+            hasTVPreferredFocus={true}
+          >
             <Text style={obStyles.nextText}>
               {step === STEPS.length - 1 ? "Get Started" : "Next"}
             </Text>
-          </TouchableOpacity>
+          </Focusable>
         </View>
       </View>
     </SafeAreaView>

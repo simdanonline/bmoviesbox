@@ -3,7 +3,6 @@ import {
   Text,
   View,
   FlatList,
-  TouchableOpacity,
   ActivityIndicator,
   Dimensions,
   Image,
@@ -12,6 +11,7 @@ import React, { useEffect, useState } from "react";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Focusable from "../components/Focusable";
 import MovieAPI, { LiveGame, LiveStream } from "../services/MovieAPI";
 
 type Props = NativeStackScreenProps<any, "StreamSelection">;
@@ -62,11 +62,11 @@ const StreamSelection = ({ route, navigation }: Props) => {
     }
   };
 
-  const renderStreamCard = ({ item }: { item: LiveStream }) => (
-    <TouchableOpacity
+  const renderStreamCard = ({ item, index }: { item: LiveStream; index: number }) => (
+    <Focusable
       style={styles.streamCard}
       onPress={() => handleStreamPress(item)}
-      activeOpacity={0.8}
+      hasTVPreferredFocus={index === 0}
     >
       <View style={styles.streamHeader}>
         <View style={styles.sourceContainer}>
@@ -88,7 +88,7 @@ const StreamSelection = ({ route, navigation }: Props) => {
           <MaterialCommunityIcons name="play-circle" size={20} color="#e74c3c" />
         </View>
       </View>
-    </TouchableOpacity>
+    </Focusable>
   );
 
   if (loading) {
@@ -113,9 +113,13 @@ const StreamSelection = ({ route, navigation }: Props) => {
             style={{ marginBottom: 16 }}
           />
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={fetchStreams}>
+          <Focusable
+            style={styles.retryButton}
+            onPress={fetchStreams}
+            hasTVPreferredFocus={true}
+          >
             <Text style={styles.retryButtonText}>Try Again</Text>
-          </TouchableOpacity>
+          </Focusable>
         </View>
       </SafeAreaView>
     );
@@ -132,9 +136,13 @@ const StreamSelection = ({ route, navigation }: Props) => {
             style={{ marginBottom: 16 }}
           />
           <Text style={styles.emptyText}>No streams available</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={fetchStreams}>
+          <Focusable
+            style={styles.retryButton}
+            onPress={fetchStreams}
+            hasTVPreferredFocus={true}
+          >
             <Text style={styles.retryButtonText}>Refresh</Text>
-          </TouchableOpacity>
+          </Focusable>
         </View>
       </SafeAreaView>
     );
