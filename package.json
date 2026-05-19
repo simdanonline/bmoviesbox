@@ -11,6 +11,7 @@
     "build": "eas build --profile production --platform all",
     "build:ios": "eas build --profile production --platform ios",
     "build:android": "eas build --profile production --platform android",
+    "tv:build": "eas build --profile tv --platform android",
     "update": "eas update --branch production --message"
   },
   "dependencies": {
