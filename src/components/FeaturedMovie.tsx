@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, ImageBackground, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Movie } from '../services/MovieAPI';
@@ -10,7 +10,12 @@ interface FeaturedMovieProps {
   onPress: () => void;
 }
 
-export default function FeaturedMovie({ movie, onPress }: FeaturedMovieProps) {
+function FeaturedMovie({ movie, onPress }: FeaturedMovieProps) {
+  const source = useMemo(
+    () => ({ uri: movie.thumbnail?.trim() }),
+    [movie.thumbnail]
+  );
+
   if (Platform.isTV) {
     return (
       <Focusable
@@ -20,7 +25,7 @@ export default function FeaturedMovie({ movie, onPress }: FeaturedMovieProps) {
         hasTVPreferredFocus={true}
       >
         <ImageBackground
-          source={{ uri: movie.thumbnail?.trim() }}
+          source={source}
           style={styles.tvFeaturedImage}
           imageStyle={{ borderTopLeftRadius: 12, borderBottomLeftRadius: 12 }}
           resizeMode="cover"
@@ -77,7 +82,7 @@ export default function FeaturedMovie({ movie, onPress }: FeaturedMovieProps) {
       hasTVPreferredFocus={true}
     >
       <ImageBackground
-        source={{ uri: movie.thumbnail?.trim() }}
+        source={source}
         style={styles.featuredImage}
         imageStyle={{ borderRadius: 12 }}
         resizeMode='cover'
@@ -132,3 +137,5 @@ export default function FeaturedMovie({ movie, onPress }: FeaturedMovieProps) {
     </Focusable>
   );
 }
+
+export default React.memo(FeaturedMovie);

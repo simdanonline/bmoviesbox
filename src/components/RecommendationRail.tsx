@@ -67,6 +67,8 @@ export default function RecommendationRail({
 const railStyles = StyleSheet.create({
   container: {
     marginBottom: 20,
+    paddingVertical: 8,
+    overflow: "visible",
   },
   title: {
     fontSize: 18,
@@ -77,10 +79,12 @@ const railStyles = StyleSheet.create({
   },
   scroll: {
     paddingHorizontal: 16,
+    paddingVertical: 16,
     gap: 12,
   },
   card: {
     width: RAIL_CARD_WIDTH,
+    overflow: "visible",
   },
   image: {
     width: RAIL_CARD_WIDTH,

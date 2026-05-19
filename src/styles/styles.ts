@@ -244,7 +244,7 @@ export const styles = StyleSheet.create({
     backgroundColor: "#1a1a1a",
   },
   cardFocused: {
-    transform: [{ scale: 1.12 }],
+    transform: [{ scale: 1.08 }],
     borderWidth: 4,
     borderColor: "#fff",
     shadowColor: "#fff",

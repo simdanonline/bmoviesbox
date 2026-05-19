@@ -76,6 +76,8 @@ export default function ContinueWatchingSection({
 const cwStyles = StyleSheet.create({
   container: {
     marginBottom: 20,
+    paddingVertical: 8,
+    overflow: "visible",
   },
   title: {
     fontSize: 18,
@@ -86,10 +88,12 @@ const cwStyles = StyleSheet.create({
   },
   scroll: {
     paddingHorizontal: 16,
+    paddingVertical: 16,
     gap: 12,
   },
   card: {
     width: CW_CARD_WIDTH,
+    overflow: "visible",
   },
   imageWrapper: {
     position: "relative",
