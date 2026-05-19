@@ -22,6 +22,7 @@ import StatusSelector from "../components/StatusSelector";
 import TitlePlanningPanel from "../components/TitlePlanningPanel";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import { WatchStatus } from "../types/app";
+import { useTVBackHandler } from "../hooks/useTVBackHandler";
 
 type MovieDetailsScreenProps = NativeStackScreenProps<any, "MovieDetails">;
 
@@ -35,6 +36,7 @@ export default function MovieDetailsScreen({
   route,
   navigation,
 }: MovieDetailsScreenProps) {
+  useTVBackHandler(() => navigation.goBack());
   const { isTvApp } = useTvApp();
   const {
     isInWatchlist,

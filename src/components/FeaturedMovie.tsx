@@ -2,12 +2,12 @@ import React from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   Image,
   ImageBackground,
 } from 'react-native';
 import { Movie } from '../services/MovieAPI';
 import { styles } from '../styles/styles';
+import Focusable from './Focusable';
 
 interface FeaturedMovieProps {
   movie: Movie;
@@ -16,10 +16,10 @@ interface FeaturedMovieProps {
 
 export default function FeaturedMovie({ movie, onPress }: FeaturedMovieProps) {
   return (
-    <TouchableOpacity
+    <Focusable
       style={styles.featuredContainer}
       onPress={onPress}
-      activeOpacity={0.8}
+      hasTVPreferredFocus={true}
     >
       <ImageBackground
         source={{ uri: movie.thumbnail?.trim() }}
@@ -66,6 +66,6 @@ export default function FeaturedMovie({ movie, onPress }: FeaturedMovieProps) {
           </View>
         )}
       </View>
-    </TouchableOpacity>
+    </Focusable>
   );
 }

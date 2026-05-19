@@ -3,22 +3,24 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
   StyleSheet,
 } from "react-native";
 import { Image } from "expo-image";
 import { Movie } from "../services/MovieAPI";
+import Focusable from "./Focusable";
 
 interface RecommendationRailProps {
   title: string;
   items: Movie[];
   onPress: (movie: Movie) => void;
+  isFirstRail?: boolean;
 }
 
 export default function RecommendationRail({
   title,
   items,
   onPress,
+  isFirstRail,
 }: RecommendationRailProps) {
   if (items.length === 0) return null;
 
@@ -31,11 +33,11 @@ export default function RecommendationRail({
         contentContainerStyle={railStyles.scroll}
       >
         {items.map((item, idx) => (
-          <TouchableOpacity
+          <Focusable
             key={item.id + idx}
             style={railStyles.card}
             onPress={() => onPress(item)}
-            activeOpacity={0.7}
+            hasTVPreferredFocus={isFirstRail && idx === 0}
           >
             <Image
               source={{ uri: item.thumbnail?.trim() }}
@@ -50,7 +52,7 @@ export default function RecommendationRail({
                 {parseFloat(item.imdbRating).toFixed(1)}
               </Text>
             )}
-          </TouchableOpacity>
+          </Focusable>
         ))}
       </ScrollView>
     </View>
