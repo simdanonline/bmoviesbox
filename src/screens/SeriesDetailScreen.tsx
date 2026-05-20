@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { styles, width } from "../styles/styles";
-import * as WebBrowser from "expo-web-browser";
 import MovieAPI, { Episode, SeriesDetail } from "../services/MovieAPI";
 import { useTvApp } from "../context/TvAppContext";
 import { useUserData } from "../context/UserDataContext";
@@ -227,27 +226,17 @@ export default function SeriesDetailsScreen({
     );
   }
 
-  function extractYouTubeUrl(embedUrl: string): string | null {
-    const match = embedUrl.match(/\/embed\/([a-zA-Z0-9_-]+)/);
-    if (!match) return null;
-    return `https://www.youtube.com/watch?v=${match[1]}`;
-  }
-
-  const handlePressTrailer = async () => {
-    if (seriesData.trailerUrl) {
-      if (Platform.OS === "web") {
-        // @ts-ignore
-        window.open(seriesData.trailerUrl, "_blank");
-      } else {
-        const youtubeUrl = extractYouTubeUrl(seriesData.trailerUrl);
-        if (youtubeUrl) {
-          await WebBrowser.openBrowserAsync(youtubeUrl);
-          return;
-        }
-      }
-    } else {
+  const handlePressTrailer = () => {
+    if (!seriesData.trailerUrl) {
       Alert.alert("No Trailer", "Trailer not available for this series");
+      return;
     }
+    if (Platform.OS === "web") {
+      // @ts-ignore
+      window.open(seriesData.trailerUrl, "_blank");
+      return;
+    }
+    navigation.navigate("TrailerScreen", { videoUrl: seriesData.trailerUrl });
   };
 
   // Resume action for default build

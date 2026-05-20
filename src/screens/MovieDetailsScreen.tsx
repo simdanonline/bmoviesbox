@@ -12,7 +12,6 @@ import {
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import MovieAPI, { MovieDetail } from "../services/MovieAPI";
 import { styles } from "../styles/styles";
-import * as WebBrowser from "expo-web-browser";
 import { useTvApp } from "../context/TvAppContext";
 import { useUserData } from "../context/UserDataContext";
 import StarRating from "../components/StarRating";
@@ -184,27 +183,17 @@ export default function MovieDetailsScreen({
     }
   };
 
-  function extractYouTubeUrl(embedUrl: string): string | null {
-    const match = embedUrl.match(/\/embed\/([a-zA-Z0-9_-]+)/);
-    if (!match) return null;
-    return `https://www.youtube.com/watch?v=${match[1]}`;
-  }
-
-  const handlePressTrailer = async () => {
-    if (movieDetails.trailerUrl) {
-      if (Platform.OS === "web") {
-        // @ts-ignore
-        window.open(movieDetails.trailerUrl, "_blank");
-      } else {
-        const youtubeUrl = extractYouTubeUrl(movieDetails.trailerUrl);
-        if (youtubeUrl) {
-          await WebBrowser.openBrowserAsync(youtubeUrl);
-          return;
-        }
-      }
-    } else {
+  const handlePressTrailer = () => {
+    if (!movieDetails.trailerUrl) {
       Alert.alert("No Trailer", "Trailer not available for this movie");
+      return;
     }
+    if (Platform.OS === "web") {
+      // @ts-ignore
+      window.open(movieDetails.trailerUrl, "_blank");
+      return;
+    }
+    navigation.navigate("TrailerScreen", { videoUrl: movieDetails.trailerUrl });
   };
 
   return (
