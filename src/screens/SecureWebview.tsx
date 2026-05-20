@@ -12,6 +12,13 @@ import { width } from "../styles/styles";
 export interface SecureVideoWebViewHandle {
   injectJavaScript: (script: string) => void;
   reload: () => void;
+  requestFocus: () => void;
+}
+
+interface SecureVideoWebViewProps {
+  url: string;
+  promotePlayerFrame?: boolean;
+  interactive?: boolean;
 }
 
 // WHITELIST: Only these domains are allowed
@@ -92,6 +99,179 @@ const BEFORE_LOAD_SCRIPT = `
       }
     } catch(_) {}
   }
+
+  function attemptTvPlay() {
+    function fireTouch(el, type, x, y) {
+      try {
+        var t = (typeof Touch === 'function') ? new Touch({
+          identifier: 1, target: el, clientX: x, clientY: y, pageX: x, pageY: y
+        }) : null;
+        var init = { bubbles: true, cancelable: true, composed: true, view: window };
+        if (t) { init.touches = (type === 'touchend' ? [] : [t]); init.targetTouches = (type === 'touchend' ? [] : [t]); init.changedTouches = [t]; }
+        var evt = (typeof TouchEvent === 'function') ? new TouchEvent(type, init) : new Event(type, init);
+        el.dispatchEvent(evt);
+      } catch(_) {}
+    }
+    function clickElement(el) {
+      if (!el) return false;
+      var rect; try { rect = el.getBoundingClientRect(); } catch(_) { rect = {left:0,top:0,width:0,height:0}; }
+      var x = rect.left + (rect.width || 0) / 2;
+      var y = rect.top + (rect.height || 0) / 2;
+      try {
+        fireTouch(el, 'touchstart', x, y);
+        fireTouch(el, 'touchend', x, y);
+        ['pointerdown','mousedown','mouseup','pointerup','click'].forEach(function(type) {
+          el.dispatchEvent(new MouseEvent(type, {
+            bubbles: true, cancelable: true, composed: true, view: window,
+            clientX: x, clientY: y, button: 0
+          }));
+        });
+        ['keydown','keypress','keyup'].forEach(function(type) {
+          el.dispatchEvent(new KeyboardEvent(type, {
+            bubbles: true, cancelable: true, composed: true,
+            key: 'Enter', code: 'Enter', keyCode: 13, which: 13
+          }));
+        });
+        if (typeof el.focus === 'function') { try { el.focus(); } catch(_) {} }
+        if (typeof el.click === 'function') el.click();
+        return true;
+      } catch(_) {
+        try { el.click(); return true; } catch(__) { return false; }
+      }
+    }
+
+    var played = false;
+    try {
+      var videos = document.querySelectorAll('video');
+      for (var i = 0; i < videos.length; i++) {
+        var v = videos[i];
+        try {
+          v.muted = false;
+          v.volume = 1;
+          var result = v.play && v.play();
+          played = true;
+          if (result && result.catch) result.catch(function(){});
+        } catch(_) {}
+      }
+    } catch(_) {}
+
+    var selectors = [
+      'button[aria-label*="play" i]',
+      '[role="button"][aria-label*="play" i]',
+      '.jw-icon-playback',
+      '.jw-display-icon-container',
+      '.vjs-big-play-button',
+      '.plyr__control--overlaid',
+      '.plyr__control[data-plyr="play"]',
+      '[class*="bigPlay" i]',
+      '[class*="big-play" i]',
+      '[class*="poster" i]',
+      '[class*="thumbnail" i]',
+      '[class*="preview" i]',
+      '[class*="play" i]',
+      '[id*="play" i]'
+    ];
+
+    for (var s = 0; s < selectors.length; s++) {
+      try {
+        var candidates = document.querySelectorAll(selectors[s]);
+        for (var c = 0; c < candidates.length; c++) {
+          var rect = candidates[c].getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            played = clickElement(candidates[c]) || played;
+          }
+        }
+      } catch(_) {}
+    }
+
+    // Click multiple points so an overlay covering the play button still triggers it.
+    try {
+      var w = window.innerWidth, h = window.innerHeight;
+      var pts = [[w/2, h/2], [w/2, h*0.45], [w/2, h*0.55], [w*0.45, h/2], [w*0.55, h/2]];
+      for (var p = 0; p < pts.length; p++) {
+        var el = document.elementFromPoint(pts[p][0], pts[p][1]);
+        if (el) played = clickElement(el) || played;
+      }
+    } catch(_) {}
+
+    // Send Enter to document.body in case the player binds global keypress.
+    try {
+      ['keydown','keypress','keyup'].forEach(function(type) {
+        (document.body || document.documentElement).dispatchEvent(new KeyboardEvent(type, {
+          bubbles: true, cancelable: true, key: 'Enter', code: 'Enter', keyCode: 13, which: 13
+        }));
+      });
+    } catch(_) {}
+
+    try {
+      var frames = document.querySelectorAll('iframe');
+      for (var f = 0; f < frames.length; f++) {
+        try { frames[f].contentWindow.postMessage('__BMB_TV_PLAY__', '*'); } catch(_) {}
+      }
+    } catch(_) {}
+
+    return played;
+  }
+
+  function handleTvCommand(command) {
+    if (command === 'play') return attemptTvPlay();
+
+    var handled = false;
+    try {
+      var videos = document.querySelectorAll('video');
+      for (var i = 0; i < videos.length; i++) {
+        var v = videos[i];
+        try {
+          if (command === 'toggle') {
+            if (v.paused) {
+              v.muted = false;
+              v.volume = 1;
+              var toggleResult = v.play && v.play();
+              if (toggleResult && toggleResult.catch) toggleResult.catch(function(){});
+            } else {
+              v.pause();
+            }
+            handled = true;
+          } else if (command === 'pause') {
+            v.pause();
+            handled = true;
+          } else if (command === 'seekForward') {
+            if (Number.isFinite(v.duration)) v.currentTime = Math.min(v.duration, v.currentTime + 15);
+            else v.currentTime = v.currentTime + 15;
+            handled = true;
+          } else if (command === 'seekBackward') {
+            v.currentTime = Math.max(0, v.currentTime - 15);
+            handled = true;
+          }
+        } catch(_) {}
+      }
+    } catch(_) {}
+
+    if (command === 'toggle' && !handled) {
+      handled = attemptTvPlay() || handled;
+    }
+
+    try {
+      var frames = document.querySelectorAll('iframe');
+      for (var f = 0; f < frames.length; f++) {
+        try { frames[f].contentWindow.postMessage('__BMB_TV_COMMAND__:' + command, '*'); } catch(_) {}
+      }
+    } catch(_) {}
+
+    return handled;
+  }
+
+  try {
+    window.__BMB_TV_PLAY__ = attemptTvPlay;
+    window.__BMB_TV_CONTROL__ = handleTvCommand;
+    window.addEventListener('message', function(event) {
+      if (event && event.data === '__BMB_TV_PLAY__') {
+        attemptTvPlay();
+      } else if (event && typeof event.data === 'string' && event.data.indexOf('__BMB_TV_COMMAND__:') === 0) {
+        handleTvCommand(event.data.replace('__BMB_TV_COMMAND__:', ''));
+      }
+    });
+  } catch(_) {}
 
   function isAllowedHost(href) {
     if (!href) return false;
@@ -423,10 +603,215 @@ const RUNTIME_SCRIPT = `
     }
   }
 
+  function maybePromotePlayerFrame() {
+    try {
+      var iframes = document.querySelectorAll('iframe');
+      var best = null;
+      var bestArea = 0;
+      for (var i = 0; i < iframes.length; i++) {
+        var iframe = iframes[i];
+        var src = iframe.src || iframe.getAttribute('src') || '';
+        if (!src || src === 'about:blank') continue;
+        var lower = src.toLowerCase();
+        if (lower.indexOf('doubleclick') !== -1 || lower.indexOf('googlesyndication') !== -1 || lower.indexOf('/ads') !== -1) continue;
+        var rect = iframe.getBoundingClientRect();
+        var area = rect.width * rect.height;
+        var looksLikePlayer =
+          area > 60000 ||
+          lower.indexOf('embed') !== -1 ||
+          lower.indexOf('player') !== -1 ||
+          lower.indexOf('stream') !== -1 ||
+          lower.indexOf('video') !== -1;
+        if (looksLikePlayer && area >= bestArea) {
+          best = src;
+          bestArea = area;
+        }
+      }
+      if (best && window.__BMB_LAST_PLAYER_FRAME__ !== best) {
+        window.__BMB_LAST_PLAYER_FRAME__ = best;
+        send('playerFrame', { url: best });
+      }
+    } catch(_) {}
+  }
+
+  function attemptTvPlay() {
+    function fireTouch(el, type, x, y) {
+      try {
+        var t = (typeof Touch === 'function') ? new Touch({
+          identifier: 1, target: el, clientX: x, clientY: y, pageX: x, pageY: y
+        }) : null;
+        var init = { bubbles: true, cancelable: true, composed: true, view: window };
+        if (t) { init.touches = (type === 'touchend' ? [] : [t]); init.targetTouches = (type === 'touchend' ? [] : [t]); init.changedTouches = [t]; }
+        var evt = (typeof TouchEvent === 'function') ? new TouchEvent(type, init) : new Event(type, init);
+        el.dispatchEvent(evt);
+      } catch(_) {}
+    }
+    function clickElement(el) {
+      if (!el) return false;
+      var rect; try { rect = el.getBoundingClientRect(); } catch(_) { rect = {left:0,top:0,width:0,height:0}; }
+      var x = rect.left + (rect.width || 0) / 2;
+      var y = rect.top + (rect.height || 0) / 2;
+      try {
+        fireTouch(el, 'touchstart', x, y);
+        fireTouch(el, 'touchend', x, y);
+        ['pointerdown','mousedown','mouseup','pointerup','click'].forEach(function(type) {
+          el.dispatchEvent(new MouseEvent(type, {
+            bubbles: true, cancelable: true, composed: true, view: window,
+            clientX: x, clientY: y, button: 0
+          }));
+        });
+        ['keydown','keypress','keyup'].forEach(function(type) {
+          el.dispatchEvent(new KeyboardEvent(type, {
+            bubbles: true, cancelable: true, composed: true,
+            key: 'Enter', code: 'Enter', keyCode: 13, which: 13
+          }));
+        });
+        if (typeof el.focus === 'function') { try { el.focus(); } catch(_) {} }
+        if (typeof el.click === 'function') el.click();
+        return true;
+      } catch(_) {
+        try { el.click(); return true; } catch(__) { return false; }
+      }
+    }
+
+    var played = false;
+    try {
+      var videos = document.querySelectorAll('video');
+      for (var i = 0; i < videos.length; i++) {
+        var v = videos[i];
+        try {
+          v.muted = false;
+          v.volume = 1;
+          var result = v.play && v.play();
+          played = true;
+          if (result && result.catch) result.catch(function(){});
+        } catch(_) {}
+      }
+    } catch(_) {}
+
+    var selectors = [
+      'button[aria-label*="play" i]',
+      '[role="button"][aria-label*="play" i]',
+      '.jw-icon-playback',
+      '.jw-display-icon-container',
+      '.vjs-big-play-button',
+      '.plyr__control--overlaid',
+      '.plyr__control[data-plyr="play"]',
+      '[class*="bigPlay" i]',
+      '[class*="big-play" i]',
+      '[class*="poster" i]',
+      '[class*="thumbnail" i]',
+      '[class*="preview" i]',
+      '[class*="play" i]',
+      '[id*="play" i]'
+    ];
+
+    for (var s = 0; s < selectors.length; s++) {
+      try {
+        var candidates = document.querySelectorAll(selectors[s]);
+        for (var c = 0; c < candidates.length; c++) {
+          var rect = candidates[c].getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            played = clickElement(candidates[c]) || played;
+          }
+        }
+      } catch(_) {}
+    }
+
+    // Click multiple points so an overlay covering the play button still triggers it.
+    try {
+      var w = window.innerWidth, h = window.innerHeight;
+      var pts = [[w/2, h/2], [w/2, h*0.45], [w/2, h*0.55], [w*0.45, h/2], [w*0.55, h/2]];
+      for (var p = 0; p < pts.length; p++) {
+        var el = document.elementFromPoint(pts[p][0], pts[p][1]);
+        if (el) played = clickElement(el) || played;
+      }
+    } catch(_) {}
+
+    // Send Enter to document.body in case the player binds global keypress.
+    try {
+      ['keydown','keypress','keyup'].forEach(function(type) {
+        (document.body || document.documentElement).dispatchEvent(new KeyboardEvent(type, {
+          bubbles: true, cancelable: true, key: 'Enter', code: 'Enter', keyCode: 13, which: 13
+        }));
+      });
+    } catch(_) {}
+
+    try {
+      var frames = document.querySelectorAll('iframe');
+      for (var f = 0; f < frames.length; f++) {
+        try { frames[f].contentWindow.postMessage('__BMB_TV_PLAY__', '*'); } catch(_) {}
+      }
+    } catch(_) {}
+
+    return played;
+  }
+
+  function handleTvCommand(command) {
+    if (command === 'play') return attemptTvPlay();
+
+    var handled = false;
+    try {
+      var videos = document.querySelectorAll('video');
+      for (var i = 0; i < videos.length; i++) {
+        var v = videos[i];
+        try {
+          if (command === 'toggle') {
+            if (v.paused) {
+              v.muted = false;
+              v.volume = 1;
+              var toggleResult = v.play && v.play();
+              if (toggleResult && toggleResult.catch) toggleResult.catch(function(){});
+            } else {
+              v.pause();
+            }
+            handled = true;
+          } else if (command === 'pause') {
+            v.pause();
+            handled = true;
+          } else if (command === 'seekForward') {
+            if (Number.isFinite(v.duration)) v.currentTime = Math.min(v.duration, v.currentTime + 15);
+            else v.currentTime = v.currentTime + 15;
+            handled = true;
+          } else if (command === 'seekBackward') {
+            v.currentTime = Math.max(0, v.currentTime - 15);
+            handled = true;
+          }
+        } catch(_) {}
+      }
+    } catch(_) {}
+
+    if (command === 'toggle' && !handled) {
+      handled = attemptTvPlay() || handled;
+    }
+
+    try {
+      var frames = document.querySelectorAll('iframe');
+      for (var f = 0; f < frames.length; f++) {
+        try { frames[f].contentWindow.postMessage('__BMB_TV_COMMAND__:' + command, '*'); } catch(_) {}
+      }
+    } catch(_) {}
+
+    return handled;
+  }
+
+  try {
+    window.__BMB_TV_PLAY__ = attemptTvPlay;
+    window.__BMB_TV_CONTROL__ = handleTvCommand;
+    window.addEventListener('message', function(event) {
+      if (event && event.data === '__BMB_TV_PLAY__') {
+        attemptTvPlay();
+      } else if (event && typeof event.data === 'string' && event.data.indexOf('__BMB_TV_COMMAND__:') === 0) {
+        handleTvCommand(event.data.replace('__BMB_TV_COMMAND__:', ''));
+      }
+    });
+  } catch(_) {}
+
+  maybePromotePlayerFrame();
   removeAds();
   unmuteAllVideos();
   try {
-    var observer = new MutationObserver(function(){ removeAds(); unmuteAllVideos(); });
+    var observer = new MutationObserver(function(){ maybePromotePlayerFrame(); removeAds(); unmuteAllVideos(); });
     if (document.body) {
       observer.observe(document.body, {
         childList: true,
@@ -436,16 +821,24 @@ const RUNTIME_SCRIPT = `
       });
     }
   } catch(_) {}
-  setInterval(function(){ removeAds(); unmuteAllVideos(); }, 800);
+  setInterval(function(){ maybePromotePlayerFrame(); removeAds(); unmuteAllVideos(); }, 800);
 })();
 true;
 `;
 
-const SecureVideoWebView = forwardRef<SecureVideoWebViewHandle, { url: string }>(
-  function SecureVideoWebView({ url }, ref) {
+const SecureVideoWebView = forwardRef<SecureVideoWebViewHandle, SecureVideoWebViewProps>(
+  function SecureVideoWebView({ url, promotePlayerFrame = false, interactive = false }, ref) {
   const webRef = useRef<WebView>(null);
   const [loading, setLoading] = useState(true);
-  const initialUrlRef = useRef(url);
+  const [sourceUrl, setSourceUrl] = useState(url);
+  const currentUrlRef = useRef(url);
+  const promotedFrameRef = useRef<string | null>(null);
+
+  React.useEffect(() => {
+    currentUrlRef.current = url;
+    promotedFrameRef.current = null;
+    setSourceUrl(url);
+  }, [url]);
 
   useImperativeHandle(
     ref,
@@ -456,6 +849,10 @@ const SecureVideoWebView = forwardRef<SecureVideoWebViewHandle, { url: string }>
       reload: () => {
         webRef.current?.reload();
       },
+      requestFocus: () => {
+        const w = webRef.current as unknown as { requestFocus?: () => void } | null;
+        w?.requestFocus?.();
+      },
     }),
     []
   );
@@ -463,7 +860,7 @@ const SecureVideoWebView = forwardRef<SecureVideoWebViewHandle, { url: string }>
 
   const getInitialHost = useCallback(() => {
     try {
-      return new URL(initialUrlRef.current).hostname;
+      return new URL(currentUrlRef.current).hostname;
     } catch {
       return "";
     }
@@ -519,10 +916,15 @@ const SecureVideoWebView = forwardRef<SecureVideoWebViewHandle, { url: string }>
       ) : (
         <WebView
           ref={webRef}
-          source={{ uri: url }}
+          source={{ uri: sourceUrl }}
           onLoadStart={() => setLoading(true)}
           onLoadEnd={() => setLoading(false)}
           style={{ flex: 1, width: width, height: "100%" }}
+          focusable={!Platform.isTV || interactive}
+          accessible={!Platform.isTV || interactive}
+          importantForAccessibility={
+            Platform.isTV && !interactive ? "no-hide-descendants" : "auto"
+          }
           javaScriptEnabled
           domStorageEnabled
           allowsInlineMediaPlayback
@@ -571,6 +973,20 @@ const SecureVideoWebView = forwardRef<SecureVideoWebViewHandle, { url: string }>
                 );
               } else if (msg && msg.tag === "init") {
                 console.log("[AdBlock] init in frame:", msg.data?.frame);
+              } else if (msg && msg.tag === "playerFrame") {
+                const frameUrl = msg.data?.url;
+                if (
+                  promotePlayerFrame &&
+                  Platform.isTV &&
+                  typeof frameUrl === "string" &&
+                  /^https?:\/\//i.test(frameUrl) &&
+                  frameUrl !== sourceUrl &&
+                  frameUrl !== promotedFrameRef.current
+                ) {
+                  promotedFrameRef.current = frameUrl;
+                  currentUrlRef.current = frameUrl;
+                  setSourceUrl(frameUrl);
+                }
               }
             } catch {
               console.log("[WebView]:", event.nativeEvent.data);

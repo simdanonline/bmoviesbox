@@ -21,9 +21,11 @@ export default function ServerSelectionScreen({
     movieTitle: string;
   };
 
-  const handleServerSelect = (server: StreamingServer) => {
+  const handleServerSelect = (server: StreamingServer, serverIndex: number) => {
     navigation.navigate('VideoPlayer', {
       server,
+      servers,
+      serverIndex,
       movieTitle,
     });
   };
@@ -41,7 +43,7 @@ export default function ServerSelectionScreen({
             <Focusable
               key={index}
               style={styles.serverCard}
-              onPress={() => handleServerSelect(server)}
+              onPress={() => handleServerSelect(server, index)}
               hasTVPreferredFocus={index === 0}
             >
               <Text style={styles.serverName}>{server.serverName || server.name}</Text>

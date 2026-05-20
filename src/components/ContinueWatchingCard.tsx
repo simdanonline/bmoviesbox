@@ -7,9 +7,9 @@ import {
   Dimensions,
   Platform,
 } from "react-native";
-import { Image } from "expo-image";
 import { LibraryItem } from "../types/app";
 import Focusable from "./Focusable";
+import TvSafeImage from "./TvSafeImage";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CW_CARD_WIDTH = Platform.isTV ? Math.min(SCREEN_WIDTH / 6, 320) : 140;
@@ -40,10 +40,11 @@ export default function ContinueWatchingSection({
           <Focusable
             key={item.url + idx}
             style={cwStyles.card}
+            focusedStyle={cwStyles.cardFocused}
             onPress={() => onPress(item)}
           >
             <View style={cwStyles.imageWrapper}>
-              <Image
+              <TvSafeImage
                 source={{ uri: item.thumbnail?.trim() }}
                 style={cwStyles.image}
                 contentFit="cover"
@@ -87,19 +88,26 @@ const cwStyles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   scroll: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: Platform.isTV ? 32 : 16,
+    paddingVertical: Platform.isTV ? 20 : 16,
     gap: 12,
   },
   card: {
-    width: CW_CARD_WIDTH,
+    width: Platform.isTV ? CW_CARD_WIDTH + 8 : CW_CARD_WIDTH,
+    borderWidth: Platform.isTV ? 4 : 0,
+    borderColor: "transparent",
+    borderRadius: 12,
     overflow: "visible",
+  },
+  cardFocused: {
+    borderColor: "#fff",
+    zIndex: 10,
   },
   imageWrapper: {
     position: "relative",
   },
   image: {
-    width: CW_CARD_WIDTH,
+    width: "100%",
     height: CW_CARD_HEIGHT,
     borderRadius: 8,
     backgroundColor: "#1a1a1a",

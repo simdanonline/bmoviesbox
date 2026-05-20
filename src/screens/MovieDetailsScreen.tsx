@@ -5,7 +5,6 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  TouchableOpacity,
   Platform,
   Share,
   StyleSheet,
@@ -13,7 +12,6 @@ import {
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import MovieAPI, { MovieDetail } from "../services/MovieAPI";
 import { styles } from "../styles/styles";
-import { Image } from "expo-image";
 import * as WebBrowser from "expo-web-browser";
 import { useTvApp } from "../context/TvAppContext";
 import { useUserData } from "../context/UserDataContext";
@@ -23,6 +21,8 @@ import TitlePlanningPanel from "../components/TitlePlanningPanel";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import { WatchStatus } from "../types/app";
 import { useTVBackHandler } from "../hooks/useTVBackHandler";
+import Focusable from "../components/Focusable";
+import TvSafeImage from "../components/TvSafeImage";
 
 type MovieDetailsScreenProps = NativeStackScreenProps<any, "MovieDetails">;
 
@@ -38,6 +38,7 @@ export default function MovieDetailsScreen({
 }: MovieDetailsScreenProps) {
   useTVBackHandler(() => navigation.goBack());
   const { isTvApp } = useTvApp();
+  const usesTvPlaybackControls = Platform.isTV || isTvApp;
   const {
     isInWatchlist,
     toggleWantToWatch,
@@ -171,6 +172,8 @@ export default function MovieDetailsScreen({
     if (movieDetails.streamingServers.length === 1) {
       navigation.navigate("VideoPlayer", {
         server: movieDetails.streamingServers[0],
+        servers: movieDetails.streamingServers,
+        serverIndex: 0,
         movieTitle: movieDetails.title,
       });
     } else {
@@ -208,16 +211,18 @@ export default function MovieDetailsScreen({
     <ScrollView style={styles.container}>
       {/* Cover Image */}
       {movieDetails.coverImage && (
-        <Image
+        <TvSafeImage
           source={{ uri: movieDetails.coverImage?.trim() }}
           style={styles.coverImage}
+          contentFit="cover"
         />
       )}
 
       {/* Action Buttons */}
       <View style={detailActionStyles.actionRow}>
-        <TouchableOpacity
+        <Focusable
           style={detailActionStyles.actionButton}
+          focusedStyle={detailActionStyles.focused}
           onPress={() =>
             toggleWantToWatch({
               id: movieDetails.id,
@@ -240,10 +245,11 @@ export default function MovieDetailsScreen({
           <Text style={detailActionStyles.actionText}>
             {isInWatchlist(movieDetails.url) ? "Saved" : "Save"}
           </Text>
-        </TouchableOpacity>
+        </Focusable>
 
-        <TouchableOpacity
+        <Focusable
           style={detailActionStyles.actionButton}
+          focusedStyle={detailActionStyles.focused}
           onPress={() =>
             Share.share({
               message: `Check out "${movieDetails.title}" on BMovieBox!`,
@@ -253,22 +259,28 @@ export default function MovieDetailsScreen({
         >
           <FontAwesome name="share-alt" size={22} color="#fff" />
           <Text style={detailActionStyles.actionText}>Share</Text>
-        </TouchableOpacity>
+        </Focusable>
       </View>
 
-      {/* Play Button — only when TV mode */}
-      {isTvApp ? (
-        <TouchableOpacity style={styles.playButton} onPress={handlePlayPress}>
+      {/* Play Button — shown for Android TV hardware or unlocked TV mode */}
+      {usesTvPlaybackControls ? (
+        <Focusable
+          style={[styles.playButton, detailActionStyles.primaryActionButton]}
+          focusedStyle={detailActionStyles.focused}
+          hasTVPreferredFocus={Platform.isTV}
+          onPress={handlePlayPress}
+        >
           <Text style={styles.playButtonText}>PLAY</Text>
-        </TouchableOpacity>
+        </Focusable>
       ) : null}
 
-      <TouchableOpacity
-        style={styles.trailerButton}
+      <Focusable
+        style={[styles.trailerButton, detailActionStyles.primaryActionButton]}
+        focusedStyle={detailActionStyles.focused}
         onPress={handlePressTrailer}
       >
         <Text style={styles.trailerButtonText}>Watch Trailer</Text>
-      </TouchableOpacity>
+      </Focusable>
 
       {/* Status Selector — default build */}
       {!isTvApp && (
@@ -460,6 +472,17 @@ const detailActionStyles = StyleSheet.create({
   actionButton: {
     alignItems: "center",
     padding: 8,
+    borderWidth: 2,
+    borderColor: "transparent",
+    borderRadius: 8,
+    minWidth: 72,
+  },
+  primaryActionButton: {
+    borderWidth: 3,
+    borderColor: "transparent",
+  },
+  focused: {
+    borderColor: "#fff",
   },
   actionText: {
     color: "#fff",

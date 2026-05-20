@@ -1,10 +1,10 @@
 import React from "react";
 import { View, Text, ViewStyle } from "react-native";
-import { Image } from "expo-image";
 import { Movie } from "../services/MovieAPI";
 import { styles } from "../styles/styles";
 import { Feather } from "@expo/vector-icons";
 import Focusable from "./Focusable";
+import TvSafeImage from "./TvSafeImage";
 
 interface MovieCardProps {
   movie: Movie;
@@ -30,7 +30,7 @@ export default function MovieCard({
       hasTVPreferredFocus={hasTVPreferredFocus}
     >
       <View style={styles.cardImageWrapper}>
-        <Image
+        <TvSafeImage
           source={{ uri: movie.thumbnail.trim() }}
           style={styles.cardImage}
           contentFit="scale-down"

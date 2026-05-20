@@ -1,10 +1,10 @@
 import React, { useMemo } from 'react';
 import { View, Text, Platform } from 'react-native';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Movie } from '../services/MovieAPI';
 import { styles } from '../styles/styles';
 import Focusable from './Focusable';
+import TvSafeImage from './TvSafeImage';
 
 interface FeaturedMovieProps {
   movie: Movie;
@@ -26,7 +26,7 @@ function FeaturedMovie({ movie, onPress }: FeaturedMovieProps) {
         hasTVPreferredFocus={true}
       >
         <View style={styles.tvFeaturedImage}>
-          <Image
+          <TvSafeImage
             source={source}
             style={styles.tvFeaturedImageBg}
             contentFit="cover"
@@ -84,7 +84,7 @@ function FeaturedMovie({ movie, onPress }: FeaturedMovieProps) {
       hasTVPreferredFocus={true}
     >
       <View style={styles.featuredImage}>
-        <Image
+        <TvSafeImage
           source={source}
           style={styles.featuredImageBg}
           contentFit="cover"

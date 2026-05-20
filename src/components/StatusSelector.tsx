@@ -1,6 +1,7 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { WatchStatus, STATUS_LABELS, STATUS_COLORS } from "../types/app";
+import Focusable from "./Focusable";
 
 interface StatusSelectorProps {
   currentStatus: WatchStatus | null;
@@ -27,14 +28,17 @@ export default function StatusSelector({
         {STATUSES.map((status) => {
           const isActive = currentStatus === status;
           return (
-            <TouchableOpacity
+            <Focusable
               key={status}
               style={[
                 sStyles.chip,
-                isActive && { backgroundColor: STATUS_COLORS[status], borderColor: STATUS_COLORS[status] },
+                isActive && {
+                  backgroundColor: STATUS_COLORS[status],
+                  borderColor: STATUS_COLORS[status],
+                },
               ]}
+              focusedStyle={sStyles.focused}
               onPress={() => onSelect(status)}
-              activeOpacity={0.7}
             >
               <Text
                 style={[
@@ -44,14 +48,18 @@ export default function StatusSelector({
               >
                 {STATUS_LABELS[status]}
               </Text>
-            </TouchableOpacity>
+            </Focusable>
           );
         })}
       </View>
       {currentStatus && onRemove && (
-        <TouchableOpacity onPress={onRemove} style={sStyles.removeBtn}>
+        <Focusable
+          onPress={onRemove}
+          style={sStyles.removeBtn}
+          focusedStyle={sStyles.focused}
+        >
           <Text style={sStyles.removeText}>Remove from Library</Text>
-        </TouchableOpacity>
+        </Focusable>
       )}
     </View>
   );
@@ -77,8 +85,11 @@ const sStyles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: "#1a1a1a",
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: "#333",
+  },
+  focused: {
+    borderColor: "#fff",
   },
   chipText: {
     color: "#aaa",
@@ -91,6 +102,11 @@ const sStyles = StyleSheet.create({
   removeBtn: {
     marginTop: 10,
     alignSelf: "flex-start",
+    borderWidth: 2,
+    borderColor: "transparent",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
   },
   removeText: {
     color: "#e74c3c",

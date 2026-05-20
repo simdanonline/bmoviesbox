@@ -5,13 +5,11 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  TouchableOpacity,
   StyleSheet,
   Platform,
   Share,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { Image } from "expo-image";
 import { styles, width } from "../styles/styles";
 import * as WebBrowser from "expo-web-browser";
 import MovieAPI, { Episode, SeriesDetail } from "../services/MovieAPI";
@@ -22,6 +20,9 @@ import StatusSelector from "../components/StatusSelector";
 import TitlePlanningPanel from "../components/TitlePlanningPanel";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import { WatchStatus } from "../types/app";
+import { useTVBackHandler } from "../hooks/useTVBackHandler";
+import Focusable from "../components/Focusable";
+import TvSafeImage from "../components/TvSafeImage";
 
 type SeriesDetailsScreenProps = NativeStackScreenProps<any, "SeriesDetails">;
 
@@ -29,7 +30,9 @@ export default function SeriesDetailsScreen({
   route,
   navigation,
 }: SeriesDetailsScreenProps) {
+  useTVBackHandler(() => navigation.goBack());
   const { isTvApp } = useTvApp();
+  const usesTvPlaybackControls = Platform.isTV || isTvApp;
   const {
     isInWatchlist,
     toggleWantToWatch,
@@ -188,6 +191,8 @@ export default function SeriesDetailsScreen({
       if (servers.length === 1) {
         navigation.navigate("VideoPlayer", {
           server: servers[0],
+          servers,
+          serverIndex: 0,
           movieTitle,
         });
       } else {
@@ -257,16 +262,19 @@ export default function SeriesDetailsScreen({
     >
       {/* Cover Image */}
       {seriesData.coverImage && (
-        <Image
+        <TvSafeImage
           source={{ uri: seriesData.coverImage?.trim() }}
           style={seriesStyles.coverImage}
+          contentFit="cover"
         />
       )}
 
       {/* Action Buttons */}
       <View style={detailActionStyles.actionRow}>
-        <TouchableOpacity
+        <Focusable
           style={detailActionStyles.actionButton}
+          focusedStyle={detailActionStyles.focused}
+          hasTVPreferredFocus={Platform.isTV}
           onPress={() =>
             toggleWantToWatch({
               id: seriesData.id,
@@ -289,10 +297,11 @@ export default function SeriesDetailsScreen({
           <Text style={detailActionStyles.actionText}>
             {isInWatchlist(seriesData.url) ? "Saved" : "Save"}
           </Text>
-        </TouchableOpacity>
+        </Focusable>
 
-        <TouchableOpacity
+        <Focusable
           style={detailActionStyles.actionButton}
+          focusedStyle={detailActionStyles.focused}
           onPress={() =>
             Share.share({
               message: `Check out the series "${seriesData.title}" on BMovieBox!`,
@@ -302,17 +311,21 @@ export default function SeriesDetailsScreen({
         >
           <FontAwesome name="share-alt" size={22} color="#fff" />
           <Text style={detailActionStyles.actionText}>Share</Text>
-        </TouchableOpacity>
+        </Focusable>
       </View>
 
       {/* Trailer Button */}
       {seriesData.trailerUrl && (
-        <TouchableOpacity
-          style={seriesStyles.trailerButton}
+        <Focusable
+          style={[
+            seriesStyles.trailerButton,
+            detailActionStyles.primaryActionButton,
+          ]}
+          focusedStyle={detailActionStyles.focused}
           onPress={handlePressTrailer}
         >
           <Text style={seriesStyles.trailerButtonText}>Watch Trailer</Text>
-        </TouchableOpacity>
+        </Focusable>
       )}
 
       {/* Status Selector — default build */}
@@ -483,13 +496,14 @@ export default function SeriesDetailsScreen({
               style={seriesStyles.seasonSelector}
             >
               {seriesData.seasons.map((season) => (
-                <TouchableOpacity
+                <Focusable
                   key={season.seasonNumber}
                   style={[
                     seriesStyles.seasonButton,
                     selectedSeason === season.seasonNumber &&
                       seriesStyles.seasonButtonActive,
                   ]}
+                  focusedStyle={seriesStyles.focused}
                   onPress={() => setSelectedSeason(season.seasonNumber)}
                 >
                   <Text
@@ -501,7 +515,7 @@ export default function SeriesDetailsScreen({
                   >
                     S{season.seasonNumber}
                   </Text>
-                </TouchableOpacity>
+                </Focusable>
               ))}
             </ScrollView>
 
@@ -509,24 +523,25 @@ export default function SeriesDetailsScreen({
               {currentEpisodes.map((episode) => {
                 const watched = isEpisodeWatched(episode.episodeUrl);
                 return (
-                  <TouchableOpacity
+                  <Focusable
                     key={episode.episodeNumber}
                     style={[
                       seriesStyles.episodeCard,
                       watched && seriesStyles.episodeCardWatched,
                     ]}
+                    focusedStyle={seriesStyles.focused}
                     onPress={() => {
-                      if (isTvApp) {
+                      if (usesTvPlaybackControls) {
                         handlePlayEpisode(episode);
                       } else {
                         handleToggleEpisodeWatched(episode);
                       }
                     }}
-                    disabled={gettingLinks && isTvApp}
+                    disabled={gettingLinks && usesTvPlaybackControls}
                   >
                     {gettingLinks &&
                     selectedEpisode === episode.episodeNumber &&
-                    isTvApp ? (
+                    usesTvPlaybackControls ? (
                       <View style={seriesStyles.centered}>
                         <ActivityIndicator />
                       </View>
@@ -548,7 +563,7 @@ export default function SeriesDetailsScreen({
                         >
                           {episode.episodeTitle}
                         </Text>
-                        {isTvApp ? (
+                        {usesTvPlaybackControls ? (
                           <View style={seriesStyles.playIconSmall}>
                             <Text style={seriesStyles.playIcon}>▶</Text>
                           </View>
@@ -561,7 +576,7 @@ export default function SeriesDetailsScreen({
                         )}
                       </>
                     )}
-                  </TouchableOpacity>
+                  </Focusable>
                 );
               })}
             </View>
@@ -651,6 +666,8 @@ const seriesStyles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: "center",
+    borderWidth: 3,
+    borderColor: "transparent",
   },
   trailerButtonText: {
     color: "#fff",
@@ -781,7 +798,7 @@ const seriesStyles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: "#1a1a1a",
     marginRight: 8,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: "#333",
   },
   seasonButtonActive: {
@@ -806,9 +823,12 @@ const seriesStyles = StyleSheet.create({
     backgroundColor: "#1a1a1a",
     borderRadius: 8,
     padding: 12,
-    borderWidth: 1,
+    borderWidth: 3,
     borderColor: "#333",
     alignItems: "center",
+  },
+  focused: {
+    borderColor: "#fff",
   },
   episodeCardWatched: {
     borderColor: "#2ecc71",
@@ -864,6 +884,17 @@ const detailActionStyles = StyleSheet.create({
   actionButton: {
     alignItems: "center",
     padding: 8,
+    borderWidth: 2,
+    borderColor: "transparent",
+    borderRadius: 8,
+    minWidth: 72,
+  },
+  primaryActionButton: {
+    borderWidth: 3,
+    borderColor: "transparent",
+  },
+  focused: {
+    borderColor: "#fff",
   },
   actionText: {
     color: "#fff",

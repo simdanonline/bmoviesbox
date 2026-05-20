@@ -4,12 +4,12 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import { useUserData } from "../context/UserDataContext";
 import { WatchPlanItem } from "../types/app";
+import Focusable from "./Focusable";
 
 interface TitlePlanningPanelProps {
   titleUrl: string;
@@ -89,6 +89,9 @@ export default function TitlePlanningPanel({
     useState<QuickPlanKey>("tonight");
   const [planNote, setPlanNote] = useState("");
   const [noteBody, setNoteBody] = useState(existingNote?.body ?? "");
+  const [focusedInput, setFocusedInput] = useState<"plan" | "note" | null>(
+    null,
+  );
 
   useEffect(() => {
     setNoteBody(existingNote?.body ?? "");
@@ -137,19 +140,21 @@ export default function TitlePlanningPanel({
         ) : null}
       </View>
       {plan.status === "planned" ? (
-        <TouchableOpacity
+        <Focusable
           style={panelStyles.iconButton}
+          focusedStyle={panelStyles.focused}
           onPress={() => updateWatchPlan(plan.id, { status: "done" })}
         >
           <FontAwesome name="check" size={14} color="#2ecc71" />
-        </TouchableOpacity>
+        </Focusable>
       ) : null}
-      <TouchableOpacity
+      <Focusable
         style={panelStyles.iconButton}
+        focusedStyle={panelStyles.focused}
         onPress={() => removeWatchPlan(plan.id)}
       >
         <FontAwesome name="trash-o" size={14} color="#888" />
-      </TouchableOpacity>
+      </Focusable>
     </View>
   );
 
@@ -173,12 +178,13 @@ export default function TitlePlanningPanel({
         {(Object.keys(QUICK_PLAN_LABELS) as QuickPlanKey[]).map((key) => {
           const isActive = selectedQuickPlan === key;
           return (
-            <TouchableOpacity
+            <Focusable
               key={key}
               style={[
                 panelStyles.quickChip,
                 isActive && panelStyles.quickChipActive,
               ]}
+              focusedStyle={panelStyles.focused}
               onPress={() => setSelectedQuickPlan(key)}
             >
               <Text
@@ -189,7 +195,7 @@ export default function TitlePlanningPanel({
               >
                 {QUICK_PLAN_LABELS[key]}
               </Text>
-            </TouchableOpacity>
+            </Focusable>
           );
         })}
       </View>
@@ -199,15 +205,21 @@ export default function TitlePlanningPanel({
         onChangeText={setPlanNote}
         placeholder="Add a reason or viewing note"
         placeholderTextColor="#777"
-        style={panelStyles.input}
+        onFocus={() => setFocusedInput("plan")}
+        onBlur={() => setFocusedInput(null)}
+        style={[
+          panelStyles.input,
+          focusedInput === "plan" && panelStyles.inputFocused,
+        ]}
       />
 
-      <TouchableOpacity
+      <Focusable
         style={panelStyles.primaryButton}
+        focusedStyle={panelStyles.focused}
         onPress={handleAddPlan}
       >
         <Text style={panelStyles.primaryButtonText}>Add to Planner</Text>
-      </TouchableOpacity>
+      </Focusable>
 
       {plans.length > 0 && (
         <View style={panelStyles.planList}>
@@ -234,24 +246,32 @@ export default function TitlePlanningPanel({
         placeholderTextColor="#777"
         multiline
         textAlignVertical="top"
-        style={[panelStyles.input, panelStyles.noteInput]}
+        onFocus={() => setFocusedInput("note")}
+        onBlur={() => setFocusedInput(null)}
+        style={[
+          panelStyles.input,
+          panelStyles.noteInput,
+          focusedInput === "note" && panelStyles.inputFocused,
+        ]}
       />
 
       <View style={panelStyles.noteActions}>
         {existingNote && (
-          <TouchableOpacity
+          <Focusable
             style={panelStyles.secondaryButton}
+            focusedStyle={panelStyles.focused}
             onPress={handleDeleteNote}
           >
             <Text style={panelStyles.secondaryButtonText}>Clear</Text>
-          </TouchableOpacity>
+          </Focusable>
         )}
-        <TouchableOpacity
+        <Focusable
           style={[panelStyles.primaryButton, panelStyles.noteSaveButton]}
+          focusedStyle={panelStyles.focused}
           onPress={handleSaveNote}
         >
           <Text style={panelStyles.primaryButtonText}>Save Note</Text>
-        </TouchableOpacity>
+        </Focusable>
       </View>
     </View>
   );
@@ -293,7 +313,7 @@ const panelStyles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 6,
     backgroundColor: "#1a1a1a",
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: "#333",
   },
   quickChipActive: {
@@ -310,7 +330,7 @@ const panelStyles = StyleSheet.create({
   },
   input: {
     backgroundColor: "#1a1a1a",
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: "#333",
     borderRadius: 8,
     color: "#fff",
@@ -319,12 +339,17 @@ const panelStyles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 10,
   },
+  inputFocused: {
+    borderColor: "#fff",
+  },
   noteInput: {
     minHeight: 96,
     lineHeight: 20,
   },
   primaryButton: {
     backgroundColor: "#e74c3c",
+    borderWidth: 2,
+    borderColor: "transparent",
     borderRadius: 8,
     alignItems: "center",
     paddingVertical: 11,
@@ -366,6 +391,8 @@ const panelStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#242424",
+    borderWidth: 2,
+    borderColor: "transparent",
   },
   divider: {
     height: 1,
@@ -381,6 +408,8 @@ const panelStyles = StyleSheet.create({
     paddingVertical: 11,
     borderRadius: 8,
     backgroundColor: "#242424",
+    borderWidth: 2,
+    borderColor: "transparent",
   },
   secondaryButtonText: {
     color: "#ddd",
@@ -389,5 +418,8 @@ const panelStyles = StyleSheet.create({
   },
   noteSaveButton: {
     flex: 1,
+  },
+  focused: {
+    borderColor: "#fff",
   },
 });

@@ -38,9 +38,9 @@ export default function TvTabs({ navigation, route }: any) {
       case "Calendar":
         return <CalendarScreen {...screenProps} />;
       case "Settings":
-        return <SettingsScreen {...screenProps} />;
+        return <SettingsScreen />;
       case "Live":
-        return <LiveTab {...screenProps} />;
+        return <LiveTab />;
     }
   };
 

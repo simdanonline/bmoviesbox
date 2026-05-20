@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { forwardRef, useState } from "react";
 import {
   Pressable,
   PressableProps,
   Platform,
   StyleProp,
   ViewStyle,
+  View,
 } from "react-native";
 import { styles } from "../styles/styles";
 
@@ -15,19 +16,17 @@ interface FocusableProps extends PressableProps {
   children: React.ReactNode;
 }
 
-export default function Focusable({
-  style,
-  focusedStyle,
-  hasTVPreferredFocus,
-  children,
-  ...rest
-}: FocusableProps) {
+const Focusable = forwardRef<View, FocusableProps>(function Focusable(
+  { style, focusedStyle, hasTVPreferredFocus, children, ...rest },
+  ref,
+) {
   const [focused, setFocused] = useState(false);
   const isTV = Platform.isTV;
 
   return (
     <Pressable
       {...rest}
+      ref={ref}
       hasTVPreferredFocus={isTV ? hasTVPreferredFocus : undefined}
       onFocus={(e) => {
         setFocused(true);
@@ -46,4 +45,6 @@ export default function Focusable({
       {children}
     </Pressable>
   );
-}
+});
+
+export default Focusable;

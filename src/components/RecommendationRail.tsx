@@ -7,9 +7,9 @@ import {
   Dimensions,
   Platform,
 } from "react-native";
-import { Image } from "expo-image";
 import { Movie } from "../services/MovieAPI";
 import Focusable from "./Focusable";
+import TvSafeImage from "./TvSafeImage";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const RAIL_CARD_WIDTH = Platform.isTV ? Math.min(SCREEN_WIDTH / 7, 240) : 120;
@@ -42,9 +42,10 @@ export default function RecommendationRail({
           <Focusable
             key={item.id + idx}
             style={railStyles.card}
+            focusedStyle={railStyles.cardFocused}
             onPress={() => onPress(item)}
           >
-            <Image
+            <TvSafeImage
               source={{ uri: item.thumbnail?.trim() }}
               style={railStyles.image}
               contentFit="cover"
@@ -78,16 +79,23 @@ const railStyles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   scroll: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: Platform.isTV ? 32 : 16,
+    paddingVertical: Platform.isTV ? 20 : 16,
     gap: 12,
   },
   card: {
-    width: RAIL_CARD_WIDTH,
+    width: Platform.isTV ? RAIL_CARD_WIDTH + 8 : RAIL_CARD_WIDTH,
+    borderWidth: Platform.isTV ? 4 : 0,
+    borderColor: "transparent",
+    borderRadius: 12,
     overflow: "visible",
   },
+  cardFocused: {
+    borderColor: "#fff",
+    zIndex: 10,
+  },
   image: {
-    width: RAIL_CARD_WIDTH,
+    width: "100%",
     height: RAIL_CARD_HEIGHT,
     borderRadius: 8,
     backgroundColor: "#1a1a1a",

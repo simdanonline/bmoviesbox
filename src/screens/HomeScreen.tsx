@@ -7,7 +7,6 @@ import {
   Alert,
   RefreshControl,
   Platform,
-  TouchableOpacity,
   Modal,
   TextInput,
   StyleSheet,
@@ -43,6 +42,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [showAccessModal, setShowAccessModal] = useState(false);
   const [accessKey, setAccessKey] = useState("");
+  const [accessInputFocused, setAccessInputFocused] = useState(false);
   const { isTvApp, unlockTvApp } = useTvApp();
   const {
     history,
@@ -57,6 +57,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   const tapCountRef = useRef(0);
   const lastTapTimeRef = useRef(0);
   const scrollRef = useRef<ScrollView>(null);
+  const accessInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     fetchMovies();
@@ -71,6 +72,18 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       return () => clearTimeout(t);
     }
   }, []);
+
+  useEffect(() => {
+    if (!showAccessModal) {
+      setAccessInputFocused(false);
+      return;
+    }
+
+    const t = setTimeout(() => {
+      accessInputRef.current?.focus();
+    }, 200);
+    return () => clearTimeout(t);
+  }, [showAccessModal]);
 
   // Background-fetch a few pages of movies + series for recommendation pool
   useEffect(() => {
@@ -384,11 +397,12 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={homeStyles.genreScroll}
           >
-            <TouchableOpacity
+            <Focusable
               style={[
                 homeStyles.genreChip,
                 !selectedGenre && homeStyles.genreChipActive,
               ]}
+              focusedStyle={homeStyles.genreChipFocused}
               onPress={() => setSelectedGenre(null)}
             >
               <Text
@@ -399,14 +413,15 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
               >
                 All
               </Text>
-            </TouchableOpacity>
+            </Focusable>
             {allGenres.map((genre) => (
-              <TouchableOpacity
+              <Focusable
                 key={genre}
                 style={[
                   homeStyles.genreChip,
                   selectedGenre === genre && homeStyles.genreChipActive,
                 ]}
+                focusedStyle={homeStyles.genreChipFocused}
                 onPress={() =>
                   setSelectedGenre(selectedGenre === genre ? null : genre)
                 }
@@ -419,7 +434,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
                 >
                   {genre}
                 </Text>
-              </TouchableOpacity>
+              </Focusable>
             ))}
           </ScrollView>
         )}
@@ -455,28 +470,40 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
               Enter access key to continue:
             </Text>
             <TextInput
-              style={modalStyles.textInput}
+              ref={accessInputRef}
+              style={[
+                modalStyles.textInput,
+                accessInputFocused && modalStyles.textInputFocused,
+              ]}
               placeholder="Access key"
               placeholderTextColor="#888"
               value={accessKey}
               onChangeText={setAccessKey}
+              onFocus={() => setAccessInputFocused(true)}
+              onBlur={() => setAccessInputFocused(false)}
+              onSubmitEditing={handleAccessConfirm}
               autoCapitalize="none"
               autoCorrect={false}
               secureTextEntry={true}
+              autoFocus={showAccessModal}
+              returnKeyType="done"
             />
             <View style={modalStyles.buttonContainer}>
-              <TouchableOpacity
+              <Focusable
                 style={[modalStyles.button, modalStyles.cancelButton]}
+                focusedStyle={modalStyles.buttonFocused}
                 onPress={handleAccessCancel}
               >
                 <Text style={modalStyles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </Focusable>
+              <Focusable
                 style={[modalStyles.button, modalStyles.confirmButton]}
+                focusedStyle={modalStyles.buttonFocused}
+                hasTVPreferredFocus={Platform.isTV}
                 onPress={handleAccessConfirm}
               >
                 <Text style={modalStyles.confirmButtonText}>Submit</Text>
-              </TouchableOpacity>
+              </Focusable>
             </View>
           </View>
         </View>
@@ -516,13 +543,16 @@ const modalStyles = StyleSheet.create({
   },
   textInput: {
     backgroundColor: "#2a2a2a",
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: "#444",
     borderRadius: 8,
     padding: 12,
     color: "#fff",
     fontSize: 16,
     marginBottom: 20,
+  },
+  textInputFocused: {
+    borderColor: "#fff",
   },
   buttonContainer: {
     flexDirection: "row",
@@ -534,6 +564,11 @@ const modalStyles = StyleSheet.create({
     padding: 14,
     borderRadius: 8,
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  buttonFocused: {
+    borderColor: "#fff",
   },
   cancelButton: {
     backgroundColor: "#333",
@@ -572,8 +607,8 @@ const homeStyles = StyleSheet.create({
     lineHeight: 18,
   },
   genreScroll: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: Platform.isTV ? 32 : 16,
+    paddingVertical: Platform.isTV ? 12 : 8,
     gap: 8,
   },
   genreChip: {
@@ -581,12 +616,15 @@ const homeStyles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 20,
     backgroundColor: "#1a1a1a",
-    borderWidth: 1,
+    borderWidth: Platform.isTV ? 2 : 1,
     borderColor: "#333",
   },
   genreChipActive: {
     backgroundColor: "#e74c3c",
     borderColor: "#e74c3c",
+  },
+  genreChipFocused: {
+    borderColor: "#fff",
   },
   genreChipText: {
     color: "#aaa",
