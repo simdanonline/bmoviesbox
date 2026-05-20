@@ -4,16 +4,16 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { Image } from "expo-image";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import { useUserData } from "../context/UserDataContext";
 import { LibraryItem, WatchPlanItem, WatchPlanStatus } from "../types/app";
 import { styles } from "../styles/styles";
 import MovieAPI, { Movie } from "../services/MovieAPI";
+import Focusable from "../components/Focusable";
+import TvSafeImage from "../components/TvSafeImage";
 
 type PlannerFilter = WatchPlanStatus;
 
@@ -205,17 +205,18 @@ export default function PlannerScreen({
     ]);
   };
 
-  const renderPlan = (plan: WatchPlanItem) => {
+  const renderPlan = (plan: WatchPlanItem, index: number) => {
     const isResolving = resolvingPlanId === plan.id;
     return (
-      <TouchableOpacity
+      <Focusable
         key={plan.id}
         style={plannerStyles.planCard}
+        focusedStyle={plannerStyles.planCardFocused}
+        hasTVPreferredFocus={index === 0}
         onPress={() => openTitle(plan)}
-        activeOpacity={0.8}
       >
         {plan.thumbnail ? (
-          <Image
+          <TvSafeImage
             source={{ uri: plan.thumbnail.trim() }}
             style={plannerStyles.poster}
             contentFit="cover"
@@ -250,56 +251,48 @@ export default function PlannerScreen({
           <View style={plannerStyles.planActions}>
             {plan.status === "planned" && (
               <>
-                <TouchableOpacity
+                <Focusable
                   style={plannerStyles.actionButton}
-                  onPress={(event) => {
-                    event.stopPropagation?.();
-                    updateWatchPlan(plan.id, { status: "done" });
-                  }}
+                  focusedStyle={plannerStyles.actionButtonFocused}
+                  onPress={() => updateWatchPlan(plan.id, { status: "done" })}
                 >
                   <FontAwesome name="check" size={12} color="#2ecc71" />
                   <Text style={plannerStyles.actionText}>Done</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
+                </Focusable>
+                <Focusable
                   style={plannerStyles.actionButton}
-                  onPress={(event) => {
-                    event.stopPropagation?.();
-                    updateWatchPlan(plan.id, { status: "skipped" });
-                  }}
+                  focusedStyle={plannerStyles.actionButtonFocused}
+                  onPress={() => updateWatchPlan(plan.id, { status: "skipped" })}
                 >
                   <FontAwesome name="forward" size={12} color="#f1c40f" />
                   <Text style={plannerStyles.actionText}>Skip</Text>
-                </TouchableOpacity>
+                </Focusable>
               </>
             )}
             {plan.status !== "planned" && (
-              <TouchableOpacity
+              <Focusable
                 style={plannerStyles.actionButton}
-                onPress={(event) => {
-                  event.stopPropagation?.();
-                  updateWatchPlan(plan.id, { status: "planned" });
-                }}
+                focusedStyle={plannerStyles.actionButtonFocused}
+                onPress={() => updateWatchPlan(plan.id, { status: "planned" })}
               >
                 <FontAwesome name="calendar-plus-o" size={12} color="#e74c3c" />
                 <Text style={plannerStyles.actionText}>Plan again</Text>
-              </TouchableOpacity>
+              </Focusable>
             )}
-            <TouchableOpacity
+            <Focusable
               style={plannerStyles.actionButton}
-              onPress={(event) => {
-                event.stopPropagation?.();
-                handleRemovePlan(plan);
-              }}
+              focusedStyle={plannerStyles.actionButtonFocused}
+              onPress={() => handleRemovePlan(plan)}
             >
               <FontAwesome name="trash-o" size={12} color="#888" />
               <Text style={plannerStyles.actionText}>Remove</Text>
-            </TouchableOpacity>
+            </Focusable>
             {isResolving && (
               <Text style={plannerStyles.resolvingText}>Opening…</Text>
             )}
           </View>
         </View>
-      </TouchableOpacity>
+      </Focusable>
     );
   };
 
@@ -342,7 +335,7 @@ export default function PlannerScreen({
         {suggestion && (
           <View style={plannerStyles.suggestionPanel}>
             {suggestion.thumbnail ? (
-              <Image
+              <TvSafeImage
                 source={{ uri: suggestion.thumbnail.trim() }}
                 style={plannerStyles.suggestionPoster}
                 contentFit="cover"
@@ -366,21 +359,21 @@ export default function PlannerScreen({
                 {suggestion.releaseYear || "From your library"}
               </Text>
               <View style={plannerStyles.suggestionActions}>
-                <TouchableOpacity
+                <Focusable
                   style={plannerStyles.planTonightButton}
+                  focusedStyle={plannerStyles.planTonightButtonFocused}
                   onPress={handlePlanSuggestion}
-                  activeOpacity={0.85}
                 >
                   <FontAwesome name="calendar-plus-o" size={13} color="#fff" />
                   <Text style={plannerStyles.planTonightText}>Plan tonight</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
+                </Focusable>
+                <Focusable
                   style={plannerStyles.roundButton}
+                  focusedStyle={plannerStyles.roundButtonFocused}
                   onPress={() => setSuggestionIndex((value) => value + 1)}
-                  activeOpacity={0.85}
                 >
                   <FontAwesome name="refresh" size={14} color="#ddd" />
-                </TouchableOpacity>
+                </Focusable>
               </View>
             </View>
           </View>
@@ -394,14 +387,14 @@ export default function PlannerScreen({
                 ? "Upcoming"
                 : item.charAt(0).toUpperCase() + item.slice(1);
             return (
-              <TouchableOpacity
+              <Focusable
                 key={item}
                 style={[
                   plannerStyles.filterChip,
                   active && plannerStyles.filterChipActive,
                 ]}
+                focusedStyle={plannerStyles.filterChipFocused}
                 onPress={() => setFilter(item)}
-                activeOpacity={0.85}
               >
                 <Text
                   style={[
@@ -426,7 +419,7 @@ export default function PlannerScreen({
                     {filterCounts[item]}
                   </Text>
                 </View>
-              </TouchableOpacity>
+              </Focusable>
             );
           })}
         </View>
@@ -446,7 +439,7 @@ export default function PlannerScreen({
               </Text>
             </View>
           ) : (
-            filteredPlans.map(renderPlan)
+            filteredPlans.map((plan, index) => renderPlan(plan, index))
           )}
         </View>
       </ScrollView>
@@ -564,6 +557,10 @@ const plannerStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#2e2e2e",
   },
+  roundButtonFocused: {
+    borderColor: "#e74c3c",
+    backgroundColor: "#2a2a2a",
+  },
   planTonightButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -572,6 +569,10 @@ const plannerStyles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 9,
+  },
+  planTonightButtonFocused: {
+    borderWidth: 2,
+    borderColor: "#fff",
   },
   planTonightText: {
     color: "#fff",
@@ -599,6 +600,9 @@ const plannerStyles = StyleSheet.create({
   filterChipActive: {
     backgroundColor: "#e74c3c",
     borderColor: "#e74c3c",
+  },
+  filterChipFocused: {
+    borderColor: "#fff",
   },
   filterText: {
     color: "#aaa",
@@ -640,6 +644,10 @@ const plannerStyles = StyleSheet.create({
     borderColor: "#1f1f1f",
     overflow: "hidden",
     marginBottom: 12,
+  },
+  planCardFocused: {
+    borderColor: "#e74c3c",
+    backgroundColor: "#1a1a1a",
   },
   poster: {
     width: 86,
@@ -713,6 +721,11 @@ const plannerStyles = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 9,
     paddingVertical: 6,
+  },
+  actionButtonFocused: {
+    backgroundColor: "rgba(231,76,60,0.25)",
+    borderWidth: 1,
+    borderColor: "#e74c3c",
   },
   actionText: {
     color: "#ddd",

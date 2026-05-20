@@ -604,6 +604,7 @@ const RUNTIME_SCRIPT = `
   }
 
   function maybePromotePlayerFrame() {
+    if (!window.__BMB_PROMOTE_FRAME__) return;
     try {
       var iframes = document.querySelectorAll('iframe');
       var best = null;
@@ -931,7 +932,11 @@ const SecureVideoWebView = forwardRef<SecureVideoWebViewHandle, SecureVideoWebVi
           allowsFullscreenVideo
           mediaPlaybackRequiresUserAction={false}
           // Inject into EVERY frame (incl. ad iframes), at document_start AND end
-          injectedJavaScriptBeforeContentLoaded={BEFORE_LOAD_SCRIPT}
+          injectedJavaScriptBeforeContentLoaded={
+            (promotePlayerFrame && Platform.isTV
+              ? "window.__BMB_PROMOTE_FRAME__=true;"
+              : "window.__BMB_PROMOTE_FRAME__=false;") + BEFORE_LOAD_SCRIPT
+          }
           injectedJavaScript={RUNTIME_SCRIPT}
           injectedJavaScriptForMainFrameOnly={false}
           injectedJavaScriptBeforeContentLoadedForMainFrameOnly={false}

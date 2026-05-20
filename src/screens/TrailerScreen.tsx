@@ -15,6 +15,18 @@ type TrailerScreenProps = NativeStackScreenProps<any, "TrailerScreen">;
 const MOBILE_UA =
   "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
 
+const YOUTUBE_ORIGINS = [
+  "https://www.youtube.com",
+  "https://m.youtube.com",
+  "https://youtube.com",
+  "https://youtu.be",
+  "https://www.youtube-nocookie.com",
+  "https://*.googlevideo.com",
+  "https://*.ytimg.com",
+  "https://*.ggpht.com",
+  "https://accounts.google.com",
+];
+
 function extractYouTubeId(url: string): string | null {
   if (!url) return null;
   const embedMatch = url.match(/\/embed\/([a-zA-Z0-9_-]+)/);
@@ -107,7 +119,7 @@ const TrailerScreen: React.FC<TrailerScreenProps> = ({ route, navigation }) => {
     return (
       <View style={styles.container}>
         <WebView
-          originWhitelist={["*"]}
+          originWhitelist={YOUTUBE_ORIGINS}
           source={{ uri: `https://m.youtube.com/watch?v=${videoId}` }}
           style={styles.webview}
           javaScriptEnabled
@@ -116,7 +128,6 @@ const TrailerScreen: React.FC<TrailerScreenProps> = ({ route, navigation }) => {
           allowsInlineMediaPlayback
           mediaPlaybackRequiresUserAction={false}
           allowsFullscreenVideo
-          mixedContentMode="always"
           startInLoadingState
           renderLoading={() => (
             <View style={[styles.center, StyleSheet.absoluteFillObject]}>
@@ -132,7 +143,7 @@ const TrailerScreen: React.FC<TrailerScreenProps> = ({ route, navigation }) => {
   return (
     <View style={styles.container}>
       <WebView
-        originWhitelist={["*"]}
+        originWhitelist={YOUTUBE_ORIGINS}
         source={{ html: embedHtml, baseUrl: "https://www.youtube.com" }}
         style={styles.webview}
         javaScriptEnabled
@@ -141,7 +152,6 @@ const TrailerScreen: React.FC<TrailerScreenProps> = ({ route, navigation }) => {
         allowsInlineMediaPlayback
         mediaPlaybackRequiresUserAction={false}
         allowsFullscreenVideo
-        mixedContentMode="always"
         startInLoadingState
         onMessage={onMessage}
         renderLoading={() => (
