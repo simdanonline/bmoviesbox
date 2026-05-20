@@ -16,6 +16,14 @@
     "production": {
       "autoIncrement": true,
       "channel": "production"
+    },
+    "tv": {
+      "extends": "preview",
+      "env": { "EXPO_TV": "1" },
+      "channel": "tv",
+      "android": {
+        "buildType": "apk"
+      }
     }
   },
   "submit": {

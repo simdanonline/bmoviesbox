@@ -2,7 +2,7 @@ import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Platform, View } from "react-native";
 import { TvAppProvider } from "../context/TvAppContext";
 import { UserDataProvider, useUserData } from "../context/UserDataContext";
 import MovieDetailsScreen from "../screens/MovieDetailsScreen";
@@ -11,11 +11,13 @@ import VideoPlayerScreen from "../screens/VideoPlayerScreen";
 import TrailerScreen from "../screens/TrailerScreen";
 import SearchScreen from "../screens/SearchScreen";
 import MyTabs from "./Tabs";
+import TvTabs from "./TvTabs";
 import SeriesDetailsScreen from "../screens/SeriesDetailScreen";
 import LiveGamePlayer from "../screens/LiveGamePlayer";
 import StreamSelection from "../screens/StreamSelection";
 import OnboardingScreen from "../screens/OnboardingScreen";
 import PreferencesScreen from "../screens/PreferencesScreen";
+import PlannerScreen from "../screens/PlannerScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -24,7 +26,14 @@ function AppNavigator() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#000", justifyContent: "center", alignItems: "center" }}>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "#000",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
         <ActivityIndicator size="large" color="#e74c3c" />
       </View>
     );
@@ -53,7 +62,7 @@ function AppNavigator() {
         )}
         <Stack.Screen
           name="Home"
-          component={MyTabs}
+          component={Platform.isTV ? TvTabs : MyTabs}
           options={{ headerShown: false }}
         />
         <Stack.Screen
@@ -100,6 +109,11 @@ function AppNavigator() {
           name="Preferences"
           component={PreferencesScreen}
           options={{ title: "Edit Preferences", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="Planner"
+          component={PlannerScreen}
+          options={{ title: "Planner", headerBackTitle: "Back" }}
         />
       </Stack.Navigator>
     </>

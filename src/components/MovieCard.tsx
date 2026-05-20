@@ -1,35 +1,39 @@
 import React from "react";
-import { View, Text, TouchableOpacity, ViewStyle } from "react-native";
-import { Image } from "expo-image";
+import { View, Text, ViewStyle } from "react-native";
 import { Movie } from "../services/MovieAPI";
 import { styles } from "../styles/styles";
 import { Feather } from "@expo/vector-icons";
+import Focusable from "./Focusable";
+import TvSafeImage from "./TvSafeImage";
 
 interface MovieCardProps {
   movie: Movie;
   onPress: () => void;
   style?: ViewStyle;
+  hasTVPreferredFocus?: boolean;
 }
 
-export default function MovieCard({ movie, onPress, style }: MovieCardProps) {
+export default function MovieCard({
+  movie,
+  onPress,
+  style,
+  hasTVPreferredFocus,
+}: MovieCardProps) {
   if (!movie.thumbnail) {
     return null;
   }
 
   return (
-    <TouchableOpacity
+    <Focusable
       style={[styles.movieCardContainer, style]}
       onPress={onPress}
-      activeOpacity={0.7}
+      hasTVPreferredFocus={hasTVPreferredFocus}
     >
       <View style={styles.cardImageWrapper}>
-        <Image
-          source={{
-            uri: movie.thumbnail.trim(),
-          }}
+        <TvSafeImage
+          source={{ uri: movie.thumbnail.trim() }}
           style={styles.cardImage}
           contentFit="scale-down"
-          onProgress={(e) => console.log(e)}
         />
         <View style={styles.cardOverlay}>
           <View style={styles.playButtonSmall}>
@@ -50,12 +54,14 @@ export default function MovieCard({ movie, onPress, style }: MovieCardProps) {
 
         {movie.imdbRating && (
           <View style={styles.cardRating}>
-            <Text style={styles.cardRatingText}>⭐ {(parseFloat(movie?.imdbRating || "0")).toFixed(1)}</Text>
+            <Text style={styles.cardRatingText}>
+              ⭐ {parseFloat(movie?.imdbRating || "0").toFixed(1)}
+            </Text>
           </View>
         )}
 
         <Text style={styles.cardYear}>{movie.releaseYear}</Text>
       </View>
-    </TouchableOpacity>
+    </Focusable>
   );
 }

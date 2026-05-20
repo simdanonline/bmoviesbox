@@ -25,7 +25,11 @@ function MyTabs() {
           headerShown: false,
           tabBarLabel: () => <Text style={{ color: "#fff" }}>Movies</Text>,
           tabBarIcon: ({ focused }) => (
-            <AntDesign name="play-circle" size={24} color={ focused ? "#fff" : "#999"} />
+            <AntDesign
+              name="play-circle"
+              size={24}
+              color={focused ? "#fff" : "#999"}
+            />
           ),
         }}
       />
@@ -35,7 +39,13 @@ function MyTabs() {
         options={{
           headerShown: false,
           tabBarLabel: () => <Text style={{ color: "#fff" }}>Series</Text>,
-          tabBarIcon: ({ focused }) => <FontAwesome name="tv" size={24} color={ focused ? "#fff" : "#999"} />,
+          tabBarIcon: ({ focused }) => (
+            <FontAwesome
+              name="tv"
+              size={24}
+              color={focused ? "#fff" : "#999"}
+            />
+          ),
         }}
       />
       <Tab.Screen
@@ -45,7 +55,11 @@ function MyTabs() {
           headerShown: false,
           tabBarLabel: () => <Text style={{ color: "#fff" }}>Library</Text>,
           tabBarIcon: ({ focused }) => (
-            <FontAwesome name="folder-open" size={22} color={focused ? "#fff" : "#999"} />
+            <FontAwesome
+              name="folder-open"
+              size={22}
+              color={focused ? "#fff" : "#999"}
+            />
           ),
         }}
       />
@@ -56,7 +70,11 @@ function MyTabs() {
           headerShown: false,
           tabBarLabel: () => <Text style={{ color: "#fff" }}>Calendar</Text>,
           tabBarIcon: ({ focused }) => (
-            <FontAwesome name="calendar" size={22} color={focused ? "#fff" : "#999"} />
+            <FontAwesome
+              name="calendar"
+              size={22}
+              color={focused ? "#fff" : "#999"}
+            />
           ),
         }}
       />
@@ -67,7 +85,11 @@ function MyTabs() {
           headerShown: false,
           tabBarLabel: () => <Text style={{ color: "#fff" }}>Settings</Text>,
           tabBarIcon: ({ focused }) => (
-            <Ionicons name="settings-outline" size={24} color={focused ? "#fff" : "#999"} />
+            <Ionicons
+              name="settings-outline"
+              size={24}
+              color={focused ? "#fff" : "#999"}
+            />
           ),
         }}
       />
@@ -78,7 +100,13 @@ function MyTabs() {
           options={{
             headerShown: false,
             tabBarLabel: () => <Text style={{ color: "#fff" }}>Live</Text>,
-            tabBarIcon: ({ focused }) => <FontAwesome name="tv" size={24} color={ focused ? "#fff" : "#999"} />,
+            tabBarIcon: ({ focused }) => (
+              <FontAwesome
+                name="tv"
+                size={24}
+                color={focused ? "#fff" : "#999"}
+              />
+            ),
           }}
         />
       )}

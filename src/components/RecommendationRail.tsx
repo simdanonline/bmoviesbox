@@ -3,11 +3,19 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
   StyleSheet,
+  Dimensions,
+  Platform,
 } from "react-native";
-import { Image } from "expo-image";
 import { Movie } from "../services/MovieAPI";
+import Focusable from "./Focusable";
+import TvSafeImage from "./TvSafeImage";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const RAIL_CARD_WIDTH = Platform.isTV ? Math.min(SCREEN_WIDTH / 7, 240) : 120;
+const RAIL_CARD_HEIGHT = Platform.isTV
+  ? Math.round(Math.min(SCREEN_WIDTH / 7, 240) * 1.5)
+  : 170;
 
 interface RecommendationRailProps {
   title: string;
@@ -31,13 +39,13 @@ export default function RecommendationRail({
         contentContainerStyle={railStyles.scroll}
       >
         {items.map((item, idx) => (
-          <TouchableOpacity
+          <Focusable
             key={item.id + idx}
             style={railStyles.card}
+            focusedStyle={railStyles.cardFocused}
             onPress={() => onPress(item)}
-            activeOpacity={0.7}
           >
-            <Image
+            <TvSafeImage
               source={{ uri: item.thumbnail?.trim() }}
               style={railStyles.image}
               contentFit="cover"
@@ -50,7 +58,7 @@ export default function RecommendationRail({
                 {parseFloat(item.imdbRating).toFixed(1)}
               </Text>
             )}
-          </TouchableOpacity>
+          </Focusable>
         ))}
       </ScrollView>
     </View>
@@ -60,6 +68,8 @@ export default function RecommendationRail({
 const railStyles = StyleSheet.create({
   container: {
     marginBottom: 20,
+    paddingVertical: 8,
+    overflow: "visible",
   },
   title: {
     fontSize: 18,
@@ -69,15 +79,24 @@ const railStyles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   scroll: {
-    paddingHorizontal: 16,
+    paddingHorizontal: Platform.isTV ? 32 : 16,
+    paddingVertical: Platform.isTV ? 20 : 16,
     gap: 12,
   },
   card: {
-    width: 120,
+    width: Platform.isTV ? RAIL_CARD_WIDTH + 8 : RAIL_CARD_WIDTH,
+    borderWidth: Platform.isTV ? 4 : 0,
+    borderColor: "transparent",
+    borderRadius: 12,
+    overflow: "visible",
+  },
+  cardFocused: {
+    borderColor: "#fff",
+    zIndex: 10,
   },
   image: {
-    width: 120,
-    height: 170,
+    width: "100%",
+    height: RAIL_CARD_HEIGHT,
     borderRadius: 8,
     backgroundColor: "#1a1a1a",
   },

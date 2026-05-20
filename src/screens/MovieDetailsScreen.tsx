@@ -5,7 +5,6 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  TouchableOpacity,
   Platform,
   Share,
   StyleSheet,
@@ -13,22 +12,32 @@ import {
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import MovieAPI, { MovieDetail } from "../services/MovieAPI";
 import { styles } from "../styles/styles";
-import { Image } from "expo-image";
-import * as WebBrowser from "expo-web-browser";
 import { useTvApp } from "../context/TvAppContext";
 import { useUserData } from "../context/UserDataContext";
 import StarRating from "../components/StarRating";
 import StatusSelector from "../components/StatusSelector";
+import TitlePlanningPanel from "../components/TitlePlanningPanel";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import { WatchStatus } from "../types/app";
+import { useTVBackHandler } from "../hooks/useTVBackHandler";
+import Focusable from "../components/Focusable";
+import TvSafeImage from "../components/TvSafeImage";
 
 type MovieDetailsScreenProps = NativeStackScreenProps<any, "MovieDetails">;
+
+function getSlugFromUrl(value?: string | null): string | null {
+  if (!value) return null;
+  const urlParts = value.split("/").filter(Boolean);
+  return urlParts[urlParts.length - 1] ?? null;
+}
 
 export default function MovieDetailsScreen({
   route,
   navigation,
 }: MovieDetailsScreenProps) {
+  useTVBackHandler(() => navigation.goBack());
   const { isTvApp } = useTvApp();
+  const usesTvPlaybackControls = Platform.isTV || isTvApp;
   const {
     isInWatchlist,
     toggleWantToWatch,
@@ -40,16 +49,20 @@ export default function MovieDetailsScreen({
     removeFromLibrary,
     updateLibraryItemOpened,
     saveKnownTitleMetadata,
-    getReminderForTitle,
   } = useUserData();
-  const { slug } = route.params as { slug: string };
+  const { slug, url, movie } = route.params as {
+    slug?: string;
+    url?: string;
+    movie?: { url?: string };
+  };
+  const detailsSlug = slug ?? getSlugFromUrl(movie?.url) ?? getSlugFromUrl(url);
   const [movieDetails, setMovieDetails] = useState<MovieDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchMovieDetails();
-  }, [slug]);
+  }, [detailsSlug]);
 
   useEffect(() => {
     if (movieDetails) {
@@ -92,7 +105,10 @@ export default function MovieDetailsScreen({
     try {
       setLoading(true);
       setError(null);
-      const details = await MovieAPI.getMovieDetailsBySlug(slug);
+      if (!detailsSlug) {
+        throw new Error("Movie reference is missing.");
+      }
+      const details = await MovieAPI.getMovieDetailsBySlug(detailsSlug);
       setMovieDetails(details);
     } catch (err) {
       const errorMessage =
@@ -126,6 +142,8 @@ export default function MovieDetailsScreen({
 
   const libraryItem = getLibraryItem(movieDetails.url);
   const currentStatus = libraryItem?.status ?? null;
+  const canonicalMovieUrl = movieDetails.url;
+  const canonicalMovieSlug = detailsSlug ?? movieDetails.id;
 
   const handleStatusSelect = (status: WatchStatus) => {
     setLibraryStatus({
@@ -144,12 +162,17 @@ export default function MovieDetailsScreen({
   const handlePlayPress = () => {
     console.log("Available streaming servers:", movieDetails);
     if (movieDetails.streamingServers.length === 0) {
-      Alert.alert("No Servers", "No streaming servers available for this movie");
+      Alert.alert(
+        "No Servers",
+        "No streaming servers available for this movie",
+      );
       return;
     }
     if (movieDetails.streamingServers.length === 1) {
       navigation.navigate("VideoPlayer", {
         server: movieDetails.streamingServers[0],
+        servers: movieDetails.streamingServers,
+        serverIndex: 0,
         movieTitle: movieDetails.title,
       });
     } else {
@@ -160,49 +183,35 @@ export default function MovieDetailsScreen({
     }
   };
 
-  function extractYouTubeUrl(embedUrl: string): string | null {
-    const match = embedUrl.match(/\/embed\/([a-zA-Z0-9_-]+)/);
-    if (!match) return null;
-    return `https://www.youtube.com/watch?v=${match[1]}`;
-  }
-
-  const handlePressTrailer = async () => {
-    if (movieDetails.trailerUrl) {
-      if (Platform.OS === "web") {
-        // @ts-ignore
-        window.open(movieDetails.trailerUrl, "_blank");
-      } else {
-        const youtubeUrl = extractYouTubeUrl(movieDetails.trailerUrl);
-        if (youtubeUrl) {
-          await WebBrowser.openBrowserAsync(youtubeUrl);
-          return;
-        }
-      }
-    } else {
+  const handlePressTrailer = () => {
+    if (!movieDetails.trailerUrl) {
       Alert.alert("No Trailer", "Trailer not available for this movie");
+      return;
     }
+    if (Platform.OS === "web") {
+      // @ts-ignore
+      window.open(movieDetails.trailerUrl, "_blank");
+      return;
+    }
+    navigation.navigate("TrailerScreen", { videoUrl: movieDetails.trailerUrl });
   };
-
-  // Check if we have a future release date for reminder UI
-  const hasFutureRelease =
-    movieDetails.releaseDate &&
-    new Date(movieDetails.releaseDate) > new Date();
-  const existingReminder = getReminderForTitle(movieDetails.url);
 
   return (
     <ScrollView style={styles.container}>
       {/* Cover Image */}
       {movieDetails.coverImage && (
-        <Image
+        <TvSafeImage
           source={{ uri: movieDetails.coverImage?.trim() }}
           style={styles.coverImage}
+          contentFit="cover"
         />
       )}
 
       {/* Action Buttons */}
       <View style={detailActionStyles.actionRow}>
-        <TouchableOpacity
+        <Focusable
           style={detailActionStyles.actionButton}
+          focusedStyle={detailActionStyles.focused}
           onPress={() =>
             toggleWantToWatch({
               id: movieDetails.id,
@@ -225,10 +234,11 @@ export default function MovieDetailsScreen({
           <Text style={detailActionStyles.actionText}>
             {isInWatchlist(movieDetails.url) ? "Saved" : "Save"}
           </Text>
-        </TouchableOpacity>
+        </Focusable>
 
-        <TouchableOpacity
+        <Focusable
           style={detailActionStyles.actionButton}
+          focusedStyle={detailActionStyles.focused}
           onPress={() =>
             Share.share({
               message: `Check out "${movieDetails.title}" on BMovieBox!`,
@@ -238,22 +248,28 @@ export default function MovieDetailsScreen({
         >
           <FontAwesome name="share-alt" size={22} color="#fff" />
           <Text style={detailActionStyles.actionText}>Share</Text>
-        </TouchableOpacity>
+        </Focusable>
       </View>
 
-      {/* Play Button — only when TV mode */}
-      {isTvApp ? (
-        <TouchableOpacity style={styles.playButton} onPress={handlePlayPress}>
+      {/* Play Button — shown for Android TV hardware or unlocked TV mode */}
+      {usesTvPlaybackControls ? (
+        <Focusable
+          style={[styles.playButton, detailActionStyles.primaryActionButton]}
+          focusedStyle={detailActionStyles.focused}
+          hasTVPreferredFocus={Platform.isTV}
+          onPress={handlePlayPress}
+        >
           <Text style={styles.playButtonText}>PLAY</Text>
-        </TouchableOpacity>
+        </Focusable>
       ) : null}
 
-      <TouchableOpacity
-        style={styles.trailerButton}
+      <Focusable
+        style={[styles.trailerButton, detailActionStyles.primaryActionButton]}
+        focusedStyle={detailActionStyles.focused}
         onPress={handlePressTrailer}
       >
         <Text style={styles.trailerButtonText}>Watch Trailer</Text>
-      </TouchableOpacity>
+      </Focusable>
 
       {/* Status Selector — default build */}
       {!isTvApp && (
@@ -262,7 +278,9 @@ export default function MovieDetailsScreen({
             currentStatus={currentStatus}
             onSelect={handleStatusSelect}
             onRemove={
-              libraryItem ? () => removeFromLibrary(movieDetails.url) : undefined
+              libraryItem
+                ? () => removeFromLibrary(movieDetails.url)
+                : undefined
             }
           />
           {libraryItem && (
@@ -353,6 +371,14 @@ export default function MovieDetailsScreen({
           />
         </View>
 
+        <TitlePlanningPanel
+          titleUrl={canonicalMovieUrl}
+          detailSlug={canonicalMovieSlug}
+          title={movieDetails.title}
+          isSeries={false}
+          thumbnail={movieDetails.thumbnail}
+        />
+
         {/* Description */}
         {movieDetails.description && (
           <View style={styles.section}>
@@ -435,6 +461,17 @@ const detailActionStyles = StyleSheet.create({
   actionButton: {
     alignItems: "center",
     padding: 8,
+    borderWidth: 2,
+    borderColor: "transparent",
+    borderRadius: 8,
+    minWidth: 72,
+  },
+  primaryActionButton: {
+    borderWidth: 3,
+    borderColor: "transparent",
+  },
+  focused: {
+    borderColor: "#fff",
   },
   actionText: {
     color: "#fff",

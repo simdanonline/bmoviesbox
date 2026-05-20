@@ -24,3 +24,6 @@ coverage/
 *.zip
 # Local Netlify folder
 .netlify
+
+android/app/release.keystore
+*.keystore

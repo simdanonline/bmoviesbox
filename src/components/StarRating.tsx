@@ -1,6 +1,7 @@
 import React from "react";
-import { View, TouchableOpacity, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
+import Focusable from "./Focusable";
 
 interface StarRatingProps {
   rating: number | null;
@@ -18,19 +19,19 @@ export default function StarRating({
   return (
     <View style={starStyles.container}>
       {[1, 2, 3, 4, 5].map((star) => (
-        <TouchableOpacity
+        <Focusable
           key={star}
           onPress={() => !readonly && onRate(star)}
           disabled={readonly}
           style={starStyles.star}
-          activeOpacity={readonly ? 1 : 0.6}
+          focusedStyle={starStyles.starFocused}
         >
           <FontAwesome
             name={rating && star <= rating ? "star" : "star-o"}
             size={size}
             color={rating && star <= rating ? "#ffc107" : "#555"}
           />
-        </TouchableOpacity>
+        </Focusable>
       ))}
     </View>
   );
@@ -44,5 +45,11 @@ const starStyles = StyleSheet.create({
   },
   star: {
     padding: 4,
+    borderWidth: 2,
+    borderColor: "transparent",
+    borderRadius: 6,
+  },
+  starFocused: {
+    borderColor: "#fff",
   },
 });

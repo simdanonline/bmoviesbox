@@ -3,7 +3,6 @@ import {
   Text,
   View,
   FlatList,
-  TouchableOpacity,
   ActivityIndicator,
   Dimensions,
   RefreshControl,
@@ -17,6 +16,7 @@ import MovieAPI, { LiveGame } from "../services/MovieAPI";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTvApp } from "../context/TvAppContext";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import Focusable from "../components/Focusable";
 
 const STATE_COLORS: Record<LiveGame["state"], string> = {
   in: "#27ae60",
@@ -91,6 +91,7 @@ const LiveTab = (props: Props) => {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSport, setSelectedSport] = useState<string | null>(null);
+  const [searchFocused, setSearchFocused] = useState(false);
   const { top } = useSafeAreaInsets();
 
   useEffect(() => {
@@ -140,10 +141,10 @@ const LiveTab = (props: Props) => {
     const isMatchup = !!item.awayTeam;
 
     return (
-      <TouchableOpacity
+      <Focusable
         style={[styles.gameCard, { borderLeftColor: accent }]}
+        focusedStyle={styles.gameCardFocused}
         onPress={() => handleGamePress(item)}
-        activeOpacity={0.8}
         disabled={!isTvApp}
       >
         <View style={styles.cardHeader}>
@@ -252,7 +253,7 @@ const LiveTab = (props: Props) => {
             </View>
           </View>
         ) : null}
-      </TouchableOpacity>
+      </Focusable>
     );
   };
 
@@ -291,16 +292,17 @@ const LiveTab = (props: Props) => {
     return B.total - A.total;
   });
 
-  const renderSportCard = (sportKey: string) => {
+  const renderSportCard = (sportKey: string, index: number) => {
     const meta = sportMeta(sportKey);
     const counts = sportBuckets[sportKey];
     const hasLive = counts.live > 0;
     return (
-      <TouchableOpacity
+      <Focusable
         key={sportKey}
         style={[styles.sportCard, { borderColor: meta.accent }]}
+        focusedStyle={styles.cardFocused}
+        hasTVPreferredFocus={index === 0}
         onPress={() => setSelectedSport(sportKey)}
-        activeOpacity={0.85}
       >
         <View
           style={[
@@ -326,7 +328,7 @@ const LiveTab = (props: Props) => {
             {counts.total} {counts.total === 1 ? "game" : "games"}
           </Text>
         </View>
-      </TouchableOpacity>
+      </Focusable>
     );
   };
 
@@ -373,9 +375,14 @@ const LiveTab = (props: Props) => {
             style={{ marginBottom: 16 }}
           />
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={fetchGames}>
+          <Focusable
+            style={styles.retryButton}
+            focusedStyle={styles.buttonFocused}
+            onPress={fetchGames}
+            hasTVPreferredFocus
+          >
             <Text style={styles.retryButtonText}>Try Again</Text>
-          </TouchableOpacity>
+          </Focusable>
         </View>
       </View>
     );
@@ -392,9 +399,14 @@ const LiveTab = (props: Props) => {
             style={{ marginBottom: 16 }}
           />
           <Text style={styles.emptyText}>No live games available</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={fetchGames}>
+          <Focusable
+            style={styles.retryButton}
+            focusedStyle={styles.buttonFocused}
+            onPress={fetchGames}
+            hasTVPreferredFocus
+          >
             <Text style={styles.retryButtonText}>Refresh</Text>
-          </TouchableOpacity>
+          </Focusable>
         </View>
       </View>
     );
@@ -412,17 +424,18 @@ const LiveTab = (props: Props) => {
       <View style={styles.header}>
         {selectedMeta ? (
           <>
-            <TouchableOpacity
+            <Focusable
               style={styles.backIconButton}
+              focusedStyle={styles.iconButtonFocused}
+              hasTVPreferredFocus={!!selectedMeta}
               onPress={() => setSelectedSport(null)}
-              activeOpacity={0.7}
             >
               <MaterialCommunityIcons
                 name="arrow-left"
                 size={24}
                 color="#fff"
               />
-            </TouchableOpacity>
+            </Focusable>
             <MaterialCommunityIcons
               name={selectedMeta.icon}
               size={28}
@@ -448,7 +461,12 @@ const LiveTab = (props: Props) => {
         )}
       </View>
 
-      <View style={styles.searchContainer}>
+      <View
+        style={[
+          styles.searchContainer,
+          searchFocused && styles.searchContainerFocused,
+        ]}
+      >
         <MaterialCommunityIcons
           name="magnify"
           size={20}
@@ -465,20 +483,23 @@ const LiveTab = (props: Props) => {
           placeholderTextColor="#666"
           value={searchQuery}
           onChangeText={setSearchQuery}
+          onFocus={() => setSearchFocused(true)}
+          onBlur={() => setSearchFocused(false)}
           autoCapitalize="none"
           autoCorrect={false}
         />
         {searchQuery ? (
-          <TouchableOpacity
+          <Focusable
             onPress={() => setSearchQuery("")}
             style={styles.clearButton}
+            focusedStyle={styles.iconButtonFocused}
           >
             <MaterialCommunityIcons
               name="close-circle"
               size={20}
               color="#999"
             />
-          </TouchableOpacity>
+          </Focusable>
         ) : null}
       </View>
 
@@ -486,7 +507,7 @@ const LiveTab = (props: Props) => {
         <FlatList
           key="sports-grid"
           data={sportKeys}
-          renderItem={({ item }) => renderSportCard(item)}
+          renderItem={({ item, index }) => renderSportCard(item, index)}
           keyExtractor={(item) => item}
           numColumns={2}
           columnWrapperStyle={styles.sportsGridRow}
@@ -512,12 +533,14 @@ const LiveTab = (props: Props) => {
           <Text style={styles.emptyText}>
             No games found for "{searchQuery}"
           </Text>
-          <TouchableOpacity
+          <Focusable
             style={styles.retryButton}
+            focusedStyle={styles.buttonFocused}
             onPress={() => setSearchQuery("")}
+            hasTVPreferredFocus
           >
             <Text style={styles.retryButtonText}>Clear Search</Text>
-          </TouchableOpacity>
+          </Focusable>
         </View>
       ) : filteredGames.length === 0 ? (
         <View style={styles.centered}>
@@ -530,12 +553,14 @@ const LiveTab = (props: Props) => {
           <Text style={styles.emptyText}>
             No {selectedMeta?.label.toLowerCase() ?? ""} games today
           </Text>
-          <TouchableOpacity
+          <Focusable
             style={styles.retryButton}
+            focusedStyle={styles.buttonFocused}
             onPress={() => setSelectedSport(null)}
+            hasTVPreferredFocus
           >
             <Text style={styles.retryButtonText}>Pick another sport</Text>
-          </TouchableOpacity>
+          </Focusable>
         </View>
       ) : (
         <FlatList
@@ -600,8 +625,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: "#333",
+  },
+  searchContainerFocused: {
+    borderColor: "#fff",
   },
   searchIcon: {
     marginRight: 8,
@@ -614,6 +642,9 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     padding: 4,
+    borderWidth: 2,
+    borderColor: "transparent",
+    borderRadius: 14,
   },
   listContent: {
     paddingHorizontal: 12,
@@ -638,6 +669,18 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderLeftWidth: 4,
     borderLeftColor: "#e74c3c",
+    borderTopWidth: 3,
+    borderRightWidth: 3,
+    borderBottomWidth: 3,
+    borderTopColor: "transparent",
+    borderRightColor: "transparent",
+    borderBottomColor: "transparent",
+  },
+  gameCardFocused: {
+    borderTopColor: "#fff",
+    borderRightColor: "#fff",
+    borderBottomColor: "#fff",
+    zIndex: 10,
   },
   cardHeader: {
     flexDirection: "row",
@@ -781,7 +824,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     marginHorizontal: 4,
     alignItems: "center",
-    borderWidth: 1.5,
+    borderWidth: 3,
+  },
+  cardFocused: {
+    borderColor: "#fff",
+    zIndex: 10,
   },
   sportIconWrap: {
     width: 64,
@@ -832,8 +879,16 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   backIconButton: {
-    paddingRight: 12,
-    paddingVertical: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderWidth: 2,
+    borderColor: "transparent",
+    borderRadius: 8,
+    marginRight: 4,
+  },
+  iconButtonFocused: {
+    borderColor: "#fff",
+    backgroundColor: "rgba(231, 76, 60, 0.25)",
   },
   headerSportLabel: {
     color: "#999",
@@ -885,6 +940,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  buttonFocused: {
+    borderColor: "#fff",
   },
   retryButtonText: {
     color: "#fff",

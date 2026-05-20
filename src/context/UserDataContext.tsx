@@ -15,6 +15,9 @@ import {
   TitleReminder,
   KnownTitleMetadata,
   WatchStatus,
+  WatchPlanItem,
+  WatchPlanStatus,
+  TitleNote,
 } from "../types/app";
 
 // ── Storage keys ──
@@ -26,6 +29,8 @@ const LIBRARY_KEY = "@bmoviebox_library";
 const EPISODE_PROGRESS_KEY = "@bmoviebox_episode_progress";
 const REMINDERS_KEY = "@bmoviebox_reminders";
 const KNOWN_METADATA_KEY = "@bmoviebox_known_title_metadata";
+const WATCH_PLANS_KEY = "@bmoviebox_watch_plans";
+const TITLE_NOTES_KEY = "@bmoviebox_title_notes";
 const MIGRATION_KEY = "@bmoviebox_migration_v1";
 
 // ── Legacy type (kept for migration and compat) ──
@@ -81,7 +86,7 @@ interface UserDataContextType {
       | "lastEpisodeNumber"
       | "completedEpisodes"
       | "totalEpisodes"
-    > & { status: WatchStatus }
+    > & { status: WatchStatus },
   ) => void;
   toggleWantToWatch: (item: SavedItem) => void;
   getLibraryItem: (url: string) => LibraryItem | undefined;
@@ -92,12 +97,12 @@ interface UserDataContextType {
     seriesUrl: string,
     episodeUrl: string,
     seasonNumber: number,
-    episodeNumber: number
+    episodeNumber: number,
   ) => void;
 
   episodeProgress: EpisodeProgress[];
   markEpisodeWatched: (
-    ep: Omit<EpisodeProgress, "watched" | "watchedAt" | "updatedAt">
+    ep: Omit<EpisodeProgress, "watched" | "watchedAt" | "updatedAt">,
   ) => void;
   markEpisodeUnwatched: (seriesUrl: string, episodeUrl: string) => void;
   getSeriesProgress: (seriesUrl: string) => EpisodeProgress[];
@@ -110,6 +115,21 @@ interface UserDataContextType {
   removeReminder: (id: string) => void;
   updateReminder: (id: string, updates: Partial<TitleReminder>) => void;
   getReminderForTitle: (titleUrl: string) => TitleReminder | undefined;
+
+  watchPlans: WatchPlanItem[];
+  addWatchPlan: (
+    item: Omit<WatchPlanItem, "id" | "status" | "createdAt" | "updatedAt"> & {
+      status?: WatchPlanStatus;
+    },
+  ) => void;
+  updateWatchPlan: (id: string, updates: Partial<WatchPlanItem>) => void;
+  removeWatchPlan: (id: string) => void;
+  getPlansForTitle: (titleUrl: string) => WatchPlanItem[];
+
+  titleNotes: Record<string, TitleNote>;
+  saveTitleNote: (note: Omit<TitleNote, "createdAt" | "updatedAt">) => void;
+  deleteTitleNote: (titleUrl: string) => void;
+  getTitleNote: (titleUrl: string) => TitleNote | undefined;
 
   knownMetadata: Record<string, KnownTitleMetadata>;
   saveKnownTitleMetadata: (metadata: KnownTitleMetadata) => void;
@@ -153,6 +173,15 @@ const UserDataContext = createContext<UserDataContextType>({
   removeReminder: () => {},
   updateReminder: () => {},
   getReminderForTitle: () => undefined,
+  watchPlans: [],
+  addWatchPlan: () => {},
+  updateWatchPlan: () => {},
+  removeWatchPlan: () => {},
+  getPlansForTitle: () => [],
+  titleNotes: {},
+  saveTitleNote: () => {},
+  deleteTitleNote: () => {},
+  getTitleNote: () => undefined,
   knownMetadata: {},
   saveKnownTitleMetadata: () => {},
   getKnownTitleMetadata: () => undefined,
@@ -163,11 +192,14 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
   const [watchlist, setWatchlist] = useState<SavedItem[]>([]);
   const [history, setHistory] = useState<SavedItem[]>([]);
   const [ratings, setRatings] = useState<Record<string, UserRating>>({});
-  const [tasteProfile, setTasteProfileState] =
-    useState<TasteProfile>(DEFAULT_TASTE_PROFILE);
+  const [tasteProfile, setTasteProfileState] = useState<TasteProfile>(
+    DEFAULT_TASTE_PROFILE,
+  );
   const [library, setLibrary] = useState<LibraryItem[]>([]);
   const [episodeProgress, setEpisodeProgress] = useState<EpisodeProgress[]>([]);
   const [reminders, setReminders] = useState<TitleReminder[]>([]);
+  const [watchPlans, setWatchPlans] = useState<WatchPlanItem[]>([]);
+  const [titleNotes, setTitleNotes] = useState<Record<string, TitleNote>>({});
   const [knownMetadata, setKnownMetadata] = useState<
     Record<string, KnownTitleMetadata>
   >({});
@@ -190,6 +222,8 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
           epProgressData,
           remindersData,
           metadataData,
+          watchPlansData,
+          titleNotesData,
           migrationDone,
         ] = await Promise.all([
           AsyncStorage.getItem(WATCHLIST_KEY),
@@ -200,6 +234,8 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
           AsyncStorage.getItem(EPISODE_PROGRESS_KEY),
           AsyncStorage.getItem(REMINDERS_KEY),
           AsyncStorage.getItem(KNOWN_METADATA_KEY),
+          AsyncStorage.getItem(WATCH_PLANS_KEY),
+          AsyncStorage.getItem(TITLE_NOTES_KEY),
           AsyncStorage.getItem(MIGRATION_KEY),
         ]);
 
@@ -210,6 +246,8 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         if (epProgressData) setEpisodeProgress(JSON.parse(epProgressData));
         if (remindersData) setReminders(JSON.parse(remindersData));
         if (metadataData) setKnownMetadata(JSON.parse(metadataData));
+        if (watchPlansData) setWatchPlans(JSON.parse(watchPlansData));
+        if (titleNotesData) setTitleNotes(JSON.parse(titleNotesData));
 
         let parsedLibrary: LibraryItem[] = libraryData
           ? JSON.parse(libraryData)
@@ -243,7 +281,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
           parsedLibrary = [...migratedItems, ...parsedLibrary];
           await AsyncStorage.setItem(
             LIBRARY_KEY,
-            JSON.stringify(parsedLibrary)
+            JSON.stringify(parsedLibrary),
           );
           await AsyncStorage.setItem(MIGRATION_KEY, "done");
         }
@@ -267,17 +305,23 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
   const persistReminders = useCallback((items: TitleReminder[]) => {
     AsyncStorage.setItem(REMINDERS_KEY, JSON.stringify(items));
   }, []);
+  const persistWatchPlans = useCallback((items: WatchPlanItem[]) => {
+    AsyncStorage.setItem(WATCH_PLANS_KEY, JSON.stringify(items));
+  }, []);
+  const persistTitleNotes = useCallback((items: Record<string, TitleNote>) => {
+    AsyncStorage.setItem(TITLE_NOTES_KEY, JSON.stringify(items));
+  }, []);
   const persistMetadata = useCallback(
     (data: Record<string, KnownTitleMetadata>) => {
       AsyncStorage.setItem(KNOWN_METADATA_KEY, JSON.stringify(data));
     },
-    []
+    [],
   );
 
   // ── Legacy watchlist ──
   const isInWatchlist = useCallback(
     (url: string) => watchlist.some((w) => w.url === url),
-    [watchlist]
+    [watchlist],
   );
 
   const toggleWatchlist = useCallback((item: SavedItem) => {
@@ -326,7 +370,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
 
   const getRating = useCallback(
     (url: string): number | null => ratings[url]?.rating ?? null,
-    [ratings]
+    [ratings],
   );
 
   // ── Taste profile ──
@@ -370,7 +414,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         | "lastEpisodeNumber"
         | "completedEpisodes"
         | "totalEpisodes"
-      > & { status: WatchStatus }
+      > & { status: WatchStatus },
     ) => {
       setLibrary((prev) => {
         const existing = prev.find((l) => l.url === item.url);
@@ -378,7 +422,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         let next: LibraryItem[];
         if (existing) {
           next = prev.map((l) =>
-            l.url === item.url ? { ...l, ...item, updatedAt: now } : l
+            l.url === item.url ? { ...l, ...item, updatedAt: now } : l,
           );
         } else {
           const newItem: LibraryItem = {
@@ -398,7 +442,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
     },
-    [persistLibrary]
+    [persistLibrary],
   );
 
   const toggleWantToWatch = useCallback(
@@ -439,17 +483,17 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
     },
-    [persistLibrary, toggleWatchlist]
+    [persistLibrary, toggleWatchlist],
   );
 
   const getLibraryItem = useCallback(
     (url: string) => library.find((l) => l.url === url),
-    [library]
+    [library],
   );
 
   const getItemsByStatus = useCallback(
     (status: WatchStatus) => library.filter((l) => l.status === status),
-    [library]
+    [library],
   );
 
   const removeFromLibrary = useCallback(
@@ -461,7 +505,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
       });
       removeFromWatchlist(url);
     },
-    [persistLibrary, removeFromWatchlist]
+    [persistLibrary, removeFromWatchlist],
   );
 
   const updateLibraryItemOpened = useCallback(
@@ -472,13 +516,13 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         const next = prev.map((l) =>
           l.url === url
             ? { ...l, lastOpenedAt: Date.now(), updatedAt: Date.now() }
-            : l
+            : l,
         );
         persistLibrary(next);
         return next;
       });
     },
-    [persistLibrary]
+    [persistLibrary],
   );
 
   const updateLibraryEpisodeContext = useCallback(
@@ -486,7 +530,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
       seriesUrl: string,
       episodeUrl: string,
       seasonNumber: number,
-      episodeNumber: number
+      episodeNumber: number,
     ) => {
       setLibrary((prev) => {
         const exists = prev.find((l) => l.url === seriesUrl);
@@ -500,13 +544,13 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
                 lastEpisodeNumber: episodeNumber,
                 updatedAt: Date.now(),
               }
-            : l
+            : l,
         );
         persistLibrary(next);
         return next;
       });
     },
-    [persistLibrary]
+    [persistLibrary],
   );
 
   // ── Episode progress ──
@@ -530,7 +574,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         const existing = prev.find((l) => l.url === ep.seriesUrl);
         if (!existing) return prev;
         const allWatched = episodeProgressRef.current.filter(
-          (p) => p.seriesUrl === ep.seriesUrl && p.watched
+          (p) => p.seriesUrl === ep.seriesUrl && p.watched,
         );
         const count = allWatched.length + 1;
         const newStatus: WatchStatus =
@@ -548,13 +592,13 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
                 lastEpisodeNumber: ep.episodeNumber,
                 updatedAt: now,
               }
-            : l
+            : l,
         );
         persistLibrary(next);
         return next;
       });
     },
-    [persistEpisodeProgress, persistLibrary]
+    [persistEpisodeProgress, persistLibrary],
   );
 
   const markEpisodeUnwatched = useCallback(
@@ -563,7 +607,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         const next = prev.map((p) =>
           p.episodeUrl === episodeUrl
             ? { ...p, watched: false, watchedAt: null, updatedAt: Date.now() }
-            : p
+            : p,
         );
         persistEpisodeProgress(next);
         return next;
@@ -576,7 +620,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
           (p) =>
             p.seriesUrl === seriesUrl &&
             p.watched &&
-            p.episodeUrl !== episodeUrl
+            p.episodeUrl !== episodeUrl,
         );
         const next = prev.map((l) =>
           l.url === seriesUrl
@@ -585,39 +629,39 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
                 completedEpisodes: allWatched.length,
                 updatedAt: Date.now(),
               }
-            : l
+            : l,
         );
         persistLibrary(next);
         return next;
       });
     },
-    [persistEpisodeProgress, persistLibrary]
+    [persistEpisodeProgress, persistLibrary],
   );
 
   const getSeriesProgress = useCallback(
     (seriesUrl: string) =>
       episodeProgress.filter((p) => p.seriesUrl === seriesUrl),
-    [episodeProgress]
+    [episodeProgress],
   );
 
   const isEpisodeWatched = useCallback(
     (episodeUrl: string) =>
       episodeProgress.some((p) => p.episodeUrl === episodeUrl && p.watched),
-    [episodeProgress]
+    [episodeProgress],
   );
 
   // ── Continue watching ──
   const getContinueWatchingItems = useCallback((): LibraryItem[] => {
     const watchingSeries = library.filter(
-      (l) => l.isSeries && l.status === "watching" && l.completedEpisodes > 0
+      (l) => l.isSeries && l.status === "watching" && l.completedEpisodes > 0,
     );
     const watchingOther = library.filter(
-      (l) => !l.isSeries && l.status === "watching"
+      (l) => !l.isSeries && l.status === "watching",
     );
     const excludedUrls = new Set(
       library
         .filter((l) => l.status === "completed" || l.status === "dropped")
-        .map((l) => l.url)
+        .map((l) => l.url),
     );
     const libraryUrls = new Set(library.map((l) => l.url));
     const recentFromHistory: LibraryItem[] = history
@@ -665,7 +709,7 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
     },
-    [persistReminders]
+    [persistReminders],
   );
 
   const removeReminder = useCallback(
@@ -676,26 +720,131 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
     },
-    [persistReminders]
+    [persistReminders],
   );
 
   const updateReminder = useCallback(
     (id: string, updates: Partial<TitleReminder>) => {
       setReminders((prev) => {
         const next = prev.map((r) =>
-          r.id === id ? { ...r, ...updates, updatedAt: Date.now() } : r
+          r.id === id ? { ...r, ...updates, updatedAt: Date.now() } : r,
         );
         persistReminders(next);
         return next;
       });
     },
-    [persistReminders]
+    [persistReminders],
   );
 
   const getReminderForTitle = useCallback(
     (titleUrl: string) =>
       reminders.find((r) => r.titleUrl === titleUrl && r.active),
-    [reminders]
+    [reminders],
+  );
+
+  // ── Local watch planning and title notes ──
+  const addWatchPlan = useCallback(
+    (
+      item: Omit<WatchPlanItem, "id" | "status" | "createdAt" | "updatedAt"> & {
+        status?: WatchPlanStatus;
+      },
+    ) => {
+      const now = Date.now();
+      const plan: WatchPlanItem = {
+        ...item,
+        id: `${item.titleUrl}_${now}`,
+        status: item.status ?? "planned",
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      setWatchPlans((prev) => {
+        const next = [plan, ...prev];
+        persistWatchPlans(next);
+        return next;
+      });
+    },
+    [persistWatchPlans],
+  );
+
+  const updateWatchPlan = useCallback(
+    (id: string, updates: Partial<WatchPlanItem>) => {
+      setWatchPlans((prev) => {
+        const next = prev.map((plan) =>
+          plan.id === id
+            ? { ...plan, ...updates, updatedAt: Date.now() }
+            : plan,
+        );
+        persistWatchPlans(next);
+        return next;
+      });
+    },
+    [persistWatchPlans],
+  );
+
+  const removeWatchPlan = useCallback(
+    (id: string) => {
+      setWatchPlans((prev) => {
+        const next = prev.filter((plan) => plan.id !== id);
+        persistWatchPlans(next);
+        return next;
+      });
+    },
+    [persistWatchPlans],
+  );
+
+  const getPlansForTitle = useCallback(
+    (titleUrl: string) =>
+      watchPlans
+        .filter((plan) => plan.titleUrl === titleUrl)
+        .sort(
+          (a, b) =>
+            new Date(a.plannedFor).getTime() - new Date(b.plannedFor).getTime(),
+        ),
+    [watchPlans],
+  );
+
+  const saveTitleNote = useCallback(
+    (note: Omit<TitleNote, "createdAt" | "updatedAt">) => {
+      setTitleNotes((prev) => {
+        const next = { ...prev };
+        const body = note.body.trim();
+
+        if (!body) {
+          delete next[note.titleUrl];
+          persistTitleNotes(next);
+          return next;
+        }
+
+        const existing = prev[note.titleUrl];
+        next[note.titleUrl] = {
+          ...note,
+          body,
+          createdAt: existing?.createdAt ?? Date.now(),
+          updatedAt: Date.now(),
+        };
+        persistTitleNotes(next);
+        return next;
+      });
+    },
+    [persistTitleNotes],
+  );
+
+  const deleteTitleNote = useCallback(
+    (titleUrl: string) => {
+      setTitleNotes((prev) => {
+        const next = { ...prev };
+        delete next[titleUrl];
+        persistTitleNotes(next);
+        return next;
+      });
+    },
+    [persistTitleNotes],
+  );
+
+  const getTitleNote = useCallback(
+    (titleUrl: string) => titleNotes[titleUrl],
+    [titleNotes],
   );
 
   // ── Known metadata ──
@@ -710,12 +859,12 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
     },
-    [persistMetadata]
+    [persistMetadata],
   );
 
   const getKnownTitleMetadata = useCallback(
     (url: string) => knownMetadata[url],
-    [knownMetadata]
+    [knownMetadata],
   );
 
   return (
@@ -755,6 +904,15 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
         removeReminder,
         updateReminder,
         getReminderForTitle,
+        watchPlans,
+        addWatchPlan,
+        updateWatchPlan,
+        removeWatchPlan,
+        getPlansForTitle,
+        titleNotes,
+        saveTitleNote,
+        deleteTitleNote,
+        getTitleNote,
         knownMetadata,
         saveKnownTitleMetadata,
         getKnownTitleMetadata,

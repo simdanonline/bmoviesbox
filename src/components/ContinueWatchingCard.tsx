@@ -3,11 +3,19 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
   StyleSheet,
+  Dimensions,
+  Platform,
 } from "react-native";
-import { Image } from "expo-image";
 import { LibraryItem } from "../types/app";
+import Focusable from "./Focusable";
+import TvSafeImage from "./TvSafeImage";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const CW_CARD_WIDTH = Platform.isTV ? Math.min(SCREEN_WIDTH / 6, 320) : 140;
+const CW_CARD_HEIGHT = Platform.isTV
+  ? Math.round((Math.min(SCREEN_WIDTH / 6, 320) * 9) / 16)
+  : 90;
 
 interface ContinueWatchingSectionProps {
   items: LibraryItem[];
@@ -29,14 +37,14 @@ export default function ContinueWatchingSection({
         contentContainerStyle={cwStyles.scroll}
       >
         {items.map((item, idx) => (
-          <TouchableOpacity
+          <Focusable
             key={item.url + idx}
             style={cwStyles.card}
+            focusedStyle={cwStyles.cardFocused}
             onPress={() => onPress(item)}
-            activeOpacity={0.7}
           >
             <View style={cwStyles.imageWrapper}>
-              <Image
+              <TvSafeImage
                 source={{ uri: item.thumbnail?.trim() }}
                 style={cwStyles.image}
                 contentFit="cover"
@@ -59,7 +67,7 @@ export default function ContinueWatchingSection({
             <Text style={cwStyles.cardTitle} numberOfLines={2}>
               {item.title}
             </Text>
-          </TouchableOpacity>
+          </Focusable>
         ))}
       </ScrollView>
     </View>
@@ -69,6 +77,8 @@ export default function ContinueWatchingSection({
 const cwStyles = StyleSheet.create({
   container: {
     marginBottom: 20,
+    paddingVertical: 8,
+    overflow: "visible",
   },
   title: {
     fontSize: 18,
@@ -78,18 +88,27 @@ const cwStyles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   scroll: {
-    paddingHorizontal: 16,
+    paddingHorizontal: Platform.isTV ? 32 : 16,
+    paddingVertical: Platform.isTV ? 20 : 16,
     gap: 12,
   },
   card: {
-    width: 140,
+    width: Platform.isTV ? CW_CARD_WIDTH + 8 : CW_CARD_WIDTH,
+    borderWidth: Platform.isTV ? 4 : 0,
+    borderColor: "transparent",
+    borderRadius: 12,
+    overflow: "visible",
+  },
+  cardFocused: {
+    borderColor: "#fff",
+    zIndex: 10,
   },
   imageWrapper: {
     position: "relative",
   },
   image: {
-    width: 140,
-    height: 90,
+    width: "100%",
+    height: CW_CARD_HEIGHT,
     borderRadius: 8,
     backgroundColor: "#1a1a1a",
   },

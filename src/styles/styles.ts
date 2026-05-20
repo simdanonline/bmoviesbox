@@ -2,6 +2,15 @@ import { StyleSheet, Dimensions, Platform } from "react-native";
 
 export const { width, height } = Dimensions.get("window");
 
+// TV-aware card sizing. Google TV is always landscape (typically 1920x1080).
+// On phones, cards stay percentage-based ("48%"/"24%"). On TV, target ~7 cards
+// visible per row at 1920px wide for a comfortable across-the-room density.
+const TV_CARD_WIDTH = Math.min(width / 7, 260);
+const TV_CARD_IMAGE_HEIGHT = Math.min((width / 7) * 1.5, 390);
+// TV overscan: many TVs clip ~3-5% on the edges. Bump horizontal padding so
+// rails/grids don't get cropped.
+const TV_HORIZONTAL_PADDING = Math.round(width * 0.05);
+
 export const styles = StyleSheet.create({
   // Global
   container: {
@@ -33,6 +42,25 @@ export const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#fff",
   },
+  iconButtonFocused: {
+    backgroundColor: "rgba(231, 76, 60, 0.25)",
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: "#e74c3c",
+    transform: [{ scale: 1.1 }],
+  },
+  headerLogoWrap: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  headerIconWrap: {
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 24,
+  },
 
   // Featured Movie
   featuredContainer: {
@@ -41,11 +69,57 @@ export const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: "hidden",
   },
+  featuredFocused: {
+    borderWidth: 4,
+    borderColor: "#fff",
+    shadowColor: "#fff",
+    shadowOpacity: 0.9,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 16,
+    transform: [{ scale: 1.02 }],
+  },
+  featuredGradient: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 16,
+    paddingTop: 60,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+  },
+  featuredHeroTitle: {
+    color: "#fff",
+    fontSize: 28,
+    fontWeight: "800",
+    marginTop: 8,
+    textShadowColor: "rgba(0,0,0,0.9)",
+    textShadowRadius: 6,
+  },
+  featuredPlayWrap: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   featuredImage: {
     width: "100%",
     height: 300,
     justifyContent: "center",
     alignItems: "center",
+  },
+  featuredImageBg: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 12,
   },
   featuredOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -114,9 +188,54 @@ export const styles = StyleSheet.create({
     fontSize: 12,
   },
 
+  // TV Featured Movie (horizontal split layout)
+  tvFeaturedContainer: {
+    flexDirection: "row",
+    height: Math.round(height * 0.38),
+    marginHorizontal: Math.round(width * 0.05),
+    marginTop: 12,
+    marginBottom: 24,
+    borderWidth: Platform.isTV ? 4 : 0,
+    borderColor: "transparent",
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#1a1a1a",
+  },
+  tvFeaturedImage: {
+    flex: 1.4, // ~58% (image side wider than info)
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  tvFeaturedImageBg: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
+  },
+  tvFeaturedPlayWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tvFeaturedInfo: {
+    flex: 1, // ~42%
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    justifyContent: "center",
+  },
+  tvFeaturedTitle: {
+    color: "#fff",
+    fontSize: 32,
+    fontWeight: "800",
+    marginTop: 8,
+    marginBottom: 12,
+  },
+
   // Movies Section
   moviesSection: {
-    paddingHorizontal: 16,
+    paddingHorizontal: Platform.isTV ? TV_HORIZONTAL_PADDING : 16,
     paddingVertical: 20,
   },
   sectionTitle: {
@@ -133,16 +252,28 @@ export const styles = StyleSheet.create({
 
   // Movie Card
   movieCardContainer: {
-    width: Platform.OS === "web" ? "24%" : "48%",
+    width: Platform.isTV
+      ? TV_CARD_WIDTH
+      : Platform.OS === "web"
+        ? "24%"
+        : "48%",
     marginBottom: 16,
+    borderWidth: Platform.isTV ? 4 : 0,
+    borderColor: "transparent",
     borderRadius: 8,
     overflow: "hidden",
     backgroundColor: "#1a1a1a",
   },
+  cardFocused: {
+    borderWidth: 4,
+    borderColor: "#fff",
+    borderRadius: 8,
+    zIndex: 10,
+  },
   cardImageWrapper: {
     position: "relative",
     width: "100%",
-    height: 200,
+    height: Platform.isTV ? TV_CARD_IMAGE_HEIGHT : 200,
     backgroundColor: "#2a2a2a",
   },
   cardImage: {
@@ -449,5 +580,134 @@ export const styles = StyleSheet.create({
     backgroundColor: "#ffc107",
     padding: 4,
     borderRadius: 4,
+  },
+
+  // TV Video Player overlay (D-pad focusable play affordance)
+  tvPlayOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  tvPlayButton: {
+    paddingHorizontal: 60,
+    paddingVertical: 30,
+    borderRadius: 16,
+    borderWidth: 3,
+    borderColor: "#fff",
+    backgroundColor: "rgba(231, 76, 60, 0.85)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tvPlayButtonFocused: {
+    borderColor: "#fff",
+    borderWidth: 5,
+    backgroundColor: "#e74c3c",
+    shadowColor: "#fff",
+    shadowOpacity: 1,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 24,
+    transform: [{ scale: 1.1 }],
+  },
+  tvPlayButtonIcon: {
+    color: "#fff",
+    fontSize: 72,
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  tvPlayButtonLabel: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  tvShowControlsWrap: {
+    position: "absolute",
+    bottom: 24,
+    alignSelf: "center",
+  },
+  tvShowControlsButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.4)",
+    backgroundColor: "rgba(0,0,0,0.7)",
+  },
+  tvShowControlsButtonFocused: {
+    borderColor: "#e74c3c",
+    borderWidth: 3,
+    backgroundColor: "rgba(231, 76, 60, 0.8)",
+    transform: [{ scale: 1.05 }],
+  },
+  tvShowControlsLabel: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  tvNativeControlsWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 24,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 24,
+  },
+  tvNativeControlButton: {
+    minWidth: 96,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 3,
+    borderColor: "rgba(255,255,255,0.45)",
+    backgroundColor: "rgba(0,0,0,0.75)",
+    alignItems: "center",
+  },
+  tvNativeControlButtonPrimary: {
+    minWidth: 150,
+    backgroundColor: "rgba(231, 76, 60, 0.9)",
+  },
+  tvNativeControlButtonFocused: {
+    borderColor: "#fff",
+    backgroundColor: "#e74c3c",
+    shadowColor: "#fff",
+    shadowOpacity: 0.8,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 18,
+    transform: [{ scale: 1.06 }],
+  },
+  tvNativeControlLabel: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  tvInteractiveHint: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 24,
+    alignItems: "center",
+  },
+  tvInteractiveHintText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+    backgroundColor: "rgba(0,0,0,0.7)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+    overflow: "hidden",
   },
 });

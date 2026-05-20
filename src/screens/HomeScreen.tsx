@@ -7,7 +7,6 @@ import {
   Alert,
   RefreshControl,
   Platform,
-  TouchableOpacity,
   Modal,
   TextInput,
   StyleSheet,
@@ -18,6 +17,7 @@ import FeaturedMovie from "../components/FeaturedMovie";
 import MovieCard from "../components/MovieCard";
 import RecommendationRail from "../components/RecommendationRail";
 import ContinueWatchingSection from "../components/ContinueWatchingCard";
+import Focusable from "../components/Focusable";
 import { styles } from "../styles/styles";
 import { useTvApp } from "../context/TvAppContext";
 import { useUserData } from "../context/UserDataContext";
@@ -42,6 +42,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [showAccessModal, setShowAccessModal] = useState(false);
   const [accessKey, setAccessKey] = useState("");
+  const [accessInputFocused, setAccessInputFocused] = useState(false);
   const { isTvApp, unlockTvApp } = useTvApp();
   const {
     history,
@@ -55,10 +56,34 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const tapCountRef = useRef(0);
   const lastTapTimeRef = useRef(0);
+  const scrollRef = useRef<ScrollView>(null);
+  const accessInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     fetchMovies();
   }, []);
+
+  useEffect(() => {
+    if (Platform.isTV) {
+      // Small delay so the layout has measured by the time we scroll
+      const t = setTimeout(() => {
+        scrollRef.current?.scrollTo({ y: 120, animated: false });
+      }, 150);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!showAccessModal) {
+      setAccessInputFocused(false);
+      return;
+    }
+
+    const t = setTimeout(() => {
+      accessInputRef.current?.focus();
+    }, 200);
+    return () => clearTimeout(t);
+  }, [showAccessModal]);
 
   // Background-fetch a few pages of movies + series for recommendation pool
   useEffect(() => {
@@ -130,7 +155,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   // Recommendation rails
   const historyUrls = useMemo(
     () => new Set(history.map((h) => h.url)),
-    [history]
+    [history],
   );
 
   const rails = useMemo((): RailType[] => {
@@ -142,14 +167,22 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       library,
       knownMetadata,
       ratings,
-      historyUrls
+      historyUrls,
     );
     return getPersonalizedRails(pool, tasteProfile, ratings);
-  }, [movies, bgSeries, tasteProfile, library, knownMetadata, ratings, historyUrls]);
+  }, [
+    movies,
+    bgSeries,
+    tasteProfile,
+    library,
+    knownMetadata,
+    ratings,
+    historyUrls,
+  ]);
 
   const continueWatching = useMemo(
     () => getContinueWatchingItems(),
-    [getContinueWatchingItems]
+    [getContinueWatchingItems],
   );
 
   const handleMoviePress = (movie: Movie) => {
@@ -222,9 +255,12 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             if (text) {
               const success = await unlockTvApp(text);
               if (!success) Alert.alert("Invalid Key", "");
+              if (success) {
+                checkForUpdate();
+              }
             }
           },
-          "secure-text"
+          "secure-text",
         );
       } else {
         setShowAccessModal(true);
@@ -235,11 +271,17 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   const checkForUpdate = async () => {
     try {
       if (__DEV__) {
-        Alert.alert("Development Mode", "Updates are not available in development mode.");
+        Alert.alert(
+          "Development Mode",
+          "Updates are not available in development mode.",
+        );
         return;
       }
       if (!Device.isDevice) {
-        Alert.alert("Device Required", "Updates can only be checked on physical devices.");
+        Alert.alert(
+          "Device Required",
+          "Updates can only be checked on physical devices.",
+        );
         return;
       }
       const update = await Updates.checkForUpdateAsync();
@@ -247,13 +289,18 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         await Updates.fetchUpdateAsync();
         Updates.reloadAsync();
       } else {
-        Alert.alert("Up to Date", "You are using the latest version.", [{ text: "OK" }]);
+        Alert.alert("Up to Date", "You are using the latest version.", [
+          { text: "OK" },
+        ]);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       console.error("Error checking for update:", error);
       if (message.includes("HTTP response error 400")) {
-        Alert.alert("Configuration Error", "Update service is not properly configured.");
+        Alert.alert(
+          "Configuration Error",
+          "Update service is not properly configured.",
+        );
       } else {
         Alert.alert("Error", "Failed to check for updates: " + message);
       }
@@ -265,6 +312,9 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     setAccessKey("");
     setShowAccessModal(false);
     if (!success) Alert.alert("Invalid Key", "");
+    if (success) {
+      checkForUpdate();
+    }
   };
 
   const handleAccessCancel = () => {
@@ -275,6 +325,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -287,12 +338,20 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       >
         {/* Header */}
         <View style={[styles.header, styles.row]}>
-          <Text onPress={handleHeaderTap} style={styles.headerTitle}>
-            BMovieBox
-          </Text>
-          <TouchableOpacity onPress={onclickSearch}>
+          <Focusable
+            style={styles.headerLogoWrap}
+            focusedStyle={styles.iconButtonFocused}
+            onPress={handleHeaderTap}
+          >
+            <Text style={styles.headerTitle}>BMovieBox</Text>
+          </Focusable>
+          <Focusable
+            style={styles.headerIconWrap}
+            focusedStyle={styles.iconButtonFocused}
+            onPress={onclickSearch}
+          >
             <FontAwesome name="search" size={30} color={"#fff"} />
-          </TouchableOpacity>
+          </Focusable>
         </View>
 
         {/* Welcome hint if onboarding was skipped */}
@@ -338,11 +397,12 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={homeStyles.genreScroll}
           >
-            <TouchableOpacity
+            <Focusable
               style={[
                 homeStyles.genreChip,
                 !selectedGenre && homeStyles.genreChipActive,
               ]}
+              focusedStyle={homeStyles.genreChipFocused}
               onPress={() => setSelectedGenre(null)}
             >
               <Text
@@ -353,14 +413,15 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
               >
                 All
               </Text>
-            </TouchableOpacity>
+            </Focusable>
             {allGenres.map((genre) => (
-              <TouchableOpacity
+              <Focusable
                 key={genre}
                 style={[
                   homeStyles.genreChip,
                   selectedGenre === genre && homeStyles.genreChipActive,
                 ]}
+                focusedStyle={homeStyles.genreChipFocused}
                 onPress={() =>
                   setSelectedGenre(selectedGenre === genre ? null : genre)
                 }
@@ -373,7 +434,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
                 >
                   {genre}
                 </Text>
-              </TouchableOpacity>
+              </Focusable>
             ))}
           </ScrollView>
         )}
@@ -409,28 +470,40 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
               Enter access key to continue:
             </Text>
             <TextInput
-              style={modalStyles.textInput}
+              ref={accessInputRef}
+              style={[
+                modalStyles.textInput,
+                accessInputFocused && modalStyles.textInputFocused,
+              ]}
               placeholder="Access key"
               placeholderTextColor="#888"
               value={accessKey}
               onChangeText={setAccessKey}
+              onFocus={() => setAccessInputFocused(true)}
+              onBlur={() => setAccessInputFocused(false)}
+              onSubmitEditing={handleAccessConfirm}
               autoCapitalize="none"
               autoCorrect={false}
               secureTextEntry={true}
+              autoFocus={showAccessModal}
+              returnKeyType="done"
             />
             <View style={modalStyles.buttonContainer}>
-              <TouchableOpacity
+              <Focusable
                 style={[modalStyles.button, modalStyles.cancelButton]}
+                focusedStyle={modalStyles.buttonFocused}
                 onPress={handleAccessCancel}
               >
                 <Text style={modalStyles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </Focusable>
+              <Focusable
                 style={[modalStyles.button, modalStyles.confirmButton]}
+                focusedStyle={modalStyles.buttonFocused}
+                hasTVPreferredFocus={Platform.isTV}
                 onPress={handleAccessConfirm}
               >
                 <Text style={modalStyles.confirmButtonText}>Submit</Text>
-              </TouchableOpacity>
+              </Focusable>
             </View>
           </View>
         </View>
@@ -470,13 +543,16 @@ const modalStyles = StyleSheet.create({
   },
   textInput: {
     backgroundColor: "#2a2a2a",
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: "#444",
     borderRadius: 8,
     padding: 12,
     color: "#fff",
     fontSize: 16,
     marginBottom: 20,
+  },
+  textInputFocused: {
+    borderColor: "#fff",
   },
   buttonContainer: {
     flexDirection: "row",
@@ -488,6 +564,11 @@ const modalStyles = StyleSheet.create({
     padding: 14,
     borderRadius: 8,
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  buttonFocused: {
+    borderColor: "#fff",
   },
   cancelButton: {
     backgroundColor: "#333",
@@ -526,8 +607,8 @@ const homeStyles = StyleSheet.create({
     lineHeight: 18,
   },
   genreScroll: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: Platform.isTV ? 32 : 16,
+    paddingVertical: Platform.isTV ? 12 : 8,
     gap: 8,
   },
   genreChip: {
@@ -535,12 +616,15 @@ const homeStyles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 20,
     backgroundColor: "#1a1a1a",
-    borderWidth: 1,
+    borderWidth: Platform.isTV ? 2 : 1,
     borderColor: "#333",
   },
   genreChipActive: {
     backgroundColor: "#e74c3c",
     borderColor: "#e74c3c",
+  },
+  genreChipFocused: {
+    borderColor: "#fff",
   },
   genreChipText: {
     color: "#aaa",
