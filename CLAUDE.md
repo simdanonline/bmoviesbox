@@ -1,1 +1,0 @@
-backend is at /Users/similoluwa/Documents/codes/vibe-coding/movie-scraper and it is hosted on namecheap cpanel (nodeJs)
