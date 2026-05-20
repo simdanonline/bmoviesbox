@@ -331,7 +331,7 @@ export default function MovieDetailsScreen({
               <View style={styles.ratingItem}>
                 <Text style={styles.ratingSource}>IMDb</Text>
                 <Text style={styles.ratingValue}>
-                  {movieDetails.ratings.imdb}
+                  {Number(movieDetails?.ratings?.imdb).toFixed(1)}
                 </Text>
               </View>
             )}
@@ -339,7 +339,7 @@ export default function MovieDetailsScreen({
               <View style={styles.ratingItem}>
                 <Text style={styles.ratingSource}>TMDb</Text>
                 <Text style={styles.ratingValue}>
-                  {movieDetails.ratings.tmdb}
+                  {Number(movieDetails?.ratings?.tmdb).toFixed(1)}
                 </Text>
               </View>
             )}
@@ -347,7 +347,7 @@ export default function MovieDetailsScreen({
               <View style={styles.ratingItem}>
                 <Text style={styles.ratingSource}>RT</Text>
                 <Text style={styles.ratingValue}>
-                  {movieDetails.ratings.rottenTomatoes}%
+                  {Number(movieDetails?.ratings?.rottenTomatoes).toFixed(1)}%
                 </Text>
               </View>
             )}
@@ -355,7 +355,7 @@ export default function MovieDetailsScreen({
               <View style={styles.ratingItem}>
                 <Text style={styles.ratingSource}>Metacritic</Text>
                 <Text style={styles.ratingValue}>
-                  {movieDetails.ratings.metacritic}
+                  {Number(movieDetails?.ratings?.metacritic).toFixed(1)}
                 </Text>
               </View>
             )}
