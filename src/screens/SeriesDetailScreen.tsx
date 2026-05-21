@@ -8,10 +8,15 @@ import {
   StyleSheet,
   Platform,
   Share,
+  TouchableOpacity,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { styles, width } from "../styles/styles";
-import MovieAPI, { Episode, SeriesDetail } from "../services/MovieAPI";
+import MovieAPI, {
+  Episode,
+  ResolvedStream,
+  SeriesDetail,
+} from "../services/MovieAPI";
 import { useTvApp } from "../context/TvAppContext";
 import { useUserData } from "../context/UserDataContext";
 import StarRating from "../components/StarRating";
@@ -22,6 +27,17 @@ import { WatchStatus } from "../types/app";
 import { useTVBackHandler } from "../hooks/useTVBackHandler";
 import Focusable from "../components/Focusable";
 import TvSafeImage from "../components/TvSafeImage";
+import { pickBest, pickForDownload } from "../utils/streamRanking";
+import { useDownloads } from "../context/DownloadContext";
+import { DownloadStartError } from "../services/DownloadManager";
+import { confirmLargeDownload } from "../utils/downloadConfirm";
+import DownloadSourcePicker from "../components/DownloadSourcePicker";
+import { validateDownloadStream } from "../utils/downloadValidation";
+import {
+  filterBadDownloadSources,
+  markBadDownloadSource,
+} from "../utils/downloadSourceHealth";
+import { preparePlayableStreams } from "../utils/playbackValidation";
 
 type SeriesDetailsScreenProps = NativeStackScreenProps<any, "SeriesDetails">;
 
@@ -31,7 +47,7 @@ export default function SeriesDetailsScreen({
 }: SeriesDetailsScreenProps) {
   useTVBackHandler(() => navigation.goBack());
   const { isTvApp } = useTvApp();
-  const usesTvPlaybackControls = Platform.isTV || isTvApp;
+  const usesTvPlaybackControls = isTvApp;
   const {
     isInWatchlist,
     toggleWantToWatch,
@@ -56,6 +72,17 @@ export default function SeriesDetailsScreen({
   const [selectedEpisode, setSelectedEpisode] = useState<number | null>(null);
   const [seriesData, setSeriesData] = useState<SeriesDetail | null>(null);
   const [gettingLinks, setGettingLinks] = useState(false);
+  const [downloadingEpisode, setDownloadingEpisode] = useState<number | null>(
+    null,
+  );
+  const [episodeDownloadPicker, setEpisodeDownloadPicker] = useState<{
+    episode: Episode;
+    sources: ResolvedStream[];
+  } | null>(null);
+  const [validatingDownloadUrl, setValidatingDownloadUrl] = useState<
+    string | null
+  >(null);
+  const downloads = useDownloads();
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -138,6 +165,23 @@ export default function SeriesDetailsScreen({
     ).length;
   }, [seriesProgress, selectedSeason]);
 
+  // How many episodes in the active season are downloaded (or in flight) —
+  // surfaced in the Episodes header so the user can see download progress
+  // across the season at a glance, not just per-card.
+  const seasonDownloadStats = useMemo(() => {
+    if (!seriesData) return { completed: 0, active: 0 };
+    let completed = 0;
+    let active = 0;
+    for (const r of downloads.records) {
+      if (r.kind !== "episode") continue;
+      if (r.tmdbId !== String(seriesData.id)) continue;
+      if (r.season !== selectedSeason) continue;
+      if (r.status === "completed") completed += 1;
+      else if (r.status === "downloading" || r.status === "paused") active += 1;
+    }
+    return { completed, active };
+  }, [downloads.records, seriesData?.id, selectedSeason]);
+
   const libraryItem = seriesData ? getLibraryItem(seriesData.url) : undefined;
   const currentStatus = libraryItem?.status ?? null;
 
@@ -178,14 +222,299 @@ export default function SeriesDetailsScreen({
     }
   };
 
+  const handleDownloadSeason = async () => {
+    if (!seriesData || currentEpisodes.length === 0) return;
+    // Skip episodes already on disk or actively being fetched. Sequential
+    // start() — the DownloadManager itself handles parallel scheduling per
+    // the user's maxParallel preference.
+    const todo = currentEpisodes.filter((ep) => {
+      const r = downloads.records.find(
+        (rr) =>
+          rr.kind === "episode" &&
+          rr.tmdbId === String(seriesData.id) &&
+          rr.season === selectedSeason &&
+          rr.episode === ep.episodeNumber,
+      );
+      return !r || r.status === "failed" || r.status === "cancelled";
+    });
+    if (todo.length === 0) {
+      Alert.alert(
+        "All set",
+        "Every episode in this season is already downloaded or in progress.",
+      );
+      return;
+    }
+    Alert.alert(
+      "Download season",
+      `Queue ${todo.length} episode${todo.length === 1 ? "" : "s"} from season ${selectedSeason}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Queue",
+          onPress: async () => {
+            for (const ep of todo) {
+              try {
+                await handleDownloadEpisode(ep, { silent: true });
+              } catch (e) {
+                // DownloadStartError (storage_cap / wifi_required) — stop the
+                // whole batch rather than spam alerts per episode.
+                console.warn(
+                  "Season queue stopped at episode:",
+                  ep.episodeNumber,
+                  e,
+                );
+                break;
+              }
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const showEpisodeDownloadError = (e: unknown) => {
+    if (e instanceof DownloadStartError) {
+      const titleMap: Record<DownloadStartError["reason"], string> = {
+        storage_cap: "Storage cap reached",
+        wifi_required: "Wi-Fi required",
+        no_sources: "No downloadable sources",
+        already_active: "Already downloading",
+        unknown: "Download failed",
+      };
+      Alert.alert(titleMap[e.reason], e.message);
+      return;
+    }
+    const msg = e instanceof Error ? e.message : String(e);
+    Alert.alert("Download failed", msg);
+  };
+
+  const startEpisodeDownload = async (
+    episode: Episode,
+    source: ResolvedStream,
+    options?: { silent?: boolean },
+  ): Promise<boolean> => {
+    if (!seriesData) return false;
+
+    const sourceContext = {
+      tmdbId: String(seriesData.id),
+      kind: "episode" as const,
+      season: selectedSeason,
+      episode: episode.episodeNumber,
+    };
+
+    setDownloadingEpisode(episode.episodeNumber);
+    setValidatingDownloadUrl(source.url);
+    try {
+      const validation = await validateDownloadStream(source);
+      if (!validation.ok) {
+        await markBadDownloadSource(
+          source,
+          sourceContext,
+          validation.reason ?? "Source failed validation",
+        );
+        if (!options?.silent) {
+          const nextSources =
+            episodeDownloadPicker?.sources.filter(
+              (candidate) => candidate.url !== source.url,
+            ) ?? [];
+          setEpisodeDownloadPicker((current) => {
+            if (
+              !current ||
+              current.episode.episodeNumber !== episode.episodeNumber
+            ) {
+              return current;
+            }
+            const sources = current.sources.filter(
+              (candidate) => candidate.url !== source.url,
+            );
+            return sources.length > 0 ? { ...current, sources } : null;
+          });
+          Alert.alert(
+            "Source unavailable",
+            `${validation.reason ?? "This source could not be verified."}${
+              nextSources.length > 0 ? " Choose another source." : ""
+            }`,
+          );
+        }
+        return false;
+      }
+
+      console.log("[SeriesDetails] starting episode download:", {
+        s: selectedSeason,
+        e: episode.episodeNumber,
+        url: source.url,
+        type: source.type,
+        quality: source.quality,
+        sizeBytes: source.sizeBytes,
+        hasHeaders: !!source.headers,
+      });
+
+      if (!options?.silent) {
+        const epLabel = `${seriesData.title} · S${selectedSeason}E${episode.episodeNumber}`;
+        const confirmed = await confirmLargeDownload(
+          source.sizeBytes ?? 0,
+          epLabel,
+        );
+        if (!confirmed) return false;
+      }
+
+      await downloads.start(source, {
+        tmdbId: String(seriesData.id),
+        title: seriesData.title,
+        kind: "episode",
+        season: selectedSeason,
+        episode: episode.episodeNumber,
+        thumbnail: seriesData.thumbnail,
+      });
+      if (!options?.silent) setEpisodeDownloadPicker(null);
+      return true;
+    } catch (e) {
+      const stack = e instanceof Error && e.stack ? `\n${e.stack}` : "";
+      console.warn("Episode download failed:", e, stack);
+      if (options?.silent) throw e;
+      showEpisodeDownloadError(e);
+      return false;
+    } finally {
+      setDownloadingEpisode(null);
+      setValidatingDownloadUrl(null);
+    }
+  };
+
+  const startFirstValidEpisodeDownload = async (
+    episode: Episode,
+    sources: ResolvedStream[],
+    options?: { silent?: boolean },
+  ): Promise<boolean> => {
+    for (const source of sources) {
+      const started = await startEpisodeDownload(episode, source, options);
+      if (started) return true;
+      if (!options?.silent) return false;
+    }
+    return false;
+  };
+
+  const handleDownloadEpisode = async (
+    episode: Episode,
+    options?: { silent?: boolean },
+  ) => {
+    if (!seriesData) return;
+
+    const existing = downloads.findCompletedEpisode(
+      String(seriesData.id),
+      selectedSeason,
+      episode.episodeNumber,
+    );
+    if (existing) {
+      // Already on disk → tapping plays it.
+      navigation.navigate("NativeVideoPlayer", {
+        streams: [
+          {
+            url: existing.fileUri,
+            type: existing.containerType,
+            quality: existing.quality,
+            name: "Offline",
+            title: existing.title,
+            source: "download",
+            sizeBytes: existing.sizeBytes,
+          },
+        ],
+        title: `${existing.title} - S${existing.season}E${existing.episode}`,
+        recordId: existing.id,
+        initialPositionMs: existing.watchProgressMs,
+      });
+      return;
+    }
+
+    setDownloadingEpisode(episode.episodeNumber);
+    try {
+      const resolved = await MovieAPI.getResolvedStreams(
+        "series",
+        { tmdbId: seriesData.id },
+        selectedSeason,
+        episode.episodeNumber,
+      );
+      const ranked = await filterBadDownloadSources(pickForDownload(resolved), {
+        tmdbId: String(seriesData.id),
+        kind: "episode",
+        season: selectedSeason,
+        episode: episode.episodeNumber,
+      });
+      if (ranked.length === 0) {
+        if (!options?.silent) {
+          Alert.alert(
+            "No downloadable sources",
+            "Couldn't find a stream we can save offline.",
+          );
+        }
+        return;
+      }
+
+      if (options?.silent) {
+        const started = await startFirstValidEpisodeDownload(episode, ranked, {
+          silent: true,
+        });
+        if (!started) {
+          throw new DownloadStartError(
+            "no_sources",
+            "No valid downloadable sources were available.",
+          );
+        }
+        return;
+      }
+
+      setEpisodeDownloadPicker({ episode, sources: ranked });
+    } catch (e) {
+      const stack = e instanceof Error && e.stack ? `\n${e.stack}` : "";
+      console.warn("Episode download failed:", e, stack);
+      if (options?.silent) throw e;
+      showEpisodeDownloadError(e);
+    } finally {
+      setDownloadingEpisode(null);
+    }
+  };
+
   const handlePlayEpisode = async (episode: Episode) => {
+    if (!seriesData) return;
     setSelectedEpisode(episode.episodeNumber);
     setGettingLinks(true);
+    const movieTitle = `${seriesData.title} - S${selectedSeason}E${episode.episodeNumber} ${episode.episodeTitle}`;
+
+    // Tier 1: backend's resolved-stream pipeline (Stremio + Real-Debrid).
+    // MKV streams stay in the list — NativeVideoPlayer falls back to libVLC
+    // on iOS automatically.
+    try {
+      const resolved = await MovieAPI.getResolvedStreams(
+        "series",
+        { tmdbId: seriesData.id },
+        selectedSeason,
+        episode.episodeNumber,
+      );
+      const compatible = pickBest(resolved.filter((s) => s.type !== "magnet"));
+      const sourceContext = {
+        tmdbId: String(seriesData.id),
+        kind: "episode" as const,
+        season: selectedSeason,
+        episode: episode.episodeNumber,
+      };
+      const playable = await preparePlayableStreams(compatible, sourceContext);
+      if (playable.length > 0) {
+        setGettingLinks(false);
+        navigation.navigate("NativeVideoPlayer", {
+          streams: playable,
+          title: movieTitle,
+          sourceContext,
+        });
+        return;
+      }
+    } catch (e) {
+      console.warn("Episode stream resolution failed, falling back:", e);
+    }
+
+    // Tier 2: legacy WebView path.
     try {
       const links = await MovieAPI.getSeriesServer(episode.episodeUrl);
       setGettingLinks(false);
       const servers = links.videoLinks;
-      const movieTitle = `${seriesData?.title} - S${selectedSeason}E${episode.episodeNumber} ${episode.episodeTitle}`;
 
       if (servers.length === 1) {
         navigation.navigate("VideoPlayer", {
@@ -473,11 +802,43 @@ export default function SeriesDetailsScreen({
         {/* Episodes Section — visible in BOTH builds now */}
         {seriesData.seasons.length > 0 && (
           <View style={seriesStyles.section}>
-            <Text style={seriesStyles.sectionTitle}>
-              Episodes{" "}
-              {seasonWatchedCount > 0 &&
-                `(${seasonWatchedCount}/${currentEpisodes.length} watched)`}
-            </Text>
+            <View style={seriesStyles.episodesHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={seriesStyles.sectionTitle}>Episodes</Text>
+                {(seasonWatchedCount > 0 ||
+                  seasonDownloadStats.completed > 0 ||
+                  seasonDownloadStats.active > 0) && (
+                  <Text style={seriesStyles.episodesSubtitle}>
+                    {seasonWatchedCount > 0
+                      ? `${seasonWatchedCount}/${currentEpisodes.length} watched`
+                      : ""}
+                    {seasonWatchedCount > 0 &&
+                    (seasonDownloadStats.completed > 0 ||
+                      seasonDownloadStats.active > 0)
+                      ? " · "
+                      : ""}
+                    {seasonDownloadStats.completed > 0
+                      ? `${seasonDownloadStats.completed}/${currentEpisodes.length} downloaded`
+                      : ""}
+                    {seasonDownloadStats.active > 0
+                      ? ` (${seasonDownloadStats.active} in progress)`
+                      : ""}
+                  </Text>
+                )}
+              </View>
+              {currentEpisodes.length > 0 &&
+                seasonDownloadStats.completed < currentEpisodes.length && (
+                  <TouchableOpacity
+                    style={seriesStyles.seasonDownloadBtn}
+                    onPress={handleDownloadSeason}
+                  >
+                    <FontAwesome name="cloud-download" size={12} color="#fff" />
+                    <Text style={seriesStyles.seasonDownloadBtnText}>
+                      Download S{selectedSeason}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+            </View>
 
             <ScrollView
               horizontal
@@ -511,6 +872,14 @@ export default function SeriesDetailsScreen({
             <View style={seriesStyles.episodesGrid}>
               {currentEpisodes.map((episode) => {
                 const watched = isEpisodeWatched(episode.episodeUrl);
+                const epRecord = downloads.records.find(
+                  (r) =>
+                    r.kind === "episode" &&
+                    r.tmdbId === String(seriesData.id) &&
+                    r.season === selectedSeason &&
+                    r.episode === episode.episodeNumber,
+                );
+                const isQueuing = downloadingEpisode === episode.episodeNumber;
                 return (
                   <Focusable
                     key={episode.episodeNumber}
@@ -565,6 +934,40 @@ export default function SeriesDetailsScreen({
                         )}
                       </>
                     )}
+
+                    {/* Download icon — corner overlay. Nested touchable wins
+                        focus over the parent card on phone touch. */}
+                    <TouchableOpacity
+                      style={[
+                        seriesStyles.downloadIconBtn,
+                        epRecord?.status === "completed" &&
+                          seriesStyles.downloadIconBtnDone,
+                      ]}
+                      onPress={() => handleDownloadEpisode(episode)}
+                      disabled={isQueuing || epRecord?.status === "downloading"}
+                    >
+                      {isQueuing ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : epRecord?.status === "completed" ? (
+                        <FontAwesome name="check" size={11} color="#fff" />
+                      ) : epRecord?.status === "downloading" ? (
+                        <Text style={seriesStyles.downloadIconPct}>
+                          {epRecord.sizeBytes > 0
+                            ? `${Math.floor(
+                                (epRecord.bytesDownloaded /
+                                  epRecord.sizeBytes) *
+                                  100,
+                              )}%`
+                            : "…"}
+                        </Text>
+                      ) : (
+                        <FontAwesome
+                          name="cloud-download"
+                          size={11}
+                          color="#fff"
+                        />
+                      )}
+                    </TouchableOpacity>
                   </Focusable>
                 );
               })}
@@ -629,6 +1032,25 @@ export default function SeriesDetailsScreen({
           </View>
         )}
       </View>
+      <DownloadSourcePicker
+        visible={!!episodeDownloadPicker}
+        title={seriesData.title}
+        subtitle={
+          episodeDownloadPicker
+            ? `${seriesData.title} · S${selectedSeason}E${episodeDownloadPicker.episode.episodeNumber}`
+            : seriesData.title
+        }
+        sources={episodeDownloadPicker?.sources ?? []}
+        activeUrl={validatingDownloadUrl}
+        onSelect={(source) => {
+          if (!episodeDownloadPicker) return;
+          void startEpisodeDownload(episodeDownloadPicker.episode, source);
+        }}
+        onClose={() => {
+          if (validatingDownloadUrl) return;
+          setEpisodeDownloadPicker(null);
+        }}
+      />
     </ScrollView>
   );
 }
@@ -858,6 +1280,38 @@ const seriesStyles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
   },
+  downloadIconBtn: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    minWidth: 28,
+    height: 22,
+    paddingHorizontal: 6,
+    borderRadius: 11,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  downloadIconBtnDone: { backgroundColor: "#27ae60" },
+  downloadIconPct: { color: "#fff", fontSize: 9, fontWeight: "700" },
+  episodesHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    gap: 8,
+  },
+  episodesSubtitle: { color: "#aaa", fontSize: 12, marginTop: -8 },
+  seasonDownloadBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: "#2c3e50",
+  },
+  seasonDownloadBtnText: { color: "#fff", fontSize: 11, fontWeight: "700" },
 });
 
 const detailActionStyles = StyleSheet.create({

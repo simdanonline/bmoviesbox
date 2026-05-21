@@ -23,6 +23,23 @@ export interface StreamingServer {
   url: string;
 }
 
+/** Direct playable stream returned by the backend's /api/streams endpoint. */
+export interface ResolvedStream {
+  url: string;
+  headers?: Record<string, string>;
+  name: string;
+  title: string;
+  quality: "CAM" | "480p" | "720p" | "1080p" | "4K" | "unknown";
+  sizeBytes?: number;
+  seeders?: number;
+  source: string;
+  language?: string;
+  audioLanguages?: string[];
+  subtitleLanguages?: string[];
+  rdCached?: boolean;
+  type: "hls" | "mp4" | "mkv" | "magnet";
+}
+
 export interface MovieDetail {
   id: string;
   title: string;
@@ -161,7 +178,7 @@ interface CacheEntry<T> {
 
 class MovieAPI {
   private apiClient: AxiosInstance;
-  // private baseURL: string = "http://192.168.1.118:3001/api";
+  // private baseURL: string = "http://192.168.1.118:4001/api";
   private baseURL: string = "https://bmoviebox-b.simdan.dev/api";
   //192.168.1.118
   private movieCache: Map<string, CacheEntry<MoviesResponse>> = new Map();
@@ -462,6 +479,36 @@ class MovieAPI {
     } catch (error) {
       console.error("Error fetching streams:", error);
       throw this.handleError(error);
+    }
+  }
+
+  /**
+   * Resolve playable stream URLs for a movie or episode via the backend's
+   * Stremio-addon + Real-Debrid pipeline. Returns ranked direct URLs that
+   * can be handed to expo-video / react-native-video without a WebView.
+   *
+   * Either tmdbId or imdbId works. Use whichever the calling screen has.
+   */
+  async getResolvedStreams(
+    type: "movie" | "series",
+    ids: { tmdbId?: string | number; imdbId?: string },
+    season?: number,
+    episode?: number
+  ): Promise<ResolvedStream[]> {
+    try {
+      const params: Record<string, string | number> = { type };
+      if (ids.tmdbId != null) params.tmdb = String(ids.tmdbId);
+      if (ids.imdbId) params.imdb = ids.imdbId;
+      if (season != null) params.season = season;
+      if (episode != null) params.episode = episode;
+      const response = await this.apiClient.get<{ streams: ResolvedStream[] }>(
+        "/streams",
+        { params, timeout: 20_000 }
+      );
+      return response.data?.streams ?? [];
+    } catch (error) {
+      console.warn("getResolvedStreams failed:", error);
+      return []; // graceful: caller falls back to WebView path
     }
   }
 

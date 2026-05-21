@@ -1,0 +1,61 @@
+#!/usr/bin/env zsh
+set -u
+
+if ! command -v watchman >/dev/null 2>&1; then
+  print -u2 "reset-watchman: watchman is not installed or is not on PATH"
+  exit 127
+fi
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  cat <<'EOF'
+Usage: reset-watchman [path]
+
+Resets Watchman state and re-adds a project watch.
+
+If no path is provided and the current directory is inside a Git repo, that
+repo root is used. Otherwise, Watchman is reset without creating a new watch.
+
+  reset-watchman
+  reset-watchman /path/to/project
+EOF
+  exit 0
+fi
+
+target=""
+if [[ -n "${1:-}" ]]; then
+  if ! target="$(cd "$1" 2>/dev/null && pwd -P)"; then
+    print -u2 "reset-watchman: path does not exist: $1"
+    exit 1
+  fi
+elif git_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  target="$(cd "$git_root" 2>/dev/null && pwd -P)"
+fi
+
+if [[ -n "$target" ]]; then
+  print "Resetting Watchman for: $target"
+else
+  print "Resetting Watchman without adding a new project watch"
+fi
+
+# Clear broad or stale watch roots, then restart the daemon so Metro gets a
+# fresh Watchman connection.
+watchman watch-del-all >/dev/null 2>&1 || true
+watchman shutdown-server >/dev/null 2>&1 || true
+
+if [[ -n "$target" ]]; then
+  if ! result="$(watchman watch-project "$target" 2>&1)"; then
+    print -u2 "reset-watchman: failed to watch project"
+    print -u2 "$result"
+    exit 1
+  fi
+
+  print "$result"
+  print
+else
+  print "No project path supplied and the current directory is not inside a Git repo."
+  print "Run this from your project, pass a project path, or let Metro create the watch on next start."
+  print
+fi
+
+print "Current Watchman roots:"
+watchman watch-list

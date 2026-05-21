@@ -27,13 +27,35 @@
     },
     "plugins": [
       [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
+        }
+      ],
+      [
         "@react-native-tvos/config-tv",
         {
           "androidTVBanner": "./assets/images/tv-banner.png",
-          "isTV": true
+          "isTV": false
         }
       ],
       ["expo-video"],
+      [
+        "react-native-video",
+        {
+          "enableNotificationControls": false,
+          "androidExtensions": {
+            "useExoplayerRtsp": false,
+            "useExoplayerSmoothStreaming": false,
+            "useExoplayerHls": true,
+            "useExoplayerDash": false
+          }
+        }
+      ],
+      "react-native-vlc-media-player",
+      "@kesha-antonov/react-native-background-downloader",
       "expo-web-browser",
       [
         "expo-notifications",

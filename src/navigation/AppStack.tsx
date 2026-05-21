@@ -5,9 +5,11 @@ import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, Platform, View } from "react-native";
 import { TvAppProvider } from "../context/TvAppContext";
 import { UserDataProvider, useUserData } from "../context/UserDataContext";
+import { DownloadProvider } from "../context/DownloadContext";
 import MovieDetailsScreen from "../screens/MovieDetailsScreen";
 import ServerSelectionScreen from "../screens/ServerSelectionScreen";
 import VideoPlayerScreen from "../screens/VideoPlayerScreen";
+import NativeVideoPlayer from "../screens/NativeVideoPlayer";
 import TrailerScreen from "../screens/TrailerScreen";
 import SearchScreen from "../screens/SearchScreen";
 import MyTabs from "./Tabs";
@@ -18,6 +20,7 @@ import StreamSelection from "../screens/StreamSelection";
 import OnboardingScreen from "../screens/OnboardingScreen";
 import PreferencesScreen from "../screens/PreferencesScreen";
 import PlannerScreen from "../screens/PlannerScreen";
+import DownloadedTitlesScreen from "../screens/DownloadedTitlesScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -81,6 +84,18 @@ function AppNavigator() {
           options={{ title: "Now Playing", headerShown: false }}
         />
         <Stack.Screen
+          name="NativeVideoPlayer"
+          component={NativeVideoPlayer}
+          options={{
+            title: "Now Playing",
+            headerShown: false,
+            // Force landscape on phones for a real fullscreen feel — VLC has
+            // no native fullscreen button and AVPlayer's is easy to miss.
+            // Platform.isTV already runs in landscape, so this is a no-op there.
+            orientation: Platform.isTV ? "default" : "landscape",
+          }}
+        />
+        <Stack.Screen
           name="TrailerScreen"
           component={TrailerScreen}
           options={{ title: "Trailer" }}
@@ -115,6 +130,11 @@ function AppNavigator() {
           component={PlannerScreen}
           options={{ title: "Planner", headerBackTitle: "Back" }}
         />
+        <Stack.Screen
+          name="DownloadedTitles"
+          component={DownloadedTitlesScreen}
+          options={{ title: "Downloads", headerBackTitle: "Back" }}
+        />
       </Stack.Navigator>
     </>
   );
@@ -124,9 +144,11 @@ export default function AppStack() {
   return (
     <TvAppProvider>
       <UserDataProvider>
-        <NavigationContainer>
-          <AppNavigator />
-        </NavigationContainer>
+        <DownloadProvider>
+          <NavigationContainer>
+            <AppNavigator />
+          </NavigationContainer>
+        </DownloadProvider>
       </UserDataProvider>
     </TvAppProvider>
   );
