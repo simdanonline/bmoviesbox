@@ -503,6 +503,7 @@ export default function SeriesDetailsScreen({
           streams: playable,
           title: movieTitle,
           sourceContext,
+          streamProgressKey: `${seriesData.url}::s${selectedSeason}e${episode.episodeNumber}`,
         });
         return;
       }
@@ -828,15 +829,16 @@ export default function SeriesDetailsScreen({
               </View>
               {currentEpisodes.length > 0 &&
                 seasonDownloadStats.completed < currentEpisodes.length && (
-                  <TouchableOpacity
+                  <Focusable
                     style={seriesStyles.seasonDownloadBtn}
+                    focusedStyle={seriesStyles.focused}
                     onPress={handleDownloadSeason}
                   >
                     <FontAwesome name="cloud-download" size={12} color="#fff" />
                     <Text style={seriesStyles.seasonDownloadBtnText}>
                       Download S{selectedSeason}
                     </Text>
-                  </TouchableOpacity>
+                  </Focusable>
                 )}
             </View>
 
@@ -1310,6 +1312,8 @@ const seriesStyles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 14,
     backgroundColor: "#2c3e50",
+    borderWidth: 2,
+    borderColor: "transparent",
   },
   seasonDownloadBtnText: { color: "#fff", fontSize: 11, fontWeight: "700" },
 });

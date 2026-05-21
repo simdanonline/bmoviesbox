@@ -7,12 +7,12 @@ import {
   ActivityIndicator,
   StyleSheet,
   Platform,
-  TouchableOpacity,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import MovieAPI, { Movie } from "../services/MovieAPI";
 import MovieCard from "../components/MovieCard";
+import Focusable from "../components/Focusable";
 
 type SearchScreenNavigationProp = NativeStackNavigationProp<any>;
 type Tab = "movies" | "series";
@@ -180,10 +180,10 @@ const TabButton: React.FC<TabButtonProps> = ({
   active,
   onPress,
 }) => (
-  <TouchableOpacity
+  <Focusable
     style={[localStyles.tab, active && localStyles.tabActive]}
+    focusedStyle={localStyles.tabFocused}
     onPress={onPress}
-    activeOpacity={0.8}
   >
     <Text style={[localStyles.tabLabel, active && localStyles.tabLabelActive]}>
       {label}
@@ -203,7 +203,7 @@ const TabButton: React.FC<TabButtonProps> = ({
         {count}
       </Text>
     </View>
-  </TouchableOpacity>
+  </Focusable>
 );
 
 const localStyles = StyleSheet.create({
@@ -248,6 +248,11 @@ const localStyles = StyleSheet.create({
   tabActive: {
     backgroundColor: "#e74c3c",
     borderColor: "#e74c3c",
+  },
+  tabFocused: {
+    borderColor: "#fff",
+    borderWidth: 2,
+    transform: [{ scale: 1.05 }],
   },
   tabLabel: {
     color: "#bbb",
