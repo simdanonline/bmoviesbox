@@ -485,13 +485,46 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchEmbedLink();
+    resolveAndPlay();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [link]);
 
-  const fetchEmbedLink = async () => {
+  // Title shown on the native player when Tier-1 resolves. Falls back through
+  // game/team data → stream channel → "Live stream" so something is always set.
+  const playerTitle = useMemo(() => {
+    if (game?.homeTeam && game?.awayTeam) {
+      return `${game.homeTeam} vs ${game.awayTeam}`;
+    }
+    return stream?.channel || game?.league || "Live stream";
+  }, [game, stream]);
+
+  // Two-tier flow mirroring MovieDetails/SeriesDetails:
+  //   Tier 1 — `/sports/resolve` extracts direct HLS/MP4 from the embed page.
+  //            Hand off to NativeVideoPlayer (proper controls, source picker,
+  //            language badges) and replace this route so Back goes to the
+  //            previous screen, not back here.
+  //   Tier 2 — fall back to the existing WebView embed.
+  const resolveAndPlay = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
+      const resolved = await MovieAPI.getResolvedLiveStreams(link);
+      // Magnets aren't playable; the native player would just choke. Drop them
+      // up front so the picker only shows usable sources.
+      const playable = resolved.filter((s) => s.type !== "magnet");
+      if (playable.length > 0) {
+        navigation.replace("NativeVideoPlayer", {
+          streams: playable,
+          title: playerTitle,
+        });
+        return;
+      }
+    } catch (e) {
+      console.warn("Live resolve failed, falling back to WebView:", e);
+    }
+
+    // Tier 2 fallback
+    try {
       const data = await MovieAPI.getLiveGameEmbed(link);
       setEmbedLink(data.embedLink);
     } catch (err) {

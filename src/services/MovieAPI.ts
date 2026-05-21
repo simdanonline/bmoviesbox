@@ -512,6 +512,28 @@ class MovieAPI {
     }
   }
 
+  /**
+   * Tier-1 live resolver. Asks the backend to fetch the embed page for the
+   * given stream link and pull out any direct HLS / MP4 URLs (plus the
+   * `Referer`/`Origin` headers the origin host requires). Returns an empty
+   * array when extraction fails — caller falls back to the WebView embed.
+   *
+   * Mirrors `getResolvedStreams` for VOD: same `ResolvedStream` shape so the
+   * native player and source picker work without branching.
+   */
+  async getResolvedLiveStreams(link: string): Promise<ResolvedStream[]> {
+    try {
+      const response = await this.apiClient.get<{ streams: ResolvedStream[] }>(
+        "/sports/resolve",
+        { params: { link }, timeout: 15_000 },
+      );
+      return response.data?.streams ?? [];
+    } catch (e) {
+      console.warn("getResolvedLiveStreams failed:", e);
+      return [];
+    }
+  }
+
   async getLiveGameEmbed(link: string): Promise<LiveGameEmbed> {
     try {
       const response = await this.apiClient.get<LiveGameEmbed>(
