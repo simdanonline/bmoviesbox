@@ -60,6 +60,17 @@ function formatResumeAt(ms: number): string {
   return `${m}:${s}`;
 }
 
+// Some APIs return non-numeric placeholders like "N/A" — guard the cast so
+// Number("N/A").toFixed(1) doesn't render "NaN" to users.
+function formatRating(value: unknown): string | null {
+  if (value == null || value === "") return null;
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) {
+    return typeof value === "string" ? value : null;
+  }
+  return n.toFixed(1);
+}
+
 function downloadButtonLabel(record?: DownloadRecord): string {
   if (!record) return "Download";
   switch (record.status) {
@@ -94,7 +105,7 @@ export default function MovieDetailsScreen({
 }: MovieDetailsScreenProps) {
   useTVBackHandler(() => navigation.goBack());
   const { isTvApp } = useTvApp();
-  const usesTvPlaybackControls = isTvApp;
+  const usesTvPlaybackControls = Platform.isTV || isTvApp;
   const {
     isInWatchlist,
     toggleWantToWatch,
@@ -616,38 +627,42 @@ export default function MovieDetailsScreen({
         <View style={styles.ratingsContainer}>
           <Text style={styles.ratingsTitle}>Ratings</Text>
           <View style={styles.ratingsGrid}>
-            {movieDetails.ratings.imdb && (
-              <View style={styles.ratingItem}>
-                <Text style={styles.ratingSource}>IMDb</Text>
-                <Text style={styles.ratingValue}>
-                  {Number(movieDetails?.ratings?.imdb).toFixed(1)}
-                </Text>
-              </View>
-            )}
-            {movieDetails.ratings.tmdb && (
-              <View style={styles.ratingItem}>
-                <Text style={styles.ratingSource}>TMDb</Text>
-                <Text style={styles.ratingValue}>
-                  {Number(movieDetails?.ratings?.tmdb).toFixed(1)}
-                </Text>
-              </View>
-            )}
-            {movieDetails.ratings.rottenTomatoes && (
-              <View style={styles.ratingItem}>
-                <Text style={styles.ratingSource}>RT</Text>
-                <Text style={styles.ratingValue}>
-                  {Number(movieDetails?.ratings?.rottenTomatoes).toFixed(1)}%
-                </Text>
-              </View>
-            )}
-            {movieDetails.ratings.metacritic && (
-              <View style={styles.ratingItem}>
-                <Text style={styles.ratingSource}>Metacritic</Text>
-                <Text style={styles.ratingValue}>
-                  {Number(movieDetails?.ratings?.metacritic).toFixed(1)}
-                </Text>
-              </View>
-            )}
+            {(() => {
+              const imdb = formatRating(movieDetails.ratings.imdb);
+              return imdb ? (
+                <View style={styles.ratingItem}>
+                  <Text style={styles.ratingSource}>IMDb</Text>
+                  <Text style={styles.ratingValue}>{imdb}</Text>
+                </View>
+              ) : null;
+            })()}
+            {(() => {
+              const tmdb = formatRating(movieDetails.ratings.tmdb);
+              return tmdb ? (
+                <View style={styles.ratingItem}>
+                  <Text style={styles.ratingSource}>TMDb</Text>
+                  <Text style={styles.ratingValue}>{tmdb}</Text>
+                </View>
+              ) : null;
+            })()}
+            {(() => {
+              const rt = formatRating(movieDetails.ratings.rottenTomatoes);
+              return rt ? (
+                <View style={styles.ratingItem}>
+                  <Text style={styles.ratingSource}>RT</Text>
+                  <Text style={styles.ratingValue}>{rt}%</Text>
+                </View>
+              ) : null;
+            })()}
+            {(() => {
+              const meta = formatRating(movieDetails.ratings.metacritic);
+              return meta ? (
+                <View style={styles.ratingItem}>
+                  <Text style={styles.ratingSource}>Metacritic</Text>
+                  <Text style={styles.ratingValue}>{meta}</Text>
+                </View>
+              ) : null;
+            })()}
           </View>
         </View>
 

@@ -52,12 +52,21 @@ export function DownloadProvider({ children }: { children: React.ReactNode }) {
   // of the app.
   useEffect(() => {
     let mounted = true;
-    DownloadManager.init().then(() => {
-      if (!mounted) return;
-      setRecords(DownloadManager.list());
-      setPreferencesState(DownloadManager.getPreferences());
-      setReady(true);
-    });
+    DownloadManager.init()
+      .then(() => {
+        if (!mounted) return;
+        setRecords(DownloadManager.list());
+        setPreferencesState(DownloadManager.getPreferences());
+        setReady(true);
+      })
+      .catch((e) => {
+        // If init fails (e.g. FS error creating the downloads directory) we
+        // still need to flip `ready` so the UI stops waiting — downloads
+        // won't work, but the rest of the app shouldn't be blocked.
+        console.warn("[DownloadContext] DownloadManager.init failed:", e);
+        if (!mounted) return;
+        setReady(true);
+      });
     const unsubscribe = DownloadManager.subscribe(() => {
       setRecords(DownloadManager.list());
       setPreferencesState(DownloadManager.getPreferences());

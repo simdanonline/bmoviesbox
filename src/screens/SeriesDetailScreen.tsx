@@ -47,7 +47,7 @@ export default function SeriesDetailsScreen({
 }: SeriesDetailsScreenProps) {
   useTVBackHandler(() => navigation.goBack());
   const { isTvApp } = useTvApp();
-  const usesTvPlaybackControls = isTvApp;
+  const usesTvPlaybackControls = Platform.isTV || isTvApp;
   const {
     isInWatchlist,
     toggleWantToWatch,

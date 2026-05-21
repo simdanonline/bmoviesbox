@@ -649,6 +649,10 @@ class DownloadManagerImpl {
     if (record.status !== "downloading") return;
     await task.pause();
     record.status = "paused";
+    // Manual pause overrides any prior auto-pause marker so the Wi-Fi watcher
+    // won't auto-resume a user-paused download when the network changes.
+    record.autoPausedAt = undefined;
+    record.errorMessage = undefined;
     void this.persist();
     this.emit();
   }
@@ -697,9 +701,15 @@ class DownloadManagerImpl {
     record.status = "cancelled";
     record.autoPausedAt = undefined;
     if (message) record.errorMessage = message;
-    const localPath = record.fileUri.replace(/^file:\/\//, "");
-    if (await ReactNativeBlobUtil.fs.exists(localPath)) {
-      await ReactNativeBlobUtil.fs.unlink(localPath);
+    // Best-effort cleanup — a transient FS error must not block state updates,
+    // otherwise the record would stay stuck in "downloading" in the UI.
+    try {
+      const localPath = record.fileUri.replace(/^file:\/\//, "");
+      if (await ReactNativeBlobUtil.fs.exists(localPath)) {
+        await ReactNativeBlobUtil.fs.unlink(localPath);
+      }
+    } catch (e) {
+      console.warn("[DownloadManager] partial-file cleanup failed:", e);
     }
     record.bytesDownloaded = 0;
     void this.persist();

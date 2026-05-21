@@ -50,6 +50,18 @@ public class AppDelegate: ExpoAppDelegate {
     let result = RCTLinkingManager.application(application, continue: userActivity, restorationHandler: restorationHandler)
     return super.application(application, continue: userActivity, restorationHandler: restorationHandler) || result
   }
+
+  // Background URLSession events — iOS dispatches this to the actual
+  // UIApplicationDelegate (AppDelegate), not to the React factory delegate,
+  // so RNBackgroundDownloader must be wired up here.
+  public override func application(
+    _ application: UIApplication,
+    handleEventsForBackgroundURLSession identifier: String,
+    completionHandler: @escaping () -> Void
+  ) {
+    RNBackgroundDownloader.setCompletionHandlerWithIdentifier(identifier, completionHandler: completionHandler)
+    super.application(application, handleEventsForBackgroundURLSession: identifier, completionHandler: completionHandler)
+  }
 }
 
 class ReactNativeDelegate: ExpoReactNativeFactoryDelegate {
@@ -67,13 +79,4 @@ class ReactNativeDelegate: ExpoReactNativeFactoryDelegate {
     return Bundle.main.url(forResource: "main", withExtension: "jsbundle")
 #endif
   }
-
-  func application(
-    _ application: UIApplication,
-    handleEventsForBackgroundURLSession identifier: String,
-    completionHandler: @escaping () -> Void
-  ) {
-    RNBackgroundDownloader.setCompletionHandlerWithIdentifier(identifier, completionHandler: completionHandler)
-  }
-
 }
