@@ -827,7 +827,8 @@ export default function SeriesDetailsScreen({
                   </Text>
                 )}
               </View>
-              {currentEpisodes.length > 0 &&
+              {isTvApp &&
+                currentEpisodes.length > 0 &&
                 seasonDownloadStats.completed < currentEpisodes.length && (
                   <Focusable
                     style={seriesStyles.seasonDownloadBtn}
@@ -937,39 +938,41 @@ export default function SeriesDetailsScreen({
                       </>
                     )}
 
-                    {/* Download icon — corner overlay. Nested touchable wins
-                        focus over the parent card on phone touch. */}
-                    <TouchableOpacity
-                      style={[
-                        seriesStyles.downloadIconBtn,
-                        epRecord?.status === "completed" &&
-                          seriesStyles.downloadIconBtnDone,
-                      ]}
-                      onPress={() => handleDownloadEpisode(episode)}
-                      disabled={isQueuing || epRecord?.status === "downloading"}
-                    >
-                      {isQueuing ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : epRecord?.status === "completed" ? (
-                        <FontAwesome name="check" size={11} color="#fff" />
-                      ) : epRecord?.status === "downloading" ? (
-                        <Text style={seriesStyles.downloadIconPct}>
-                          {epRecord.sizeBytes > 0
-                            ? `${Math.floor(
-                                (epRecord.bytesDownloaded /
-                                  epRecord.sizeBytes) *
-                                  100,
-                              )}%`
-                            : "…"}
-                        </Text>
-                      ) : (
-                        <FontAwesome
-                          name="cloud-download"
-                          size={11}
-                          color="#fff"
-                        />
-                      )}
-                    </TouchableOpacity>
+                    {/* Download icon — corner overlay. Only shown when TV-app mode is unlocked.
+                        Nested touchable wins focus over the parent card on phone touch. */}
+                    {isTvApp && (
+                      <TouchableOpacity
+                        style={[
+                          seriesStyles.downloadIconBtn,
+                          epRecord?.status === "completed" &&
+                            seriesStyles.downloadIconBtnDone,
+                        ]}
+                        onPress={() => handleDownloadEpisode(episode)}
+                        disabled={isQueuing || epRecord?.status === "downloading"}
+                      >
+                        {isQueuing ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : epRecord?.status === "completed" ? (
+                          <FontAwesome name="check" size={11} color="#fff" />
+                        ) : epRecord?.status === "downloading" ? (
+                          <Text style={seriesStyles.downloadIconPct}>
+                            {epRecord.sizeBytes > 0
+                              ? `${Math.floor(
+                                  (epRecord.bytesDownloaded /
+                                    epRecord.sizeBytes) *
+                                    100,
+                                )}%`
+                              : "…"}
+                          </Text>
+                        ) : (
+                          <FontAwesome
+                            name="cloud-download"
+                            size={11}
+                            color="#fff"
+                          />
+                        )}
+                      </TouchableOpacity>
+                    )}
                   </Focusable>
                 );
               })}
@@ -1034,25 +1037,27 @@ export default function SeriesDetailsScreen({
           </View>
         )}
       </View>
-      <DownloadSourcePicker
-        visible={!!episodeDownloadPicker}
-        title={seriesData.title}
-        subtitle={
-          episodeDownloadPicker
-            ? `${seriesData.title} · S${selectedSeason}E${episodeDownloadPicker.episode.episodeNumber}`
-            : seriesData.title
-        }
-        sources={episodeDownloadPicker?.sources ?? []}
-        activeUrl={validatingDownloadUrl}
-        onSelect={(source) => {
-          if (!episodeDownloadPicker) return;
-          void startEpisodeDownload(episodeDownloadPicker.episode, source);
-        }}
-        onClose={() => {
-          if (validatingDownloadUrl) return;
-          setEpisodeDownloadPicker(null);
-        }}
-      />
+      {isTvApp && (
+        <DownloadSourcePicker
+          visible={!!episodeDownloadPicker}
+          title={seriesData.title}
+          subtitle={
+            episodeDownloadPicker
+              ? `${seriesData.title} · S${selectedSeason}E${episodeDownloadPicker.episode.episodeNumber}`
+              : seriesData.title
+          }
+          sources={episodeDownloadPicker?.sources ?? []}
+          activeUrl={validatingDownloadUrl}
+          onSelect={(source) => {
+            if (!episodeDownloadPicker) return;
+            void startEpisodeDownload(episodeDownloadPicker.episode, source);
+          }}
+          onClose={() => {
+            if (validatingDownloadUrl) return;
+            setEpisodeDownloadPicker(null);
+          }}
+        />
+      )}
     </ScrollView>
   );
 }

@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useUserData } from "../context/UserDataContext";
 import { useDownloads } from "../context/DownloadContext";
+import { useTvApp } from "../context/TvAppContext";
 import { DownloadRecord } from "../services/DownloadManager";
 import {
   LibraryItem,
@@ -40,6 +41,7 @@ export default function LibraryScreen({
 }: NativeStackScreenProps<any>) {
   const { library, removeFromLibrary } = useUserData();
   const downloads = useDownloads();
+  const { isTvApp } = useTvApp();
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortOrder, setSortOrder] = useState<SortOrder>("recent");
@@ -321,8 +323,8 @@ export default function LibraryScreen({
           </View>
         )}
 
-        {/* Downloads section — only render if there's anything to show. */}
-        {downloads.records.length > 0 && (
+        {/* Downloads section — only shown when TV-app mode is unlocked, and only if there's anything to show. */}
+        {isTvApp && downloads.records.length > 0 && (
           <View style={libStyles.downloadsSection}>
             <View style={libStyles.downloadsHeader}>
               <Text style={styles.sectionTitle}>Downloads</Text>

@@ -529,48 +529,50 @@ export default function MovieDetailsScreen({
         <Text style={styles.trailerButtonText}>Watch Trailer</Text>
       </Focusable>
 
-      {/* Download button — always visible. Cycles idle → downloading → completed.
+      {/* Download button — only shown when TV-app mode is unlocked. Cycles idle → downloading → completed.
           Progress fill renders as a relative bar behind the label. */}
-      <Focusable
-        style={[
-          detailActionStyles.downloadButton,
-          detailActionStyles.primaryActionButton,
-          downloadRecord?.status === "completed" &&
-            detailActionStyles.downloadButtonCompleted,
-          downloadRecord?.status === "failed" &&
-            detailActionStyles.downloadButtonFailed,
-        ]}
-        focusedStyle={detailActionStyles.focused}
-        onPress={resolvingForDownload ? () => {} : handleDownloadPress}
-      >
-        {downloadRecord?.status === "downloading" && (
-          <View
-            style={[
-              detailActionStyles.downloadProgressFill,
-              {
-                width: `${
-                  downloadRecord.sizeBytes > 0
-                    ? Math.min(
-                        100,
-                        (downloadRecord.bytesDownloaded /
-                          downloadRecord.sizeBytes) *
+      {isTvApp && (
+        <Focusable
+          style={[
+            detailActionStyles.downloadButton,
+            detailActionStyles.primaryActionButton,
+            downloadRecord?.status === "completed" &&
+              detailActionStyles.downloadButtonCompleted,
+            downloadRecord?.status === "failed" &&
+              detailActionStyles.downloadButtonFailed,
+          ]}
+          focusedStyle={detailActionStyles.focused}
+          onPress={resolvingForDownload ? () => {} : handleDownloadPress}
+        >
+          {downloadRecord?.status === "downloading" && (
+            <View
+              style={[
+                detailActionStyles.downloadProgressFill,
+                {
+                  width: `${
+                    downloadRecord.sizeBytes > 0
+                      ? Math.min(
                           100,
-                      )
-                    : 0
-                }%`,
-              },
-            ]}
-            pointerEvents="none"
-          />
-        )}
-        {resolvingForDownload ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={detailActionStyles.downloadButtonText}>
-            {downloadButtonLabel(downloadRecord)}
-          </Text>
-        )}
-      </Focusable>
+                          (downloadRecord.bytesDownloaded /
+                            downloadRecord.sizeBytes) *
+                            100,
+                        )
+                      : 0
+                  }%`,
+                },
+              ]}
+              pointerEvents="none"
+            />
+          )}
+          {resolvingForDownload ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={detailActionStyles.downloadButtonText}>
+              {downloadButtonLabel(downloadRecord)}
+            </Text>
+          )}
+        </Focusable>
+      )}
 
       {/* Status Selector — default build */}
       {!isTvApp && (
@@ -749,18 +751,20 @@ export default function MovieDetailsScreen({
           </View>
         )}
       </View>
-      <DownloadSourcePicker
-        visible={downloadPickerVisible}
-        title={movieDetails.title}
-        subtitle={movieDetails.title}
-        sources={downloadSources}
-        activeUrl={validatingDownloadUrl}
-        onSelect={(source) => void startMovieDownload(source)}
-        onClose={() => {
-          if (validatingDownloadUrl) return;
-          setDownloadPickerVisible(false);
-        }}
-      />
+      {isTvApp && (
+        <DownloadSourcePicker
+          visible={downloadPickerVisible}
+          title={movieDetails.title}
+          subtitle={movieDetails.title}
+          sources={downloadSources}
+          activeUrl={validatingDownloadUrl}
+          onSelect={(source) => void startMovieDownload(source)}
+          onClose={() => {
+            if (validatingDownloadUrl) return;
+            setDownloadPickerVisible(false);
+          }}
+        />
+      )}
     </ScrollView>
   );
 }

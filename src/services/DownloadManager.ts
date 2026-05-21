@@ -5,8 +5,8 @@ import {
   completeHandler,
   directories,
   setConfig as setDownloaderConfig,
-  DownloadTask,
-} from "@kesha-antonov/react-native-background-downloader";
+  type DownloadTask,
+} from "./downloader";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
 import { Platform } from "react-native";
@@ -116,16 +116,19 @@ export class DownloadStartError extends Error {
 }
 
 /**
- * Singleton manager backed by `@kesha-antonov/react-native-background-downloader`.
+ * Singleton manager that delegates to a platform-specific downloader (see
+ * `./downloader`). On iOS the backing implementation is the kesha
+ * react-native-background-downloader library (NSURLSession background
+ * downloads, native pause/resume, re-attach across launches). On Android
+ * we use react-native-blob-util — downloads run only while the app is in
+ * the foreground, pause = cancel-and-restart-on-resume, and no foreground
+ * service permission is needed.
  *
- * Why this library:
- *   - True iOS NSURLSession background downloads — continue when app is
- *     suspended or terminated by the OS (force-quit by user is unavoidable).
- *   - Native pause/resume on both platforms (no JS-side workaround needed).
- *   - Re-attach to in-flight tasks after app restart via `getExistingDownloadTasks`.
- *
- * Records (title/tmdbId/thumbnail/etc.) live in AsyncStorage. Task state
- * (bytes, paused, progress) is owned by the native side; we re-sync on init.
+ * Records (title/tmdbId/thumbnail/etc.) live in AsyncStorage. iOS task
+ * state survives app restart and is re-synced on init; Android starts with
+ * no in-flight tasks and any "downloading"/"paused" records left from the
+ * previous session are marked failed (the same path used when iOS loses
+ * its native tasks after a force-quit).
  */
 class DownloadManagerImpl {
   private records = new Map<string, DownloadRecord>();
@@ -239,13 +242,13 @@ class DownloadManagerImpl {
       // task → native state was lost. On iOS this is almost always the user
       // force-quitting from the App Switcher; NSURLSession cancels every
       // background task in that case and Apple doesn't expose resume data,
-      // so there's no recovery path. On Android, DownloadManager survives
-      // even hard kills, so missing tasks here likely mean the app was
-      // wiped/reinstalled.
+      // so there's no recovery path. On Android we don't persist tasks at all
+      // (blob-util is foreground-only), so every record in this state on
+      // launch is expected.
       const platformHint =
         Platform.OS === "ios"
           ? "App was force-quit — iOS can't preserve background downloads through that"
-          : "Download state was lost";
+          : "Downloads don't continue after the app is closed on Android";
       for (const r of this.records.values()) {
         if (
           (r.status === "downloading" || r.status === "paused") &&

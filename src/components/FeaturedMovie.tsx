@@ -5,6 +5,7 @@ import { Movie } from '../services/MovieAPI';
 import { styles } from '../styles/styles';
 import Focusable from './Focusable';
 import TvSafeImage from './TvSafeImage';
+import { useTvApp } from '../context/TvAppContext';
 
 interface FeaturedMovieProps {
   movie: Movie;
@@ -12,6 +13,7 @@ interface FeaturedMovieProps {
 }
 
 function FeaturedMovie({ movie, onPress }: FeaturedMovieProps) {
+  const { isTvApp } = useTvApp();
   const source = useMemo(
     () => ({ uri: movie.thumbnail?.trim() }),
     [movie.thumbnail]
@@ -32,11 +34,13 @@ function FeaturedMovie({ movie, onPress }: FeaturedMovieProps) {
             contentFit="cover"
             transition={200}
           />
-          <View style={styles.tvFeaturedPlayWrap}>
-            <View style={styles.playButtonLarge}>
-              <Text style={styles.playIconLarge}>▶</Text>
+          {isTvApp && (
+            <View style={styles.tvFeaturedPlayWrap}>
+              <View style={styles.playButtonLarge}>
+                <Text style={styles.playIconLarge}>▶</Text>
+              </View>
             </View>
-          </View>
+          )}
         </View>
 
         <View style={styles.tvFeaturedInfo}>
@@ -99,11 +103,13 @@ function FeaturedMovie({ movie, onPress }: FeaturedMovieProps) {
             {movie.title}
           </Text>
         </LinearGradient>
-        <View style={styles.featuredPlayWrap}>
-          <View style={styles.playButtonLarge}>
-            <Text style={styles.playIconLarge}>▶</Text>
+        {isTvApp && (
+          <View style={styles.featuredPlayWrap}>
+            <View style={styles.playButtonLarge}>
+              <Text style={styles.playIconLarge}>▶</Text>
+            </View>
           </View>
-        </View>
+        )}
       </View>
 
       <View style={styles.featuredInfo}>

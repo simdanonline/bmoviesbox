@@ -13,6 +13,7 @@ import { styles } from "../styles/styles";
 import Focusable from "../components/Focusable";
 import { useUserData } from "../context/UserDataContext";
 import { useDownloads } from "../context/DownloadContext";
+import { useTvApp } from "../context/TvAppContext";
 import MovieAPI from "../services/MovieAPI";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
@@ -51,6 +52,7 @@ export default function SettingsScreen() {
     isOnboardingComplete,
   } = useUserData();
   const downloads = useDownloads();
+  const { isTvApp } = useTvApp();
 
   const downloadBreakdown = (() => {
     let movies = 0;
@@ -325,7 +327,8 @@ export default function SettingsScreen() {
           </Text>
         </View>
 
-        {/* Downloads */}
+        {/* Downloads — only shown when TV-app mode is unlocked */}
+        {isTvApp && (
         <View style={settingsStyles.section}>
           <Text style={settingsStyles.sectionTitle}>Downloads</Text>
 
@@ -475,6 +478,7 @@ export default function SettingsScreen() {
             <FontAwesome name="chevron-right" size={14} color="#555" />
           </Focusable>
         </View>
+        )}
 
         {/* Data Management */}
         <View style={settingsStyles.section}>
