@@ -19,6 +19,7 @@ import {
   STATUS_COLORS,
 } from "../types/app";
 import MovieCard from "../components/MovieCard";
+import Focusable from "../components/Focusable";
 import { styles } from "../styles/styles";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 
@@ -192,14 +193,14 @@ export default function LibraryScreen({
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={[styles.header, styles.row]}>
           <Text style={styles.headerTitle}>Library</Text>
-          <TouchableOpacity
+          <Focusable
             style={libStyles.headerButton}
+            focusedStyle={libStyles.headerButtonFocused}
             onPress={() => navigation.navigate("Planner")}
-            activeOpacity={0.7}
           >
             <FontAwesome name="calendar-check-o" size={22} color="#fff" />
             <Text style={libStyles.headerButtonText}>Planner</Text>
-          </TouchableOpacity>
+          </Focusable>
         </View>
 
         {/* Type filter */}
@@ -209,12 +210,13 @@ export default function LibraryScreen({
           contentContainerStyle={libStyles.filterRow}
         >
           {(["all", "movies", "series"] as TypeFilter[]).map((f) => (
-            <TouchableOpacity
+            <Focusable
               key={f}
               style={[
                 libStyles.filterChip,
                 typeFilter === f && libStyles.filterChipActive,
               ]}
+              focusedStyle={libStyles.filterChipFocused}
               onPress={() => setTypeFilter(f)}
             >
               <Text
@@ -225,7 +227,7 @@ export default function LibraryScreen({
               >
                 {f.charAt(0).toUpperCase() + f.slice(1)}
               </Text>
-            </TouchableOpacity>
+            </Focusable>
           ))}
         </ScrollView>
 
@@ -248,7 +250,7 @@ export default function LibraryScreen({
             const label = s === "all" ? "All" : STATUS_LABELS[s as WatchStatus];
             const count = statusCounts[s] || 0;
             return (
-              <TouchableOpacity
+              <Focusable
                 key={s}
                 style={[
                   libStyles.statusChip,
@@ -259,6 +261,7 @@ export default function LibraryScreen({
                       s === "all" ? "#e74c3c" : STATUS_COLORS[s as WatchStatus],
                   },
                 ]}
+                focusedStyle={libStyles.filterChipFocused}
                 onPress={() => setStatusFilter(s)}
               >
                 <Text
@@ -269,7 +272,7 @@ export default function LibraryScreen({
                 >
                   {label} ({count})
                 </Text>
-              </TouchableOpacity>
+              </Focusable>
             );
           })}
         </ScrollView>
@@ -293,10 +296,10 @@ export default function LibraryScreen({
                   .toString()
                   .padStart(2, "0");
                 return (
-                  <TouchableOpacity
+                  <Focusable
                     key={r.id}
                     style={libStyles.continueCard}
-                    activeOpacity={0.85}
+                    focusedStyle={libStyles.cardFocused}
                     onPress={() => handlePlayOffline(r)}
                   >
                     <View style={libStyles.continuePlayBadge}>
@@ -311,7 +314,7 @@ export default function LibraryScreen({
                     <Text style={libStyles.continueMeta}>
                       Resume at {min}:{sec}
                     </Text>
-                  </TouchableOpacity>
+                  </Focusable>
                 );
               })}
             </ScrollView>
@@ -366,26 +369,28 @@ export default function LibraryScreen({
                       />
                     </View>
                   </View>
-                  <TouchableOpacity
+                  <Focusable
                     onPress={() =>
                       isPaused
                         ? downloads.resume(r.id)
                         : downloads.pause(r.id)
                     }
                     style={libStyles.downloadActionButton}
+                    focusedStyle={libStyles.downloadActionButtonFocused}
                   >
                     <FontAwesome
                       name={isPaused ? "play" : "pause"}
                       size={14}
                       color="#fff"
                     />
-                  </TouchableOpacity>
-                  <TouchableOpacity
+                  </Focusable>
+                  <Focusable
                     onPress={() => handleCancelDownload(r)}
                     style={libStyles.downloadActionButton}
+                    focusedStyle={libStyles.downloadActionButtonFocused}
                   >
                     <FontAwesome name="times" size={16} color="#fff" />
-                  </TouchableOpacity>
+                  </Focusable>
                 </View>
               );
             })}
@@ -403,28 +408,30 @@ export default function LibraryScreen({
                     Failed{r.errorMessage ? ` — ${r.errorMessage}` : ""}
                   </Text>
                 </View>
-                <TouchableOpacity
+                <Focusable
                   onPress={() => handleRetryDownload(r)}
                   style={libStyles.downloadActionButton}
+                  focusedStyle={libStyles.downloadActionButtonFocused}
                 >
                   <FontAwesome name="refresh" size={14} color="#fff" />
-                </TouchableOpacity>
-                <TouchableOpacity
+                </Focusable>
+                <Focusable
                   onPress={() => handleDeleteDownload(r)}
                   style={libStyles.downloadActionButton}
+                  focusedStyle={libStyles.downloadActionButtonFocused}
                 >
                   <FontAwesome name="trash" size={14} color="#fff" />
-                </TouchableOpacity>
+                </Focusable>
               </View>
             ))}
 
             {completedDownloads.length > 0 && (
               <View style={libStyles.completedGrid}>
                 {completedDownloads.map((r) => (
-                  <TouchableOpacity
+                  <Focusable
                     key={r.id}
                     style={libStyles.completedCard}
-                    activeOpacity={0.8}
+                    focusedStyle={libStyles.cardFocused}
                     onPress={() => handlePlayOffline(r)}
                     onLongPress={() => handleDeleteDownload(r)}
                   >
@@ -450,7 +457,7 @@ export default function LibraryScreen({
                         Offline
                       </Text>
                     </View>
-                  </TouchableOpacity>
+                  </Focusable>
                 ))}
               </View>
             )}
@@ -461,10 +468,11 @@ export default function LibraryScreen({
         <View style={libStyles.sortRow}>
           <Text style={libStyles.sortLabel}>Sort:</Text>
           {(["recent", "title", "status"] as SortOrder[]).map((s) => (
-            <TouchableOpacity
+            <Focusable
               key={s}
               onPress={() => setSortOrder(s)}
               style={libStyles.sortOption}
+              focusedStyle={libStyles.sortOptionFocused}
             >
               <Text
                 style={[
@@ -474,7 +482,7 @@ export default function LibraryScreen({
               >
                 {s === "recent" ? "Recent" : s === "title" ? "Title" : "Status"}
               </Text>
-            </TouchableOpacity>
+            </Focusable>
           ))}
         </View>
 
@@ -543,6 +551,29 @@ export default function LibraryScreen({
 }
 
 const libStyles = StyleSheet.create({
+  // Shared TV focus indicators
+  headerButtonFocused: {
+    borderColor: "#e74c3c",
+    backgroundColor: "rgba(231, 76, 60, 0.15)",
+  },
+  filterChipFocused: {
+    borderColor: "#fff",
+    transform: [{ scale: 1.05 }],
+  },
+  cardFocused: {
+    borderWidth: 3,
+    borderColor: "#fff",
+    transform: [{ scale: 1.03 }],
+  },
+  downloadActionButtonFocused: {
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  sortOptionFocused: {
+    backgroundColor: "rgba(231, 76, 60, 0.15)",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+  },
   headerButton: {
     flexDirection: "row",
     alignItems: "center",

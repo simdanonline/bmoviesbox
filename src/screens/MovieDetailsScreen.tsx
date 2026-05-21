@@ -264,6 +264,7 @@ export default function MovieDetailsScreen({
           streams: playable,
           title: movieDetails.title,
           sourceContext,
+          streamProgressKey: movieDetails.url,
         });
         return;
       }

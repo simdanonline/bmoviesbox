@@ -3,7 +3,6 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
   StyleSheet,
   Alert,
 } from "react-native";
@@ -13,6 +12,7 @@ import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import { useDownloads } from "../context/DownloadContext";
 import { DownloadRecord } from "../services/DownloadManager";
 import { styles } from "../styles/styles";
+import Focusable from "../components/Focusable";
 
 type SortOrder = "newest" | "largest" | "title";
 
@@ -113,10 +113,11 @@ export default function DownloadedTitlesScreen({
       <View style={dlStyles.sortRow}>
         <Text style={dlStyles.sortLabel}>Sort:</Text>
         {(["newest", "largest", "title"] as SortOrder[]).map((opt) => (
-          <TouchableOpacity
+          <Focusable
             key={opt}
             onPress={() => setSortOrder(opt)}
             style={dlStyles.sortChip}
+            focusedStyle={dlStyles.sortChipFocused}
           >
             <Text
               style={[
@@ -130,7 +131,7 @@ export default function DownloadedTitlesScreen({
                   ? "Largest"
                   : "Title"}
             </Text>
-          </TouchableOpacity>
+          </Focusable>
         ))}
       </View>
 
@@ -151,10 +152,10 @@ export default function DownloadedTitlesScreen({
                 : r.quality;
             return (
               <View key={r.id} style={dlStyles.row}>
-                <TouchableOpacity
+                <Focusable
                   style={dlStyles.rowMain}
+                  focusedStyle={dlStyles.rowMainFocused}
                   onPress={() => handlePlay(r)}
-                  activeOpacity={0.7}
                 >
                   <View style={dlStyles.thumbBox}>
                     <FontAwesome name="play" size={14} color="#fff" />
@@ -173,13 +174,14 @@ export default function DownloadedTitlesScreen({
                         : ""}
                     </Text>
                   </View>
-                </TouchableOpacity>
-                <TouchableOpacity
+                </Focusable>
+                <Focusable
                   onPress={() => handleDelete(r)}
                   style={dlStyles.deleteButton}
+                  focusedStyle={dlStyles.deleteButtonFocused}
                 >
                   <FontAwesome name="trash" size={16} color="#fff" />
-                </TouchableOpacity>
+                </Focusable>
               </View>
             );
           })}
@@ -204,7 +206,14 @@ const dlStyles = StyleSheet.create({
     gap: 12,
   },
   sortLabel: { color: "#666", fontSize: 13 },
-  sortChip: { paddingVertical: 4 },
+  sortChip: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  sortChipFocused: { borderColor: "#e74c3c" },
   sortChipText: { color: "#666", fontSize: 13 },
   sortChipTextActive: { color: "#e74c3c", fontWeight: "600" },
   empty: {
@@ -235,7 +244,16 @@ const dlStyles = StyleSheet.create({
     gap: 8,
     padding: 12,
   },
-  rowMain: { flexDirection: "row", alignItems: "center", flex: 1, gap: 12 },
+  rowMain: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  rowMainFocused: { borderColor: "#fff" },
   thumbBox: {
     width: 42,
     height: 42,
@@ -255,5 +273,8 @@ const dlStyles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
   },
+  deleteButtonFocused: { borderColor: "#e74c3c" },
 });

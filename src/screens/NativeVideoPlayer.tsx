@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Video, { VideoRef, OnLoadData } from "react-native-video";
 import { VLCPlayer } from "react-native-vlc-media-player";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Focusable from "../components/Focusable";
 import { useTVBackHandler } from "../hooks/useTVBackHandler";
 import { ResolvedStream } from "../services/MovieAPI";
@@ -44,6 +45,9 @@ const PROGRESS_SAVE_INTERVAL_MS = 5_000;
 // Don't try to resume from positions within 30s of the end; the user clearly
 // finished watching last time.
 const RESUME_THRESHOLD_FROM_END_MS = 30_000;
+// AsyncStorage prefix for streamed-playback resume points (downloads use the
+// DownloadManager's own progress field instead).
+const STREAM_PROGRESS_KEY_PREFIX = "@bmoviebox_stream_progress::";
 
 // VLC is only needed on iOS for containers AVPlayer can't open (MKV today;
 // extensible to other formats later). Android's ExoPlayer handles MKV
@@ -94,18 +98,28 @@ export default function NativeVideoPlayer({
   route,
   navigation,
 }: NativeVideoPlayerProps) {
-  const { streams, title, recordId, initialPositionMs, sourceContext } =
-    route.params as {
-      streams: ResolvedStream[];
-      title: string;
-      /** If set, watch progress is saved back to this download record so the
-       * next open can resume from the saved position. */
-      recordId?: string;
-      /** Where to start playback. Used to resume offline downloads. */
-      initialPositionMs?: number;
-      /** Network playback context used to remember sources the player rejected. */
-      sourceContext?: PlaybackSourceContext;
-    };
+  const {
+    streams,
+    title,
+    recordId,
+    initialPositionMs,
+    sourceContext,
+    streamProgressKey,
+  } = route.params as {
+    streams: ResolvedStream[];
+    title: string;
+    /** If set, watch progress is saved back to this download record so the
+     * next open can resume from the saved position. */
+    recordId?: string;
+    /** Where to start playback. Used to resume offline downloads. */
+    initialPositionMs?: number;
+    /** Network playback context used to remember sources the player rejected. */
+    sourceContext?: PlaybackSourceContext;
+    /** AsyncStorage key under STREAM_PROGRESS_KEY_PREFIX for resuming streamed
+     * playback. Ignored when `recordId` is set (downloads have their own
+     * progress field). Typically the movie URL, or `${seriesUrl}::s${n}e${m}`. */
+    streamProgressKey?: string;
+  };
 
   const insets = useSafeAreaInsets();
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -135,6 +149,12 @@ export default function NativeVideoPlayer({
   const [scrubFraction, setScrubFraction] = useState<number | null>(null);
   const [trackWidth, setTrackWidth] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(true);
+  // Drives the rnv `controls` prop. Briefly flipped to false on TV back-press
+  // to dismiss the native overlay without leaving the screen, then restored.
+  const [nativeControlsEnabled, setNativeControlsEnabled] = useState(true);
+  // Streamed-playback resume point loaded asynchronously from AsyncStorage.
+  // Merged with `initialPositionMs` (download path) by the seek effect.
+  const [streamResumeMs, setStreamResumeMs] = useState<number | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const failureCount = useRef(0);
@@ -201,32 +221,60 @@ export default function NativeVideoPlayer({
     lastSavedProgressMsRef.current = 0;
   }, [currentIndex]);
 
+  // Load streamed-playback resume point. Skipped when a downloaded recordId is
+  // active (DownloadManager owns that progress) or when no key was supplied.
+  useEffect(() => {
+    if (recordId) return;
+    if (!streamProgressKey) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(
+          STREAM_PROGRESS_KEY_PREFIX + streamProgressKey,
+        );
+        if (cancelled) return;
+        const parsed = raw ? Number(raw) : 0;
+        if (Number.isFinite(parsed) && parsed > 0) setStreamResumeMs(parsed);
+      } catch {
+        // ignore — resume is best-effort
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [recordId, streamProgressKey]);
+
+  // Effective resume point: explicit `initialPositionMs` (downloads) wins; the
+  // streamed key is the streaming fallback.
+  const resumeMs = initialPositionMs ?? streamResumeMs ?? 0;
+
   // Initial seek for resume. Fires once per stream, after duration is known.
   // We need duration on the VLC path (seek is a fraction); rnv could seek with
   // raw seconds, but waiting for onLoad simplifies the state machine.
   useEffect(() => {
     if (didInitialSeekRef.current) return;
-    if (!initialPositionMs || initialPositionMs <= 0) return;
+    if (!resumeMs || resumeMs <= 0) return;
     if (durationMs <= 0) return;
     // Don't resume if we're within the threshold of the end.
-    if (durationMs - initialPositionMs < RESUME_THRESHOLD_FROM_END_MS) {
+    if (durationMs - resumeMs < RESUME_THRESHOLD_FROM_END_MS) {
       didInitialSeekRef.current = true;
       return;
     }
     if (useVlc) {
-      setSeekFraction(initialPositionMs / durationMs);
-      setPositionMs(initialPositionMs);
+      setSeekFraction(resumeMs / durationMs);
+      setPositionMs(resumeMs);
     } else {
-      videoRef.current?.seek(initialPositionMs / 1000);
-      setPositionMs(initialPositionMs);
+      videoRef.current?.seek(resumeMs / 1000);
+      setPositionMs(resumeMs);
     }
     didInitialSeekRef.current = true;
-  }, [durationMs, initialPositionMs, useVlc]);
+  }, [durationMs, resumeMs, useVlc]);
 
   // Throttled save: only persist when position has moved at least
-  // PROGRESS_SAVE_INTERVAL_MS, and only when wired to a download record.
+  // PROGRESS_SAVE_INTERVAL_MS. Downloads write to DownloadManager; streamed
+  // playback writes to AsyncStorage under STREAM_PROGRESS_KEY_PREFIX.
   const saveProgressIfDue = (currentMs: number) => {
-    if (!recordId) return;
+    if (!recordId && !streamProgressKey) return;
     if (
       currentMs - lastSavedProgressMsRef.current <
       PROGRESS_SAVE_INTERVAL_MS
@@ -234,23 +282,36 @@ export default function NativeVideoPlayer({
       return;
     }
     lastSavedProgressMsRef.current = currentMs;
-    void DownloadManager.setWatchProgress(recordId, currentMs);
+    if (recordId) {
+      void DownloadManager.setWatchProgress(recordId, currentMs);
+    } else if (streamProgressKey) {
+      void AsyncStorage.setItem(
+        STREAM_PROGRESS_KEY_PREFIX + streamProgressKey,
+        String(currentMs),
+      );
+    }
   };
 
   // Final save on unmount — captures the position right before the user
   // backs out, even if the throttle window hadn't elapsed.
   useEffect(() => {
     return () => {
-      if (!recordId) return;
       // Avoid saving 0 if the user backs out before playback ever started.
       if (lastSavedProgressMsRef.current === 0) return;
-      void DownloadManager.setWatchProgress(
-        recordId,
-        lastSavedProgressMsRef.current,
-      );
+      if (recordId) {
+        void DownloadManager.setWatchProgress(
+          recordId,
+          lastSavedProgressMsRef.current,
+        );
+      } else if (streamProgressKey) {
+        void AsyncStorage.setItem(
+          STREAM_PROGRESS_KEY_PREFIX + streamProgressKey,
+          String(lastSavedProgressMsRef.current),
+        );
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recordId]);
+  }, [recordId, streamProgressKey]);
 
   const markStarted = () => {
     setHasStarted(true);
@@ -260,6 +321,23 @@ export default function NativeVideoPlayer({
   useTVBackHandler(() => {
     if (showPicker) {
       setShowPicker(false);
+      return;
+    }
+    // While controls are on-screen, back should dismiss the overlay rather
+    // than exit playback. Errored state still goes back so the user isn't
+    // trapped on the failure screen.
+    if (controlsVisible && !errored) {
+      if (useVlc) {
+        clearHideTimer();
+        setControlsVisible(false);
+      } else {
+        // rnv has no imperative hide API for native controls. Re-mount the
+        // overlay by flipping `controls` off and back on the next tick —
+        // dismisses the visible overlay while keeping ExoPlayer running.
+        setNativeControlsEnabled(false);
+        setTimeout(() => setNativeControlsEnabled(true), 50);
+        setControlsVisible(false);
+      }
       return;
     }
     navigation.goBack();
@@ -434,7 +512,7 @@ export default function NativeVideoPlayer({
           source={rnvSource}
           style={styles.video}
           resizeMode="contain"
-          controls
+          controls={nativeControlsEnabled}
           paused={paused}
           playInBackground={false}
           ignoreSilentSwitch="ignore"
@@ -599,7 +677,7 @@ export default function NativeVideoPlayer({
       {/* Source picker button — top-right, mirroring the Back button on the
           left. Visible whenever controls are, so the user can swap sources
           without first hunting the footer. */}
-      {controlsVisible && !errored && streams.length > 1 && (
+      {controlsVisible && !errored && (
         <Focusable
           style={[
             styles.pickerButton,

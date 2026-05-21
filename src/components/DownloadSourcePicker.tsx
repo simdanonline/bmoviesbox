@@ -5,12 +5,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import type { ResolvedStream } from "../services/MovieAPI";
 import { getSourceLanguageLabel } from "../utils/sourceLanguage";
+import Focusable from "./Focusable";
 
 interface DownloadSourcePickerProps {
   visible: boolean;
@@ -47,12 +47,13 @@ export default function DownloadSourcePicker({
                 {subtitle ?? title}
               </Text>
             </View>
-            <TouchableOpacity
+            <Focusable
               style={pickerStyles.closeButton}
+              focusedStyle={pickerStyles.closeButtonFocused}
               onPress={onClose}
             >
               <FontAwesome name="close" size={18} color="#fff" />
-            </TouchableOpacity>
+            </Focusable>
           </View>
 
           <ScrollView
@@ -64,15 +65,17 @@ export default function DownloadSourcePicker({
               const active = activeUrl === source.url;
               const languageLabel = getSourceLanguageLabel(source);
               return (
-                <TouchableOpacity
+                <Focusable
                   key={`${source.url}-${index}`}
                   style={[
                     pickerStyles.row,
                     index === 0 && pickerStyles.recommendedRow,
                     active && pickerStyles.rowDisabled,
                   ]}
+                  focusedStyle={pickerStyles.rowFocused}
                   onPress={() => onSelect(source)}
                   disabled={active}
+                  hasTVPreferredFocus={index === 0}
                 >
                   <View style={pickerStyles.rowTop}>
                     <Text style={pickerStyles.quality}>{source.quality}</Text>
@@ -125,7 +128,7 @@ export default function DownloadSourcePicker({
                       </>
                     )}
                   </View>
-                </TouchableOpacity>
+                </Focusable>
               );
             })}
           </ScrollView>
@@ -176,6 +179,11 @@ const pickerStyles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#242424",
     marginLeft: 12,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  closeButtonFocused: {
+    borderColor: "#fff",
   },
   list: { flexGrow: 0 },
   listContent: { padding: 12 },
@@ -188,6 +196,10 @@ const pickerStyles = StyleSheet.create({
     marginBottom: 10,
   },
   recommendedRow: { borderColor: "#e74c3c" },
+  rowFocused: {
+    borderColor: "#fff",
+    transform: [{ scale: 1.02 }],
+  },
   rowDisabled: { opacity: 0.65 },
   rowTop: {
     flexDirection: "row",

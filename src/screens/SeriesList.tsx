@@ -7,13 +7,13 @@ import {
   Alert,
   RefreshControl,
   Platform,
-  TouchableOpacity,
   StyleSheet,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import MovieAPI, { Movie, MoviesResponse } from "../services/MovieAPI";
 import FeaturedMovie from "../components/FeaturedMovie";
 import MovieCard from "../components/MovieCard";
+import Focusable from "../components/Focusable";
 import { styles } from "../styles/styles";
 import { useUserData } from "../context/UserDataContext";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -120,10 +120,19 @@ export default function SeriesList({ navigation }: SeriesListProps) {
       >
         {/* Header */}
         <View style={[styles.header, styles.row]}>
-          <Text style={styles.headerTitle}>BMovieBox</Text>
-          <TouchableOpacity onPress={onclickSearch}>
+          <Focusable
+            style={styles.headerLogoWrap}
+            focusedStyle={styles.iconButtonFocused}
+          >
+            <Text style={styles.headerTitle}>BMovieBox</Text>
+          </Focusable>
+          <Focusable
+            style={styles.headerIconWrap}
+            focusedStyle={styles.iconButtonFocused}
+            onPress={onclickSearch}
+          >
             <FontAwesome name="search" size={30} color={"#fff"} />
-          </TouchableOpacity>
+          </Focusable>
         </View>
 
         {/* Recently Viewed */}
@@ -136,13 +145,13 @@ export default function SeriesList({ navigation }: SeriesListProps) {
               contentContainerStyle={seriesListStyles.recentScroll}
             >
               {recentSeries.map((item) => (
-                <TouchableOpacity
+                <Focusable
                   key={item.id}
                   style={seriesListStyles.recentCard}
+                  focusedStyle={seriesListStyles.recentCardFocused}
                   onPress={() =>
                     navigation.navigate("SeriesDetails", { url: item.url })
                   }
-                  activeOpacity={0.7}
                 >
                   <Image
                     source={{ uri: item.thumbnail?.trim() }}
@@ -152,7 +161,7 @@ export default function SeriesList({ navigation }: SeriesListProps) {
                   <Text style={seriesListStyles.recentTitle} numberOfLines={1}>
                     {item.title}
                   </Text>
-                </TouchableOpacity>
+                </Focusable>
               ))}
             </ScrollView>
           </View>
@@ -195,6 +204,14 @@ const seriesListStyles = StyleSheet.create({
   recentCard: {
     width: 100,
     alignItems: "center",
+    borderWidth: 3,
+    borderColor: "transparent",
+    borderRadius: 8,
+    padding: 2,
+  },
+  recentCardFocused: {
+    borderColor: "#fff",
+    transform: [{ scale: 1.08 }],
   },
   recentImage: {
     width: 100,

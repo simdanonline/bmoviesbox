@@ -1,8 +1,9 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { ReleaseEvent } from "../types/app";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
+import Focusable from "./Focusable";
 
 interface CalendarEventCardProps {
   event: ReleaseEvent;
@@ -24,10 +25,10 @@ export default function CalendarEventCard({
   });
 
   return (
-    <TouchableOpacity
+    <Focusable
       style={cardStyles.container}
+      focusedStyle={cardStyles.containerFocused}
       onPress={onPress}
-      activeOpacity={0.7}
     >
       {event.thumbnail && (
         <Image
@@ -68,8 +69,9 @@ export default function CalendarEventCard({
           )}
         </View>
       </View>
-      <TouchableOpacity
+      <Focusable
         style={cardStyles.bellButton}
+        focusedStyle={cardStyles.bellButtonFocused}
         onPress={onToggleReminder}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
@@ -78,8 +80,8 @@ export default function CalendarEventCard({
           size={18}
           color={hasReminder ? "#e74c3c" : "#666"}
         />
-      </TouchableOpacity>
-    </TouchableOpacity>
+      </Focusable>
+    </Focusable>
   );
 }
 
@@ -90,8 +92,16 @@ const cardStyles = StyleSheet.create({
     borderRadius: 10,
     overflow: "hidden",
     marginBottom: 10,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: "#2a2a2a",
+  },
+  containerFocused: {
+    borderColor: "#e74c3c",
+    transform: [{ scale: 1.02 }],
+  },
+  bellButtonFocused: {
+    backgroundColor: "rgba(231, 76, 60, 0.15)",
+    borderRadius: 999,
   },
   thumbnail: {
     width: 70,
