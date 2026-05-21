@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import * as Updates from "expo-updates";
 import * as Device from "expo-device";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import AppStack from "./src/navigation/AppStack";
 
 export default function App() {
@@ -20,8 +21,8 @@ export default function App() {
   }, []);
 
   return (
-    <>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <AppStack />
-    </>
+    </GestureHandlerRootView>
   );
 }

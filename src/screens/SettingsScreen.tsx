@@ -12,9 +12,29 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { styles } from "../styles/styles";
 import Focusable from "../components/Focusable";
 import { useUserData } from "../context/UserDataContext";
+import { useDownloads } from "../context/DownloadContext";
 import MovieAPI from "../services/MovieAPI";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
+
+const STORAGE_CAP_OPTIONS: { label: string; bytes: number }[] = [
+  { label: "Unlimited", bytes: 0 },
+  { label: "5 GB", bytes: 5 * 1024 ** 3 },
+  { label: "10 GB", bytes: 10 * 1024 ** 3 },
+  { label: "25 GB", bytes: 25 * 1024 ** 3 },
+  { label: "50 GB", bytes: 50 * 1024 ** 3 },
+  { label: "100 GB", bytes: 100 * 1024 ** 3 },
+];
+
+const PARALLEL_OPTIONS = [1, 2, 3, 4, 6, 8];
+
+function formatBytes(bytes: number): string {
+  if (!bytes) return "0 MB";
+  const gb = bytes / 1024 ** 3;
+  return gb >= 1
+    ? `${gb.toFixed(1)} GB`
+    : `${(bytes / 1024 ** 2).toFixed(0)} MB`;
+}
 
 export default function SettingsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
@@ -30,6 +50,86 @@ export default function SettingsScreen() {
     resetTasteProfile,
     isOnboardingComplete,
   } = useUserData();
+  const downloads = useDownloads();
+
+  const downloadBreakdown = (() => {
+    let movies = 0;
+    let episodes = 0;
+    let movieBytes = 0;
+    let episodeBytes = 0;
+    for (const r of downloads.records) {
+      if (r.status !== "completed") continue;
+      if (r.kind === "movie") {
+        movies += 1;
+        movieBytes += r.sizeBytes;
+      } else {
+        episodes += 1;
+        episodeBytes += r.sizeBytes;
+      }
+    }
+    return { movies, episodes, movieBytes, episodeBytes };
+  })();
+  const completedDownloadCount =
+    downloadBreakdown.movies + downloadBreakdown.episodes;
+
+  const handleSelectStorageCap = () => {
+    Alert.alert(
+      "Storage cap",
+      `Currently using ${formatBytes(downloads.storageUsedBytes)} of ${
+        downloads.preferences.maxStorageBytes
+          ? formatBytes(downloads.preferences.maxStorageBytes)
+          : "unlimited"
+      }`,
+      [
+        ...STORAGE_CAP_OPTIONS.map((opt) => ({
+          text:
+            opt.bytes === downloads.preferences.maxStorageBytes
+              ? `✓ ${opt.label}`
+              : opt.label,
+          onPress: () =>
+            downloads.setPreferences({ maxStorageBytes: opt.bytes }),
+        })),
+        { text: "Cancel", style: "cancel" as const },
+      ],
+    );
+  };
+
+  const handleToggleWifiOnly = () => {
+    downloads.setPreferences({
+      wifiOnly: !downloads.preferences.wifiOnly,
+    });
+  };
+
+  const handleSelectParallel = () => {
+    Alert.alert("Concurrent downloads", "How many downloads can run at once?", [
+      ...PARALLEL_OPTIONS.map((n) => ({
+        text:
+          n === downloads.preferences.maxParallel ? `✓ ${n}` : `${n}`,
+        onPress: () => downloads.setPreferences({ maxParallel: n }),
+      })),
+      { text: "Cancel", style: "cancel" as const },
+    ]);
+  };
+
+  const handleClearAllDownloads = () => {
+    if (downloads.records.length === 0) return;
+    Alert.alert(
+      "Delete all downloads?",
+      `This will remove ${downloads.records.length} record${
+        downloads.records.length === 1 ? "" : "s"
+      } and free ${formatBytes(downloads.storageUsedBytes)}.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete all",
+          style: "destructive",
+          onPress: () => {
+            void downloads.clearAll();
+          },
+        },
+      ],
+    );
+  };
 
   const ratingsCount = Object.keys(ratings).length;
   const activeReminders = reminders.filter((r) => r.active).length;
@@ -225,6 +325,157 @@ export default function SettingsScreen() {
           </Text>
         </View>
 
+        {/* Downloads */}
+        <View style={settingsStyles.section}>
+          <Text style={settingsStyles.sectionTitle}>Downloads</Text>
+
+          <Focusable
+            style={settingsStyles.settingRow}
+            onPress={() => navigation.navigate("DownloadedTitles")}
+          >
+            <View style={settingsStyles.settingLeft}>
+              <FontAwesome name="folder" size={18} color="#aaa" />
+              <View style={settingsStyles.settingTextContainer}>
+                <Text style={settingsStyles.settingText}>
+                  Manage downloads
+                </Text>
+                <Text style={settingsStyles.settingDetail}>
+                  {completedDownloadCount === 0
+                    ? "Nothing downloaded yet"
+                    : `${completedDownloadCount} item${completedDownloadCount === 1 ? "" : "s"} · ${formatBytes(downloads.storageUsedBytes)}`}
+                </Text>
+              </View>
+            </View>
+            <FontAwesome name="chevron-right" size={14} color="#555" />
+          </Focusable>
+
+          <Focusable
+            style={settingsStyles.settingRow}
+            onPress={handleSelectStorageCap}
+          >
+            <View style={settingsStyles.settingLeft}>
+              <FontAwesome name="hdd-o" size={18} color="#aaa" />
+              <View style={settingsStyles.settingTextContainer}>
+                <Text style={settingsStyles.settingText}>Storage Cap</Text>
+                <Text style={settingsStyles.settingDetail}>
+                  {downloads.preferences.maxStorageBytes
+                    ? `${formatBytes(downloads.storageUsedBytes)} of ${formatBytes(downloads.preferences.maxStorageBytes)} used`
+                    : `${formatBytes(downloads.storageUsedBytes)} used · unlimited`}
+                </Text>
+              </View>
+            </View>
+            <FontAwesome name="chevron-right" size={14} color="#555" />
+          </Focusable>
+
+          <Focusable
+            style={settingsStyles.settingRow}
+            onPress={handleToggleWifiOnly}
+          >
+            <View style={settingsStyles.settingLeft}>
+              <FontAwesome
+                name={
+                  downloads.preferences.wifiOnly
+                    ? "wifi"
+                    : "exclamation-triangle"
+                }
+                size={18}
+                color={downloads.preferences.wifiOnly ? "#27ae60" : "#aaa"}
+              />
+              <View style={settingsStyles.settingTextContainer}>
+                <Text style={settingsStyles.settingText}>Wi-Fi only</Text>
+                <Text style={settingsStyles.settingDetail}>
+                  {downloads.preferences.wifiOnly
+                    ? "Downloads pause when off Wi-Fi"
+                    : "Downloads on any connection"}
+                </Text>
+              </View>
+            </View>
+            <View
+              style={[
+                settingsStyles.toggleBadge,
+                downloads.preferences.wifiOnly &&
+                  settingsStyles.toggleBadgeOn,
+              ]}
+            >
+              <Text style={settingsStyles.toggleBadgeText}>
+                {downloads.preferences.wifiOnly ? "ON" : "OFF"}
+              </Text>
+            </View>
+          </Focusable>
+
+          <Focusable
+            style={settingsStyles.settingRow}
+            onPress={handleSelectParallel}
+          >
+            <View style={settingsStyles.settingLeft}>
+              <FontAwesome name="th-large" size={18} color="#aaa" />
+              <View style={settingsStyles.settingTextContainer}>
+                <Text style={settingsStyles.settingText}>
+                  Concurrent downloads
+                </Text>
+                <Text style={settingsStyles.settingDetail}>
+                  {downloads.preferences.maxParallel} at once
+                </Text>
+              </View>
+            </View>
+            <FontAwesome name="chevron-right" size={14} color="#555" />
+          </Focusable>
+
+          <Focusable
+            style={settingsStyles.settingRow}
+            onPress={() =>
+              downloads.setPreferences({
+                autoEvictWatched: !downloads.preferences.autoEvictWatched,
+              })
+            }
+          >
+            <View style={settingsStyles.settingLeft}>
+              <FontAwesome name="recycle" size={18} color="#aaa" />
+              <View style={settingsStyles.settingTextContainer}>
+                <Text style={settingsStyles.settingText}>
+                  Auto-evict at cap
+                </Text>
+                <Text style={settingsStyles.settingDetail}>
+                  {downloads.preferences.autoEvictWatched
+                    ? "Deletes oldest watched downloads to make room"
+                    : "Cap-blocked downloads fail with an alert"}
+                </Text>
+              </View>
+            </View>
+            <View
+              style={[
+                settingsStyles.toggleBadge,
+                downloads.preferences.autoEvictWatched &&
+                  settingsStyles.toggleBadgeOn,
+              ]}
+            >
+              <Text style={settingsStyles.toggleBadgeText}>
+                {downloads.preferences.autoEvictWatched ? "ON" : "OFF"}
+              </Text>
+            </View>
+          </Focusable>
+
+          <Focusable
+            style={settingsStyles.settingRow}
+            onPress={handleClearAllDownloads}
+          >
+            <View style={settingsStyles.settingLeft}>
+              <FontAwesome name="trash" size={18} color="#aaa" />
+              <View style={settingsStyles.settingTextContainer}>
+                <Text style={settingsStyles.settingText}>
+                  Delete all downloads
+                </Text>
+                <Text style={settingsStyles.settingDetail}>
+                  {completedDownloadCount === 0
+                    ? "Nothing downloaded yet"
+                    : `${downloadBreakdown.movies} movie${downloadBreakdown.movies === 1 ? "" : "s"} (${formatBytes(downloadBreakdown.movieBytes)}) · ${downloadBreakdown.episodes} episode${downloadBreakdown.episodes === 1 ? "" : "s"} (${formatBytes(downloadBreakdown.episodeBytes)})`}
+                </Text>
+              </View>
+            </View>
+            <FontAwesome name="chevron-right" size={14} color="#555" />
+          </Focusable>
+        </View>
+
         {/* Data Management */}
         <View style={settingsStyles.section}>
           <Text style={settingsStyles.sectionTitle}>Data Management</Text>
@@ -360,4 +611,12 @@ const settingsStyles = StyleSheet.create({
     marginTop: 8,
     lineHeight: 16,
   },
+  toggleBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 10,
+    backgroundColor: "#333",
+  },
+  toggleBadgeOn: { backgroundColor: "#27ae60" },
+  toggleBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
 });

@@ -90,7 +90,7 @@ android {
     namespace 'com.simdanonline.bmoviebox'
     defaultConfig {
         applicationId 'com.simdanonline.bmoviebox'
-        minSdkVersion rootProject.ext.minSdkVersion
+        minSdkVersion Math.max(rootProject.ext.minSdkVersion as int, 26)
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 6
         versionName "1.0.1"

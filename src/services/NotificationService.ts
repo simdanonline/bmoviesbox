@@ -84,6 +84,39 @@ export async function cancelReminderNotification(
   }
 }
 
+/**
+ * Fire a "download complete" local notification. iOS only — Android's
+ * DownloadManager already posts its own system notification, so this would
+ * double up there.
+ *
+ * Called from DownloadManager when a task transitions to `completed`. The
+ * iOS background URLSession wakes the app briefly on completion (via
+ * `handleEventsForBackgroundURLSession` in AppDelegate), which gives expo-
+ * notifications enough time to schedule even when the app is suspended.
+ */
+export async function notifyDownloadComplete(
+  title: string,
+  subtitle?: string,
+): Promise<void> {
+  if (Platform.OS !== "ios") return;
+
+  const hasPermission = await requestNotificationPermission();
+  if (!hasPermission) return;
+
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "Download complete",
+        body: subtitle ? `${title} · ${subtitle}` : title,
+        sound: "default",
+      },
+      trigger: null, // fire immediately
+    });
+  } catch (e) {
+    console.warn("notifyDownloadComplete failed:", e);
+  }
+}
+
 export function setupNotificationHandler(): void {
   if (Platform.OS === "web") return;
   Notifications.setNotificationHandler({
