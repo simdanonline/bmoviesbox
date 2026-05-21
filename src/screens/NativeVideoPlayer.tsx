@@ -156,6 +156,11 @@ export default function NativeVideoPlayer({
   // Merged with `initialPositionMs` (download path) by the seek effect.
   const [streamResumeMs, setStreamResumeMs] = useState<number | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Holds the pending native-controls re-enable timer so unmounts/rebacks
+  // can cancel it before it fires (prevents state updates after unmount).
+  const controlsRestoreTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const failureCount = useRef(0);
   const videoRef = useRef<VideoRef>(null);
@@ -212,6 +217,16 @@ export default function NativeVideoPlayer({
   }, [paused, hasStarted, clearHideTimer, scheduleHide]);
 
   useEffect(() => clearHideTimer, [clearHideTimer]);
+
+  useEffect(
+    () => () => {
+      if (controlsRestoreTimer.current) {
+        clearTimeout(controlsRestoreTimer.current);
+        controlsRestoreTimer.current = null;
+      }
+    },
+    [],
+  );
 
   // Reset resume bookkeeping when the active stream changes — otherwise the
   // initial-seek effect would try to apply the saved offset to a different
@@ -335,7 +350,13 @@ export default function NativeVideoPlayer({
         // overlay by flipping `controls` off and back on the next tick —
         // dismisses the visible overlay while keeping ExoPlayer running.
         setNativeControlsEnabled(false);
-        setTimeout(() => setNativeControlsEnabled(true), 50);
+        if (controlsRestoreTimer.current) {
+          clearTimeout(controlsRestoreTimer.current);
+        }
+        controlsRestoreTimer.current = setTimeout(() => {
+          controlsRestoreTimer.current = null;
+          setNativeControlsEnabled(true);
+        }, 50);
         setControlsVisible(false);
       }
       return;

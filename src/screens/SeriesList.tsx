@@ -6,7 +6,6 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
-  Platform,
   StyleSheet,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -120,12 +119,9 @@ export default function SeriesList({ navigation }: SeriesListProps) {
       >
         {/* Header */}
         <View style={[styles.header, styles.row]}>
-          <Focusable
-            style={styles.headerLogoWrap}
-            focusedStyle={styles.iconButtonFocused}
-          >
+          <View style={styles.headerLogoWrap}>
             <Text style={styles.headerTitle}>BMovieBox</Text>
-          </Focusable>
+          </View>
           <Focusable
             style={styles.headerIconWrap}
             focusedStyle={styles.iconButtonFocused}
@@ -214,7 +210,7 @@ const seriesListStyles = StyleSheet.create({
     transform: [{ scale: 1.08 }],
   },
   recentImage: {
-    width: 100,
+    width: "100%",
     height: 150,
     borderRadius: 8,
     backgroundColor: "#1a1a1a",
@@ -224,6 +220,6 @@ const seriesListStyles = StyleSheet.create({
     fontSize: 11,
     marginTop: 6,
     textAlign: "center",
-    width: 100,
+    width: "100%",
   },
 });

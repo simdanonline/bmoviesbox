@@ -1312,6 +1312,8 @@ const seriesStyles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 14,
     backgroundColor: "#2c3e50",
+    borderWidth: 2,
+    borderColor: "transparent",
   },
   seasonDownloadBtnText: { color: "#fff", fontSize: 11, fontWeight: "700" },
 });
