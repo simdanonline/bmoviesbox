@@ -184,6 +184,11 @@ export default function NativeVideoPlayer({
   const failureCount = useRef(0);
   const videoRef = useRef<VideoRef>(null);
   const didInitialSeekRef = useRef(false);
+  // Subtitle selection is seeded from the player's reported tracks exactly once
+  // per stream. Without this, a re-fired onTextTracks/onLoad would overwrite a
+  // user's explicit choice (we can't use a null-guard like audio because -1 is
+  // a valid user value meaning "Off").
+  const didSeedTextRef = useRef(false);
   const lastSavedProgressMsRef = useRef(0);
 
   const current = streams[currentIndex];
@@ -258,6 +263,7 @@ export default function NativeVideoPlayer({
   useEffect(() => {
     didInitialSeekRef.current = false;
     lastSavedProgressMsRef.current = 0;
+    didSeedTextRef.current = false;
   }, [currentIndex]);
 
   // Load streamed-playback resume point. Skipped when a downloaded recordId is
@@ -422,9 +428,9 @@ export default function NativeVideoPlayer({
 
   const handleVlcLoad = (e: VideoInfo) => {
     if (e.duration > 0) setDurationMs(e.duration);
-    const audio: PlayerTrack[] = (e.audioTracks ?? []).map((t) => ({
+    const audio: PlayerTrack[] = (e.audioTracks ?? []).map((t, i) => ({
       key: t.id,
-      label: t.name || `Track ${t.id}`,
+      label: t.name || `Track ${i + 1}`,
     }));
     setAudioTracks(audio);
     if (audio.length > 0) {
@@ -434,8 +440,14 @@ export default function NativeVideoPlayer({
     // synthetic "Off" so the option appears exactly once.
     const subs: PlayerTrack[] = (e.textTracks ?? [])
       .filter((t) => t.id !== -1)
-      .map((t) => ({ key: t.id, label: t.name || `Track ${t.id}` }));
+      .map((t, i) => ({ key: t.id, label: t.name || `Track ${i + 1}` }));
     setTextTracks(subs.length > 0 ? [{ key: -1, label: "Off" }, ...subs] : []);
+    // VLC reports no default-selected subtitle; seed "Off" once per stream so a
+    // re-fired onLoad can't override a user's later choice.
+    if (!didSeedTextRef.current) {
+      setSelectedTextKey(-1);
+      didSeedTextRef.current = true;
+    }
     markStarted();
   };
 
@@ -474,8 +486,12 @@ export default function NativeVideoPlayer({
     }));
     // Only offer subtitles (with an "Off" entry) when real tracks exist.
     setTextTracks(subs.length > 0 ? [{ key: -1, label: "Off" }, ...subs] : []);
-    const sel = e.textTracks.find((t) => t.selected);
-    setSelectedTextKey(sel ? sel.index : -1);
+    // Seed the initial selection once so re-fires don't clobber a user choice.
+    if (!didSeedTextRef.current) {
+      const sel = e.textTracks.find((t) => t.selected);
+      setSelectedTextKey(sel ? sel.index : -1);
+      didSeedTextRef.current = true;
+    }
   };
 
   const seekVlcBy = (deltaMs: number) => {
