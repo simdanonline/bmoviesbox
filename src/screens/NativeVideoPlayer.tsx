@@ -420,8 +420,22 @@ export default function NativeVideoPlayer({
     markStarted();
   };
 
-  const handleVlcLoad = (e: { duration: number }) => {
+  const handleVlcLoad = (e: VideoInfo) => {
     if (e.duration > 0) setDurationMs(e.duration);
+    const audio: PlayerTrack[] = (e.audioTracks ?? []).map((t) => ({
+      key: t.id,
+      label: t.name || `Track ${t.id}`,
+    }));
+    setAudioTracks(audio);
+    if (audio.length > 0) {
+      setSelectedAudioKey((prev) => (prev === null ? audio[0].key : prev));
+    }
+    // VLC may already include a "disable"/id -1 row; drop it and add a single
+    // synthetic "Off" so the option appears exactly once.
+    const subs: PlayerTrack[] = (e.textTracks ?? [])
+      .filter((t) => t.id !== -1)
+      .map((t) => ({ key: t.id, label: t.name || `Track ${t.id}` }));
+    setTextTracks(subs.length > 0 ? [{ key: -1, label: "Off" }, ...subs] : []);
     markStarted();
   };
 
@@ -437,6 +451,31 @@ export default function NativeVideoPlayer({
     setPositionMs(ms);
     saveProgressIfDue(ms);
     markStarted();
+  };
+
+  const handleRnvAudioTracks = (e: OnAudioTracksData) => {
+    const tracks: PlayerTrack[] = e.audioTracks.map((t) => ({
+      key: t.index,
+      label: t.title || t.language || `Track ${t.index + 1}`,
+    }));
+    setAudioTracks(tracks);
+    const sel = e.audioTracks.find((t) => t.selected);
+    if (sel) {
+      setSelectedAudioKey(sel.index);
+    } else if (tracks.length > 0) {
+      setSelectedAudioKey((prev) => (prev === null ? tracks[0].key : prev));
+    }
+  };
+
+  const handleRnvTextTracks = (e: OnTextTracksData) => {
+    const subs: PlayerTrack[] = e.textTracks.map((t) => ({
+      key: t.index,
+      label: t.title || t.language || `Track ${t.index + 1}`,
+    }));
+    // Only offer subtitles (with an "Off" entry) when real tracks exist.
+    setTextTracks(subs.length > 0 ? [{ key: -1, label: "Off" }, ...subs] : []);
+    const sel = e.textTracks.find((t) => t.selected);
+    setSelectedTextKey(sel ? sel.index : -1);
   };
 
   const seekVlcBy = (deltaMs: number) => {
@@ -543,6 +582,8 @@ export default function NativeVideoPlayer({
             source={vlcSource}
             paused={paused}
             seek={seekFraction}
+            audioTrack={selectedAudioKey ?? undefined}
+            textTrack={selectedTextKey}
             resizeMode="contain"
             onPlaying={markStarted}
             onProgress={handleVlcProgress}
@@ -559,6 +600,18 @@ export default function NativeVideoPlayer({
           resizeMode="contain"
           controls={nativeControlsEnabled}
           paused={paused}
+          selectedAudioTrack={
+            selectedAudioKey !== null
+              ? { type: SelectedTrackType.INDEX, value: selectedAudioKey }
+              : undefined
+          }
+          selectedTextTrack={
+            selectedTextKey === -1
+              ? { type: SelectedTrackType.DISABLED }
+              : { type: SelectedTrackType.INDEX, value: selectedTextKey }
+          }
+          onAudioTracks={handleRnvAudioTracks}
+          onTextTracks={handleRnvTextTracks}
           playInBackground={false}
           ignoreSilentSwitch="ignore"
           onLoad={handleRnvLoad}
