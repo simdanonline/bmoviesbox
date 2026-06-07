@@ -5,11 +5,21 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import WebView from "react-native-webview";
 import MovieAPI from "../services/MovieAPI";
 import { SafeAreaView } from "react-native-safe-area-context";
 import VideoHintToast from "../components/VideoHintToast";
+import Focusable from "../components/Focusable";
+import { useTVBackHandler } from "../hooks/useTVBackHandler";
+
+type TvPlayerCommand = "play" | "toggle";
 
 // Generic CDN / video infrastructure allowlist (host substring match).
 // The init host (the embed URL hostname) is added at runtime.
@@ -39,6 +49,24 @@ const NETWORK_ALLOW_NEEDLES = [
 ];
 
 const VIDEO_FILE_PATTERNS = /\.(m3u8|mp4|ts|webm|mkv|mov|mpd|m4s|key)(\?|#|$)/i;
+
+const buildTvCommandScript = (command: TvPlayerCommand) => `
+(function(){
+  try {
+    var command = ${JSON.stringify(command)};
+    if (window.__BMB_TV_CONTROL__) {
+      window.__BMB_TV_CONTROL__(command);
+    } else if (command === 'play' && window.__BMB_TV_PLAY__) {
+      window.__BMB_TV_PLAY__();
+    }
+    var frames = document.querySelectorAll('iframe');
+    for (var i = 0; i < frames.length; i++) {
+      try { frames[i].contentWindow.postMessage('__BMB_TV_COMMAND__:' + command, '*'); } catch (_) {}
+    }
+  } catch (_) {}
+})();
+true;
+`;
 
 // =============================================================================
 // BEFORE_CONTENT_LOAD: runs at document_start in EVERY frame.
@@ -478,16 +506,226 @@ const RUNTIME_TEMPLATE = `
 true;
 `;
 
+const TV_CONTROL_RUNTIME = `
+(function() {
+  'use strict';
+
+  function attemptTvPlay() {
+    function fireTouch(el, type, x, y) {
+      try {
+        var t = (typeof Touch === 'function') ? new Touch({
+          identifier: 1, target: el, clientX: x, clientY: y, pageX: x, pageY: y
+        }) : null;
+        var init = { bubbles: true, cancelable: true, composed: true, view: window };
+        if (t) {
+          init.touches = (type === 'touchend' ? [] : [t]);
+          init.targetTouches = (type === 'touchend' ? [] : [t]);
+          init.changedTouches = [t];
+        }
+        var evt = (typeof TouchEvent === 'function') ? new TouchEvent(type, init) : new Event(type, init);
+        el.dispatchEvent(evt);
+      } catch(_) {}
+    }
+
+    function clickElement(el) {
+      if (!el) return false;
+      var rect;
+      try { rect = el.getBoundingClientRect(); }
+      catch(_) { rect = {left: 0, top: 0, width: 0, height: 0}; }
+      var x = rect.left + (rect.width || 0) / 2;
+      var y = rect.top + (rect.height || 0) / 2;
+      try {
+        fireTouch(el, 'touchstart', x, y);
+        fireTouch(el, 'touchend', x, y);
+        ['pointerdown','mousedown','mouseup','pointerup','click'].forEach(function(type) {
+          el.dispatchEvent(new MouseEvent(type, {
+            bubbles: true, cancelable: true, composed: true, view: window,
+            clientX: x, clientY: y, button: 0
+          }));
+        });
+        ['keydown','keypress','keyup'].forEach(function(type) {
+          el.dispatchEvent(new KeyboardEvent(type, {
+            bubbles: true, cancelable: true, composed: true,
+            key: 'Enter', code: 'Enter', keyCode: 13, which: 13
+          }));
+        });
+        if (typeof el.focus === 'function') { try { el.focus(); } catch(_) {} }
+        if (typeof el.click === 'function') el.click();
+        return true;
+      } catch(_) {
+        try { el.click(); return true; } catch(__) { return false; }
+      }
+    }
+
+    var played = false;
+    try {
+      var videos = document.querySelectorAll('video');
+      for (var i = 0; i < videos.length; i++) {
+        var v = videos[i];
+        try {
+          v.muted = false;
+          v.volume = 1;
+          var result = v.play && v.play();
+          played = true;
+          if (result && result.catch) result.catch(function(){});
+        } catch(_) {}
+      }
+    } catch(_) {}
+
+    var selectors = [
+      'button[aria-label*="play" i]',
+      '[role="button"][aria-label*="play" i]',
+      '.jw-icon-playback',
+      '.jw-display-icon-container',
+      '.vjs-big-play-button',
+      '.plyr__control--overlaid',
+      '.plyr__control[data-plyr="play"]',
+      '[class*="bigPlay" i]',
+      '[class*="big-play" i]',
+      '[class*="poster" i]',
+      '[class*="thumbnail" i]',
+      '[class*="preview" i]',
+      '[class*="play" i]',
+      '[id*="play" i]'
+    ];
+
+    for (var s = 0; s < selectors.length; s++) {
+      try {
+        var candidates = document.querySelectorAll(selectors[s]);
+        for (var c = 0; c < candidates.length; c++) {
+          var candidateRect = candidates[c].getBoundingClientRect();
+          if (candidateRect.width > 0 && candidateRect.height > 0) {
+            played = clickElement(candidates[c]) || played;
+          }
+        }
+      } catch(_) {}
+    }
+
+    try {
+      var w = window.innerWidth;
+      var h = window.innerHeight;
+      var pts = [[w/2, h/2], [w/2, h*0.45], [w/2, h*0.55], [w*0.45, h/2], [w*0.55, h/2]];
+      for (var p = 0; p < pts.length; p++) {
+        var el = document.elementFromPoint(pts[p][0], pts[p][1]);
+        if (el) played = clickElement(el) || played;
+      }
+    } catch(_) {}
+
+    try {
+      ['keydown','keypress','keyup'].forEach(function(type) {
+        (document.body || document.documentElement).dispatchEvent(new KeyboardEvent(type, {
+          bubbles: true, cancelable: true, key: 'Enter', code: 'Enter', keyCode: 13, which: 13
+        }));
+      });
+    } catch(_) {}
+
+    try {
+      var frames = document.querySelectorAll('iframe');
+      for (var f = 0; f < frames.length; f++) {
+        try { frames[f].contentWindow.postMessage('__BMB_TV_PLAY__', '*'); } catch(_) {}
+      }
+    } catch(_) {}
+
+    return played;
+  }
+
+  function handleTvCommand(command) {
+    if (command === 'play') return attemptTvPlay();
+
+    var handled = false;
+    try {
+      var videos = document.querySelectorAll('video');
+      for (var i = 0; i < videos.length; i++) {
+        var v = videos[i];
+        try {
+          if (command === 'toggle') {
+            if (v.paused) {
+              v.muted = false;
+              v.volume = 1;
+              var result = v.play && v.play();
+              if (result && result.catch) result.catch(function(){});
+            } else {
+              v.pause();
+            }
+            handled = true;
+          }
+        } catch(_) {}
+      }
+    } catch(_) {}
+
+    if (command === 'toggle' && !handled) {
+      handled = attemptTvPlay() || handled;
+    }
+
+    try {
+      var frames = document.querySelectorAll('iframe');
+      for (var f = 0; f < frames.length; f++) {
+        try { frames[f].contentWindow.postMessage('__BMB_TV_COMMAND__:' + command, '*'); } catch(_) {}
+      }
+    } catch(_) {}
+
+    return handled;
+  }
+
+  try {
+    window.__BMB_TV_PLAY__ = attemptTvPlay;
+    window.__BMB_TV_CONTROL__ = handleTvCommand;
+    window.addEventListener('message', function(event) {
+      if (event && event.data === '__BMB_TV_PLAY__') {
+        attemptTvPlay();
+      } else if (event && typeof event.data === 'string' && event.data.indexOf('__BMB_TV_COMMAND__:') === 0) {
+        handleTvCommand(event.data.replace('__BMB_TV_COMMAND__:', ''));
+      }
+    });
+  } catch(_) {}
+})();
+true;
+`;
+
 const LiveGamePlayer = ({ route, navigation }: any) => {
   const { link, game, stream } = route.params;
   const [embedLink, setEmbedLink] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showPlayOverlay, setShowPlayOverlay] = useState(Platform.isTV);
+  const [webViewInteractive, setWebViewInteractive] = useState(false);
+  const webViewRef = useRef<WebView>(null);
+  const playOverlayRef = useRef<View>(null);
+  const playPauseRef = useRef<View>(null);
 
   useEffect(() => {
     resolveAndPlay();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [link]);
+
+  useTVBackHandler(() => {
+    if (webViewInteractive) {
+      setWebViewInteractive(false);
+      return;
+    }
+    navigation.goBack();
+  });
+
+  useEffect(() => {
+    if (!Platform.isTV || !embedLink) return;
+    const focus = () => {
+      if (webViewInteractive) {
+        const webView = webViewRef.current as unknown as {
+          requestFocus?: () => void;
+        } | null;
+        webView?.requestFocus?.();
+        return;
+      }
+      const target = showPlayOverlay ? playOverlayRef : playPauseRef;
+      (target.current as unknown as { focus?: () => void })?.focus?.();
+    };
+    const raf = requestAnimationFrame(focus);
+    const t = setTimeout(focus, 250);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
+  }, [embedLink, showPlayOverlay, webViewInteractive]);
 
   // Title shown on the native player when Tier-1 resolves. Falls back through
   // game/team data → stream channel → "Live stream" so something is always set.
@@ -507,6 +745,8 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
   const resolveAndPlay = async () => {
     setLoading(true);
     setError(null);
+    setShowPlayOverlay(Platform.isTV);
+    setWebViewInteractive(false);
     try {
       const resolved = await MovieAPI.getResolvedLiveStreams(link);
       // Magnets aren't playable; the native player would just choke. Drop them
@@ -537,6 +777,11 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
     }
   };
 
+  const sendTvCommand = useCallback((command: TvPlayerCommand) => {
+    webViewRef.current?.injectJavaScript(buildTvCommandScript(command));
+    setShowPlayOverlay(false);
+  }, []);
+
   // Derive init host from the embed URL
   const initHost = useMemo(() => {
     if (!embedLink) return "";
@@ -554,12 +799,15 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
     return {
       beforeLoadScript: BEFORE_LOAD_TEMPLATE.replace(
         /\{\{INIT_HOST\}\}/g,
-        hostJson
+        hostJson,
       ).replace(/\{\{ALLOW_NEEDLES\}\}/g, allowJson),
-      runtimeScript: RUNTIME_TEMPLATE.replace(
-        /\{\{INIT_HOST\}\}/g,
-        hostJson
-      ).replace(/\{\{ALLOW_NEEDLES\}\}/g, allowJson),
+      runtimeScript:
+        RUNTIME_TEMPLATE.replace(/\{\{INIT_HOST\}\}/g, hostJson).replace(
+          /\{\{ALLOW_NEEDLES\}\}/g,
+          allowJson,
+        ) +
+        "\n" +
+        TV_CONTROL_RUNTIME,
     };
   }, [initHost]);
 
@@ -580,10 +828,7 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
         console.log("[AdBlock] ✗ Blocked: about:blank");
         return false;
       }
-      if (
-        reqUrl.startsWith("file:") ||
-        reqUrl.startsWith("javascript:")
-      ) {
+      if (reqUrl.startsWith("file:") || reqUrl.startsWith("javascript:")) {
         return false;
       }
       // Known-bad ad-network hosts (small, conservative blacklist).
@@ -608,7 +853,7 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
       }
       return true;
     },
-    []
+    [],
   );
 
   if (loading) {
@@ -627,7 +872,7 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
           <Text style={styles.errorText}>Error: {error}</Text>
-          <Text style={styles.retryText} onPress={fetchEmbedLink}>
+          <Text style={styles.retryText} onPress={resolveAndPlay}>
             Try Again
           </Text>
         </View>
@@ -659,76 +904,142 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
         )}
       </View>
       <View style={styles.playerArea}>
-      {Platform.OS === "web" ? (
-        <iframe
-          src={embedLink}
-          style={{ width: "100vw", height: "100vh", border: "none" }}
-          allow="autoplay; fullscreen"
-        />
-      ) : (
-        <WebView
-          source={{
-            uri: embedLink,
-            headers: {
-              Referer: link || embedLink,
-              "User-Agent":
-                Platform.OS === "ios"
-                  ? "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-                  : "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-            },
-          }}
-          style={styles.webview}
-          // Inject into EVERY frame, at document_start AND document_end
-          injectedJavaScriptBeforeContentLoaded={beforeLoadScript}
-          injectedJavaScript={runtimeScript}
-          injectedJavaScriptForMainFrameOnly={false}
-          injectedJavaScriptBeforeContentLoadedForMainFrameOnly={false}
-          javaScriptEnabled
-          domStorageEnabled
-          startInLoadingState
-          allowsInlineMediaPlayback
-          allowsFullscreenVideo
-          mediaPlaybackRequiresUserAction={false}
-          scalesPageToFit
-          thirdPartyCookiesEnabled={false}
-          sharedCookiesEnabled={false}
-          allowFileAccess={false}
-          allowUniversalAccessFromFileURLs={false}
-          mixedContentMode="compatibility"
-          setSupportMultipleWindows={false}
-          javaScriptCanOpenWindowsAutomatically={false}
-          androidLayerType="hardware"
-          cacheEnabled={false}
-          incognito
-          onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
-          renderLoading={() => (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#e74c3c" />
-            </View>
-          )}
-          onError={(syntheticEvent) => {
-            const { nativeEvent } = syntheticEvent;
-            console.warn("WebView error: ", nativeEvent);
-          }}
-          onMessage={(event) => {
-            try {
-              const msg = JSON.parse(event.nativeEvent.data);
-              if (msg && msg.tag === "block") {
-                console.log(
-                  "[AdBlock] ✗",
-                  msg.data?.kind,
-                  msg.data?.url ?? msg.data?.preview ?? ""
-                );
-              } else if (msg && msg.tag === "init") {
-                console.log("[AdBlock] init in frame:", msg.data?.frame);
-              }
-            } catch {
-              console.log("[WebView]:", event.nativeEvent.data);
+        {Platform.OS === "web" ? (
+          <iframe
+            src={embedLink}
+            style={{ width: "100vw", height: "100vh", border: "none" }}
+            allow="autoplay; fullscreen"
+          />
+        ) : (
+          <WebView
+            ref={webViewRef}
+            source={{
+              uri: embedLink,
+              headers: {
+                Referer: link || embedLink,
+                "User-Agent":
+                  Platform.OS === "ios"
+                    ? "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+                    : "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+              },
+            }}
+            style={styles.webview}
+            focusable={!Platform.isTV || webViewInteractive}
+            accessible={!Platform.isTV || webViewInteractive}
+            importantForAccessibility={
+              Platform.isTV && !webViewInteractive
+                ? "no-hide-descendants"
+                : "auto"
             }
-          }}
-        />
-      )}
-        <VideoHintToast />
+            // Inject into EVERY frame, at document_start AND document_end
+            injectedJavaScriptBeforeContentLoaded={beforeLoadScript}
+            injectedJavaScript={runtimeScript}
+            injectedJavaScriptForMainFrameOnly={false}
+            injectedJavaScriptBeforeContentLoadedForMainFrameOnly={false}
+            javaScriptEnabled
+            domStorageEnabled
+            startInLoadingState
+            allowsInlineMediaPlayback
+            allowsFullscreenVideo
+            mediaPlaybackRequiresUserAction={false}
+            scalesPageToFit
+            thirdPartyCookiesEnabled={false}
+            sharedCookiesEnabled={false}
+            allowFileAccess={false}
+            allowUniversalAccessFromFileURLs={false}
+            mixedContentMode="compatibility"
+            setSupportMultipleWindows={false}
+            javaScriptCanOpenWindowsAutomatically={false}
+            androidLayerType="hardware"
+            cacheEnabled={false}
+            incognito
+            onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
+            renderLoading={() => (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#e74c3c" />
+              </View>
+            )}
+            onError={(syntheticEvent) => {
+              const { nativeEvent } = syntheticEvent;
+              console.warn("WebView error: ", nativeEvent);
+            }}
+            onMessage={(event) => {
+              try {
+                const msg = JSON.parse(event.nativeEvent.data);
+                if (msg && msg.tag === "block") {
+                  console.log(
+                    "[AdBlock] ✗",
+                    msg.data?.kind,
+                    msg.data?.url ?? msg.data?.preview ?? "",
+                  );
+                } else if (msg && msg.tag === "init") {
+                  console.log("[AdBlock] init in frame:", msg.data?.frame);
+                }
+              } catch {
+                console.log("[WebView]:", event.nativeEvent.data);
+              }
+            }}
+          />
+        )}
+        {Platform.isTV && showPlayOverlay && !webViewInteractive && (
+          <View style={styles.tvPlayOverlay} pointerEvents="box-none">
+            <Focusable
+              ref={playOverlayRef}
+              style={styles.tvPlayButton}
+              focusedStyle={styles.tvPlayButtonFocused}
+              hasTVPreferredFocus
+              onPress={() => sendTvCommand("play")}
+            >
+              <Text style={styles.tvPlayButtonIcon}>▶</Text>
+              <Text style={styles.tvPlayButtonLabel}>Press OK to play</Text>
+            </Focusable>
+          </View>
+        )}
+        {Platform.isTV && webViewInteractive && (
+          <View style={styles.tvInteractiveHint} pointerEvents="none">
+            <Text style={styles.tvInteractiveHintText}>
+              Use D-pad in player • Press BACK to return to controls
+            </Text>
+          </View>
+        )}
+        {Platform.isTV && !webViewInteractive && !showPlayOverlay && (
+          <View style={styles.tvNativeControlsWrap}>
+            <Focusable
+              ref={playPauseRef}
+              style={[
+                styles.tvNativeControlButton,
+                styles.tvNativeControlButtonPrimary,
+              ]}
+              focusedStyle={styles.tvNativeControlButtonFocused}
+              hasTVPreferredFocus
+              onPress={() => sendTvCommand("toggle")}
+            >
+              <Text style={styles.tvNativeControlLabel}>Play/Pause</Text>
+            </Focusable>
+            <Focusable
+              style={styles.tvNativeControlButton}
+              focusedStyle={styles.tvNativeControlButtonFocused}
+              onPress={() => {
+                webViewRef.current?.reload();
+                setShowPlayOverlay(true);
+                setWebViewInteractive(false);
+              }}
+            >
+              <Text style={styles.tvNativeControlLabel}>Reload</Text>
+            </Focusable>
+            <Focusable
+              style={styles.tvNativeControlButton}
+              focusedStyle={styles.tvNativeControlButtonFocused}
+              onPress={() => {
+                setShowPlayOverlay(false);
+                setWebViewInteractive(true);
+              }}
+            >
+              <Text style={styles.tvNativeControlLabel}>Use Player</Text>
+            </Focusable>
+          </View>
+        )}
+        {!Platform.isTV && <VideoHintToast />}
       </View>
     </SafeAreaView>
   );
@@ -803,5 +1114,104 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#3498db",
     borderRadius: 8,
+  },
+  tvPlayOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  tvPlayButton: {
+    paddingHorizontal: 60,
+    paddingVertical: 30,
+    borderRadius: 16,
+    borderWidth: 3,
+    borderColor: "#fff",
+    backgroundColor: "rgba(231, 76, 60, 0.85)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tvPlayButtonFocused: {
+    borderColor: "#fff",
+    borderWidth: 5,
+    backgroundColor: "#e74c3c",
+    shadowColor: "#fff",
+    shadowOpacity: 1,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 24,
+    transform: [{ scale: 1.1 }],
+  },
+  tvPlayButtonIcon: {
+    color: "#fff",
+    fontSize: 72,
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  tvPlayButtonLabel: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  tvNativeControlsWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 24,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 24,
+  },
+  tvNativeControlButton: {
+    minWidth: 96,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 3,
+    borderColor: "rgba(255,255,255,0.45)",
+    backgroundColor: "rgba(0,0,0,0.75)",
+    alignItems: "center",
+  },
+  tvNativeControlButtonPrimary: {
+    minWidth: 150,
+    backgroundColor: "rgba(231, 76, 60, 0.9)",
+  },
+  tvNativeControlButtonFocused: {
+    borderColor: "#fff",
+    backgroundColor: "#e74c3c",
+    shadowColor: "#fff",
+    shadowOpacity: 0.8,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 18,
+    transform: [{ scale: 1.06 }],
+  },
+  tvNativeControlLabel: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  tvInteractiveHint: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 24,
+    alignItems: "center",
+  },
+  tvInteractiveHintText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+    backgroundColor: "rgba(0,0,0,0.7)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+    overflow: "hidden",
   },
 });
