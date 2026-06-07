@@ -193,6 +193,10 @@ export default function NativeVideoPlayer({
 
   const current = streams[currentIndex];
   const useVlc = needsVlc(current);
+  // The track menu is iOS-only (Android keeps ExoPlayer's native menu) and only
+  // worth showing when there's an actual choice to make.
+  const hasTrackChoices =
+    Platform.OS === "ios" && (audioTracks.length > 1 || textTracks.length > 0);
   const currentLanguageLabel = current
     ? getSourceLanguageLabel(current)
     : null;
@@ -366,6 +370,10 @@ export default function NativeVideoPlayer({
   useTVBackHandler(() => {
     if (showPicker) {
       setShowPicker(false);
+      return;
+    }
+    if (showTrackMenu) {
+      setShowTrackMenu(false);
       return;
     }
     // While controls are on-screen, back should dismiss the overlay rather
@@ -800,6 +808,7 @@ export default function NativeVideoPlayer({
           ]}
           focusedStyle={styles.pickerButtonFocused}
           onPress={() => {
+            setShowTrackMenu(false);
             setShowPicker((v) => !v);
             if (useVlc) showControls();
           }}
@@ -808,14 +817,47 @@ export default function NativeVideoPlayer({
         </Focusable>
       )}
 
+      {/* Audio/subtitle button — iOS only, below the sources button. Hidden
+          when the source picker is open so the two never overlap. */}
+      {controlsVisible && !errored && hasTrackChoices && !showPicker && (
+        <Focusable
+          style={[
+            styles.pickerButton,
+            styles.pickerButtonAnchor,
+            { top: 12 + insets.top + 44, right: 12 + insets.right },
+          ]}
+          focusedStyle={styles.pickerButtonFocused}
+          onPress={() => {
+            setShowPicker(false);
+            setShowTrackMenu((v) => !v);
+            if (useVlc) showControls();
+          }}
+        >
+          <FontAwesome name="cc" size={14} color="#fff" />
+        </Focusable>
+      )}
+
+      {showTrackMenu && hasTrackChoices && (
+        <TrackSelectionMenu
+          style={{ top: 12 + insets.top + 88, right: 16 + insets.right }}
+          audioTracks={audioTracks.length > 1 ? audioTracks : []}
+          textTracks={textTracks}
+          selectedAudioKey={selectedAudioKey}
+          selectedTextKey={selectedTextKey}
+          onSelectAudio={setSelectedAudioKey}
+          onSelectText={setSelectedTextKey}
+          onClose={() => setShowTrackMenu(false)}
+        />
+      )}
+
       {showPicker && (
         <View
           style={[
             styles.pickerPanel,
             {
-              // Sit below the Back button (top: 12 + insets.top, ~36pt tall),
-              // and clear the right-side notch inset.
-              top: 12 + insets.top + 44,
+              // Sit below the Back/sources/CC button stack, clear of the
+              // right-side notch inset.
+              top: 12 + insets.top + 88,
               right: 16 + insets.right,
             },
           ]}
