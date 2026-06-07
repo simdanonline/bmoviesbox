@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView } from "react-native";
+import { View, Text, StyleSheet, ScrollView, StyleProp, ViewStyle } from "react-native";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import Focusable from "./Focusable";
 
@@ -17,7 +17,7 @@ interface TrackSelectionMenuProps {
   onSelectText: (key: number) => void;
   onClose: () => void;
   /** Absolute positioning (top/right + insets) supplied by the parent. */
-  style?: object;
+  style?: StyleProp<ViewStyle>;
 }
 
 function TrackRow({
@@ -95,11 +95,12 @@ export default function TrackSelectionMenu({
         {textTracks.length > 0 && (
           <>
             <Text style={styles.sectionLabel}>Subtitles</Text>
-            {textTracks.map((t) => (
+            {textTracks.map((t, idx) => (
               <TrackRow
                 key={`t-${t.key}`}
                 label={t.label}
                 selected={t.key === selectedTextKey}
+                hasTVPreferredFocus={audioTracks.length === 0 && idx === 0}
                 onPress={() => onSelectText(t.key)}
               />
             ))}
