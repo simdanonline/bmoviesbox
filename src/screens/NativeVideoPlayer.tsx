@@ -584,6 +584,26 @@ export default function NativeVideoPlayer({
     [current.url, current.headers, current.type],
   );
 
+  // react-native-video track selection is iOS-only. On Android we leave these
+  // off entirely so ExoPlayer's native track menu stays in full control —
+  // passing a controlled selectedTextTrack there would force subtitles off and
+  // fight the native menu.
+  const rnvTrackProps: Partial<React.ComponentProps<typeof Video>> =
+    Platform.OS === "ios"
+      ? {
+          selectedAudioTrack:
+            selectedAudioKey !== null
+              ? { type: SelectedTrackType.INDEX, value: selectedAudioKey }
+              : undefined,
+          selectedTextTrack:
+            selectedTextKey === -1
+              ? { type: SelectedTrackType.DISABLED }
+              : { type: SelectedTrackType.INDEX, value: selectedTextKey },
+          onAudioTracks: handleRnvAudioTracks,
+          onTextTracks: handleRnvTextTracks,
+        }
+      : {};
+
   const livePositionFraction =
     durationMs > 0 ? Math.min(1, positionMs / durationMs) : 0;
   const displayFraction =
@@ -630,18 +650,7 @@ export default function NativeVideoPlayer({
           resizeMode="contain"
           controls={nativeControlsEnabled}
           paused={paused}
-          selectedAudioTrack={
-            selectedAudioKey !== null
-              ? { type: SelectedTrackType.INDEX, value: selectedAudioKey }
-              : undefined
-          }
-          selectedTextTrack={
-            selectedTextKey === -1
-              ? { type: SelectedTrackType.DISABLED }
-              : { type: SelectedTrackType.INDEX, value: selectedTextKey }
-          }
-          onAudioTracks={handleRnvAudioTracks}
-          onTextTracks={handleRnvTextTracks}
+          {...rnvTrackProps}
           playInBackground={false}
           ignoreSilentSwitch="ignore"
           onLoad={handleRnvLoad}
