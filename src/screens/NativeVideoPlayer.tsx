@@ -18,8 +18,15 @@ import {
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Video, { VideoRef, OnLoadData } from "react-native-video";
+import Video, {
+  VideoRef,
+  OnLoadData,
+  OnAudioTracksData,
+  OnTextTracksData,
+  SelectedTrackType,
+} from "react-native-video";
 import { VLCPlayer } from "react-native-vlc-media-player";
+import type { VideoInfo } from "react-native-vlc-media-player";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Focusable from "../components/Focusable";
 import { useTVBackHandler } from "../hooks/useTVBackHandler";
@@ -34,6 +41,9 @@ import {
   getSourceLanguageLabel,
 } from "../utils/sourceLanguage";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
+import TrackSelectionMenu, {
+  PlayerTrack,
+} from "../components/TrackSelectionMenu";
 
 type NativeVideoPlayerProps = NativeStackScreenProps<any, "NativeVideoPlayer">;
 
@@ -124,6 +134,15 @@ export default function NativeVideoPlayer({
   const insets = useSafeAreaInsets();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showPicker, setShowPicker] = useState(false);
+  // Audio/subtitle track selection (iOS only — Android uses ExoPlayer's native
+  // menu). Tracks are normalized from rnv's onAudioTracks/onTextTracks and
+  // VLC's onLoad payload into a common PlayerTrack[] shape. selectedTextKey of
+  // -1 means subtitles off (matches VLC's native "disable" id).
+  const [audioTracks, setAudioTracks] = useState<PlayerTrack[]>([]);
+  const [textTracks, setTextTracks] = useState<PlayerTrack[]>([]);
+  const [selectedAudioKey, setSelectedAudioKey] = useState<number | null>(null);
+  const [selectedTextKey, setSelectedTextKey] = useState<number>(-1);
+  const [showTrackMenu, setShowTrackMenu] = useState(false);
   // `hasStarted` flips true the first time playback actually advances —
   // tracked separately from `errored` so re-buffer events during normal
   // playback can't drag the loading overlay back on screen. (rnv's onBuffer
@@ -203,6 +222,11 @@ export default function NativeVideoPlayer({
     setDurationMs(0);
     setSeekFraction(undefined);
     setControlsVisible(true);
+    setAudioTracks([]);
+    setTextTracks([]);
+    setSelectedAudioKey(null);
+    setSelectedTextKey(-1);
+    setShowTrackMenu(false);
     scheduleHide();
   }, [currentIndex, scheduleHide]);
 
