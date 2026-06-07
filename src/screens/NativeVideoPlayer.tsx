@@ -251,6 +251,12 @@ export default function NativeVideoPlayer({
 
   useEffect(() => clearHideTimer, [clearHideTimer]);
 
+  // Close the track menu whenever controls hide (rnv's native auto-hide, or a
+  // tap-to-hide on the VLC path) so it never floats without its trigger button.
+  useEffect(() => {
+    if (!controlsVisible) setShowTrackMenu(false);
+  }, [controlsVisible]);
+
   useEffect(
     () => () => {
       if (controlsRestoreTimer.current) {
@@ -824,9 +830,12 @@ export default function NativeVideoPlayer({
           style={[
             styles.pickerButton,
             styles.pickerButtonAnchor,
+            showTrackMenu && styles.pickerButtonFocused,
             { top: 12 + insets.top + 44, right: 12 + insets.right },
           ]}
           focusedStyle={styles.pickerButtonFocused}
+          accessibilityRole="button"
+          accessibilityLabel="Audio and subtitles"
           onPress={() => {
             setShowPicker(false);
             setShowTrackMenu((v) => !v);
@@ -855,9 +864,9 @@ export default function NativeVideoPlayer({
           style={[
             styles.pickerPanel,
             {
-              // Sit below the Back/sources/CC button stack, clear of the
-              // right-side notch inset.
-              top: 12 + insets.top + 88,
+              // Sit below the button stack: clear the CC button (iOS only) when
+              // present, otherwise just the sources button.
+              top: 12 + insets.top + (Platform.OS === "ios" ? 88 : 44),
               right: 16 + insets.right,
             },
           ]}
