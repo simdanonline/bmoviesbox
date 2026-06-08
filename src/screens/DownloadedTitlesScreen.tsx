@@ -11,6 +11,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import { useDownloads } from "../context/DownloadContext";
 import { DownloadRecord } from "../services/DownloadManager";
+import { getOriginalLanguage } from "../services/tmdb";
 import { styles } from "../styles/styles";
 import Focusable from "../components/Focusable";
 
@@ -61,7 +62,11 @@ export default function DownloadedTitlesScreen({
     return arr;
   }, [completed, sortOrder]);
 
-  const handlePlay = (r: DownloadRecord) => {
+  const handlePlay = async (r: DownloadRecord) => {
+    const originalLanguage = await getOriginalLanguage(
+      r.tmdbId,
+      r.kind === "episode" ? "series" : "movie",
+    );
     navigation.navigate("NativeVideoPlayer", {
       streams: [
         {
@@ -80,6 +85,7 @@ export default function DownloadedTitlesScreen({
           : r.title,
       recordId: r.id,
       initialPositionMs: r.watchProgressMs,
+      originalLanguage: originalLanguage ?? undefined,
     });
   };
 

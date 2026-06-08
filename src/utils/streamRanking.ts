@@ -1,4 +1,5 @@
 import type { ResolvedStream } from "../services/MovieAPI";
+import { classifyStreamAudio } from "./sourceLanguage";
 
 const QUALITY_RANK: Record<ResolvedStream["quality"], number> = {
   "4K": 5,
@@ -48,7 +49,39 @@ export function isSentinelStream(s: ResolvedStream): boolean {
   return ADDON_SENTINEL_RX.test(s.url);
 }
 
-function scoreStream(s: ResolvedStream): number {
+// Audio-originality weights. Tuned to sit above the quality gap between tiers
+// (100) but below the RD+ bias (250): a confirmed dub is buried hard so a
+// dub-only source never auto-plays, while a known-original cut wins over a
+// same-quality dub even when the dub is RD-cached. Applied only when we have a
+// reference language; without it classifyStreamAudio yields "unknown" → 0.
+const AUDIO_ORIGINALITY_SCORE: Record<
+  ReturnType<typeof classifyStreamAudio>,
+  number
+> = {
+  original: 120,
+  multi: 40,
+  dub: -300,
+  unknown: 0,
+};
+
+// Download scale runs at half the streaming quality weight (qRank*50 vs *100),
+// so the originality weights are halved to keep the same relative pull. A dub
+// matters even more for downloads — you can't switch tracks to a track that
+// isn't in the file you committed to disk — so the dub penalty stays decisive.
+const AUDIO_ORIGINALITY_SCORE_DOWNLOAD: Record<
+  ReturnType<typeof classifyStreamAudio>,
+  number
+> = {
+  original: 60,
+  multi: 20,
+  dub: -150,
+  unknown: 0,
+};
+
+function scoreStream(
+  s: ResolvedStream,
+  originalLanguage?: string | null,
+): number {
   const text = `${s.name} ${s.title}`;
   const qRank = QUALITY_RANK[s.quality] ?? 1;
   const sweetSpot = SWEET_SPOT_GB[s.quality] ?? 4;
@@ -94,6 +127,11 @@ function scoreStream(s: ResolvedStream): number {
   // within the cached group and within the non-cached group.
   if (s.rdCached) score += 250;
 
+  // Prefer the original-language cut; bury single-language dubs.
+  if (originalLanguage) {
+    score += AUDIO_ORIGINALITY_SCORE[classifyStreamAudio(s, originalLanguage)];
+  }
+
   // Tiebreaker: more seeders = healthier torrent (matters even for
   // RD-cached, since RD cache misses fall back to RD downloading on demand).
   score += Math.log10((s.seeders ?? 0) + 1);
@@ -108,12 +146,20 @@ function scoreStream(s: ResolvedStream): number {
  * Heuristic: quality is dominant, then a per-tier "bloat penalty" pushes
  * down REMUX-scale files in favor of efficient encodes. RD-cached gets a
  * strong +250 bias (see scoreStream) so cached sources win auto-play within
- * ~2 quality tiers; HEVC/AV1 gets a small bonus.
+ * ~2 quality tiers; HEVC/AV1 gets a small bonus. When `originalLanguage` is
+ * supplied, original-language audio is preferred and single-language dubs are
+ * buried.
  */
-export function pickBest(streams: ResolvedStream[]): ResolvedStream[] {
+export function pickBest(
+  streams: ResolvedStream[],
+  originalLanguage?: string | null,
+): ResolvedStream[] {
   return streams
     .filter((s) => !isSentinelStream(s))
-    .sort((a, b) => scoreStream(b) - scoreStream(a));
+    .sort(
+      (a, b) =>
+        scoreStream(b, originalLanguage) - scoreStream(a, originalLanguage),
+    );
 }
 
 /**
@@ -125,11 +171,18 @@ export function pickBest(streams: ResolvedStream[]): ResolvedStream[] {
  *
  * Magnet and HLS entries are dropped here too — the offline downloader needs
  * one direct MP4/MKV file, not a resolver link or playlist.
+ *
+ * When `originalLanguage` is supplied, original-language audio is preferred and
+ * single-language dubs are buried — important here because you can't switch to
+ * an audio track that isn't in the file once it's on disk.
  */
-export function pickForDownload(streams: ResolvedStream[]): ResolvedStream[] {
+export function pickForDownload(
+  streams: ResolvedStream[],
+  originalLanguage?: string | null,
+): ResolvedStream[] {
   return streams
     .filter(isDownloadableFileStream)
-    .map((s) => ({ s, score: scoreForDownload(s) }))
+    .map((s) => ({ s, score: scoreForDownload(s, originalLanguage) }))
     .sort((a, b) => b.score - a.score)
     .map(({ s }) => s);
 }
@@ -140,7 +193,10 @@ export function isDownloadableFileStream(s: ResolvedStream): boolean {
   return !BAD_SOURCE_TEXT_RX.test(`${s.name} ${s.title} ${s.source}`);
 }
 
-function scoreForDownload(s: ResolvedStream): number {
+function scoreForDownload(
+  s: ResolvedStream,
+  originalLanguage?: string | null,
+): number {
   const text = `${s.name} ${s.title}`;
   const qRank = QUALITY_RANK[s.quality] ?? 1;
   const sweetSpot = SWEET_SPOT_GB[s.quality] ?? 4;
@@ -174,6 +230,16 @@ function scoreForDownload(s: ResolvedStream): number {
   }
 
   if (s.rdCached) score += 10;
+
+  // Prefer the original-language cut; bury single-language dubs (you can't add
+  // an original track to a downloaded file after the fact).
+  if (originalLanguage) {
+    score +=
+      AUDIO_ORIGINALITY_SCORE_DOWNLOAD[
+        classifyStreamAudio(s, originalLanguage)
+      ];
+  }
+
   score += Math.log10((s.seeders ?? 0) + 1);
 
   return score;

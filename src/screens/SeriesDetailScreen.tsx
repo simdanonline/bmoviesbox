@@ -28,6 +28,7 @@ import { useTVBackHandler } from "../hooks/useTVBackHandler";
 import Focusable from "../components/Focusable";
 import TvSafeImage from "../components/TvSafeImage";
 import { pickBest, pickForDownload } from "../utils/streamRanking";
+import { getOriginalLanguage } from "../services/tmdb";
 import { useDownloads } from "../context/DownloadContext";
 import { DownloadStartError } from "../services/DownloadManager";
 import { confirmLargeDownload } from "../utils/downloadConfirm";
@@ -406,6 +407,10 @@ export default function SeriesDetailsScreen({
     );
     if (existing) {
       // Already on disk → tapping plays it.
+      const originalLanguage = await getOriginalLanguage(
+        existing.tmdbId,
+        existing.kind === "episode" ? "series" : "movie",
+      );
       navigation.navigate("NativeVideoPlayer", {
         streams: [
           {
@@ -421,24 +426,32 @@ export default function SeriesDetailsScreen({
         title: `${existing.title} - S${existing.season}E${existing.episode}`,
         recordId: existing.id,
         initialPositionMs: existing.watchProgressMs,
+        originalLanguage: originalLanguage ?? undefined,
       });
       return;
     }
 
     setDownloadingEpisode(episode.episodeNumber);
     try {
+      // Original-language lookup is independent of stream resolution; start it
+      // in parallel so the TMDB round-trip doesn't add to time-to-first-frame.
+      const languagePromise = getOriginalLanguage(seriesData.id, "series");
       const resolved = await MovieAPI.getResolvedStreams(
         "series",
         { tmdbId: seriesData.id },
         selectedSeason,
         episode.episodeNumber,
       );
-      const ranked = await filterBadDownloadSources(pickForDownload(resolved), {
-        tmdbId: String(seriesData.id),
-        kind: "episode",
-        season: selectedSeason,
-        episode: episode.episodeNumber,
-      });
+      const originalLanguage = await languagePromise;
+      const ranked = await filterBadDownloadSources(
+        pickForDownload(resolved, originalLanguage),
+        {
+          tmdbId: String(seriesData.id),
+          kind: "episode",
+          season: selectedSeason,
+          episode: episode.episodeNumber,
+        },
+      );
       if (ranked.length === 0) {
         if (!options?.silent) {
           Alert.alert(
@@ -483,13 +496,20 @@ export default function SeriesDetailsScreen({
     // MKV streams stay in the list — NativeVideoPlayer falls back to libVLC
     // on iOS automatically.
     try {
+      // Original-language lookup is independent of stream resolution; start it
+      // in parallel so the TMDB round-trip doesn't add to time-to-first-frame.
+      const languagePromise = getOriginalLanguage(seriesData.id, "series");
       const resolved = await MovieAPI.getResolvedStreams(
         "series",
         { tmdbId: seriesData.id },
         selectedSeason,
         episode.episodeNumber,
       );
-      const compatible = pickBest(resolved.filter((s) => s.type !== "magnet"));
+      const originalLanguage = await languagePromise;
+      const compatible = pickBest(
+        resolved.filter((s) => s.type !== "magnet"),
+        originalLanguage,
+      );
       const sourceContext = {
         tmdbId: String(seriesData.id),
         kind: "episode" as const,
@@ -504,6 +524,7 @@ export default function SeriesDetailsScreen({
           title: movieTitle,
           sourceContext,
           streamProgressKey: `${seriesData.url}::s${selectedSeason}e${episode.episodeNumber}`,
+          originalLanguage: originalLanguage ?? undefined,
         });
         return;
       }

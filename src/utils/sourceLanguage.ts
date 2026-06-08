@@ -213,6 +213,86 @@ function formatLanguageLabel(
   return `${audioLabel} + ${subtitles.join("/")} subs`;
 }
 
+/**
+ * Map an ISO-639 code (1- or common 3-letter, e.g. "en"/"eng", "ja"/"jpn") to
+ * our alias entry. The alias `tokens` already include the ISO codes and English
+ * names for each language, so this also doubles as a name→alias lookup.
+ */
+export function languageAliasForIso(
+  iso?: string | null,
+): (typeof LANGUAGE_ALIASES)[number] | undefined {
+  if (!iso) return undefined;
+  const code = iso.trim().toUpperCase();
+  if (!code) return undefined;
+  return LANGUAGE_ALIASES.find((language) => language.tokens.includes(code));
+}
+
+/** Human label for an ISO code ("ja" → "Japanese"); null when unknown. */
+export function isoLanguageLabel(iso?: string | null): string | null {
+  if (!iso) return null;
+  const alias = languageAliasForIso(iso);
+  if (alias) return alias.label;
+  return iso.trim().toUpperCase() || null;
+}
+
+/**
+ * Does a player track's reported language/name (e.g. "English", "eng", "en",
+ * "Track 1") refer to the given ISO-639 code? Used to find the original-audio
+ * track — react-native-video reports ISO codes, VLC only a free-text name, so
+ * we tokenize and match against all aliases for the target language.
+ */
+export function trackTextMatchesIso(
+  text: string | undefined | null,
+  iso: string | null | undefined,
+): boolean {
+  const alias = languageAliasForIso(iso);
+  if (!alias || !text) return false;
+  const tokens = new Set(
+    text
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, " ")
+      .split(/\s+/)
+      .filter(Boolean),
+  );
+  return alias.tokens.some((token) => tokens.has(token));
+}
+
+export type AudioOriginality = "original" | "dub" | "multi" | "unknown";
+
+/**
+ * Classify a source's audio relative to the title's original language so the
+ * ranker can prefer original cuts and bury single-language dubs. Conservative:
+ * only returns "dub" when we both know the original language AND the source
+ * advertises exactly one, mismatched audio language.
+ */
+export function classifyStreamAudio(
+  stream: ResolvedStream,
+  originalIso: string | null | undefined,
+): AudioOriginality {
+  const info = getSourceLanguageInfo(stream);
+  if (info.audio === "Multi audio" || info.audio === "Dual audio") return "multi";
+  // Filename markers (VO/VOST) explicitly assert the original cut.
+  if (info.audioIsOriginal) return "original";
+
+  // Concrete audio-language labels we can infer for this source.
+  const labels = new Set<string>();
+  for (const value of stream.audioLanguages ?? []) {
+    const label = normalizeLanguageValue(value);
+    if (label) labels.add(label);
+  }
+  const single = normalizeLanguageValue(stream.language);
+  if (single) labels.add(single);
+  if (info.audio && info.audio !== "Original audio") labels.add(info.audio);
+
+  if (labels.size > 1) return "multi";
+
+  const originalLabel = originalIso ? normalizeLanguageValue(originalIso) : undefined;
+  if (originalLabel && labels.size === 1) {
+    return labels.has(originalLabel) ? "original" : "dub";
+  }
+  return "unknown";
+}
+
 function hasAny(tokens: Set<string>, values: string[]): boolean {
   return values.some((value) => tokens.has(value));
 }

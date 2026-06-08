@@ -13,6 +13,7 @@ import { Platform } from "react-native";
 import MovieAPI from "./MovieAPI";
 import type { ResolvedStream } from "./MovieAPI";
 import { pickForDownload } from "../utils/streamRanking";
+import { getOriginalLanguage } from "./tmdb";
 import { notifyDownloadComplete } from "./NotificationService";
 import { validateLocalVideoFile } from "../utils/downloadValidation";
 import {
@@ -614,18 +615,28 @@ class DownloadManagerImpl {
     record: DownloadRecord,
   ): Promise<{ url: string; headers?: Record<string, string> } | null> {
     try {
+      // Independent of stream resolution — run both together so the refresh
+      // doesn't block on an extra TMDB round-trip before re-ranking sources.
+      const languagePromise = getOriginalLanguage(
+        record.tmdbId,
+        record.kind === "episode" ? "series" : "movie",
+      );
       const resolved = await MovieAPI.getResolvedStreams(
         record.kind === "episode" ? "series" : "movie",
         { tmdbId: record.tmdbId },
         record.season,
         record.episode,
       );
-      const ranked = await filterBadDownloadSources(pickForDownload(resolved), {
-        tmdbId: record.tmdbId,
-        kind: record.kind,
-        season: record.season,
-        episode: record.episode,
-      });
+      const originalLanguage = await languagePromise;
+      const ranked = await filterBadDownloadSources(
+        pickForDownload(resolved, originalLanguage),
+        {
+          tmdbId: record.tmdbId,
+          kind: record.kind,
+          season: record.season,
+          episode: record.episode,
+        },
+      );
       if (ranked.length === 0) return null;
       let pick = ranked[0];
       if (record.sizeBytes > 0) {
