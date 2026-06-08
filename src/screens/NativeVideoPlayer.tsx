@@ -18,8 +18,15 @@ import {
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Video, { VideoRef, OnLoadData } from "react-native-video";
+import Video, {
+  VideoRef,
+  OnLoadData,
+  OnAudioTracksData,
+  OnTextTracksData,
+  SelectedTrackType,
+} from "react-native-video";
 import { VLCPlayer } from "react-native-vlc-media-player";
+import type { VideoInfo } from "react-native-vlc-media-player";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Focusable from "../components/Focusable";
 import { useTVBackHandler } from "../hooks/useTVBackHandler";
@@ -34,6 +41,9 @@ import {
   getSourceLanguageLabel,
 } from "../utils/sourceLanguage";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
+import TrackSelectionMenu, {
+  PlayerTrack,
+} from "../components/TrackSelectionMenu";
 
 type NativeVideoPlayerProps = NativeStackScreenProps<any, "NativeVideoPlayer">;
 
@@ -124,6 +134,15 @@ export default function NativeVideoPlayer({
   const insets = useSafeAreaInsets();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showPicker, setShowPicker] = useState(false);
+  // Audio/subtitle track selection (iOS only — Android uses ExoPlayer's native
+  // menu). Tracks are normalized from rnv's onAudioTracks/onTextTracks and
+  // VLC's onLoad payload into a common PlayerTrack[] shape. selectedTextKey of
+  // -1 means subtitles off (matches VLC's native "disable" id).
+  const [audioTracks, setAudioTracks] = useState<PlayerTrack[]>([]);
+  const [textTracks, setTextTracks] = useState<PlayerTrack[]>([]);
+  const [selectedAudioKey, setSelectedAudioKey] = useState<number | null>(null);
+  const [selectedTextKey, setSelectedTextKey] = useState<number>(-1);
+  const [showTrackMenu, setShowTrackMenu] = useState(false);
   // `hasStarted` flips true the first time playback actually advances —
   // tracked separately from `errored` so re-buffer events during normal
   // playback can't drag the loading overlay back on screen. (rnv's onBuffer
@@ -165,10 +184,19 @@ export default function NativeVideoPlayer({
   const failureCount = useRef(0);
   const videoRef = useRef<VideoRef>(null);
   const didInitialSeekRef = useRef(false);
+  // Subtitle selection is seeded from the player's reported tracks exactly once
+  // per stream. Without this, a re-fired onTextTracks/onLoad would overwrite a
+  // user's explicit choice (we can't use a null-guard like audio because -1 is
+  // a valid user value meaning "Off").
+  const didSeedTextRef = useRef(false);
   const lastSavedProgressMsRef = useRef(0);
 
   const current = streams[currentIndex];
   const useVlc = needsVlc(current);
+  // The track menu is iOS-only (Android keeps ExoPlayer's native menu) and only
+  // worth showing when there's an actual choice to make.
+  const hasTrackChoices =
+    Platform.OS === "ios" && (audioTracks.length > 1 || textTracks.length > 0);
   const currentLanguageLabel = current
     ? getSourceLanguageLabel(current)
     : null;
@@ -203,6 +231,11 @@ export default function NativeVideoPlayer({
     setDurationMs(0);
     setSeekFraction(undefined);
     setControlsVisible(true);
+    setAudioTracks([]);
+    setTextTracks([]);
+    setSelectedAudioKey(null);
+    setSelectedTextKey(-1);
+    setShowTrackMenu(false);
     scheduleHide();
   }, [currentIndex, scheduleHide]);
 
@@ -217,6 +250,12 @@ export default function NativeVideoPlayer({
   }, [paused, hasStarted, clearHideTimer, scheduleHide]);
 
   useEffect(() => clearHideTimer, [clearHideTimer]);
+
+  // Close the track menu whenever controls hide (rnv's native auto-hide, or a
+  // tap-to-hide on the VLC path) so it never floats without its trigger button.
+  useEffect(() => {
+    if (!controlsVisible) setShowTrackMenu(false);
+  }, [controlsVisible]);
 
   useEffect(
     () => () => {
@@ -234,6 +273,7 @@ export default function NativeVideoPlayer({
   useEffect(() => {
     didInitialSeekRef.current = false;
     lastSavedProgressMsRef.current = 0;
+    didSeedTextRef.current = false;
   }, [currentIndex]);
 
   // Load streamed-playback resume point. Skipped when a downloaded recordId is
@@ -338,6 +378,10 @@ export default function NativeVideoPlayer({
       setShowPicker(false);
       return;
     }
+    if (showTrackMenu) {
+      setShowTrackMenu(false);
+      return;
+    }
     // While controls are on-screen, back should dismiss the overlay rather
     // than exit playback. Errored state still goes back so the user isn't
     // trapped on the failure screen.
@@ -396,8 +440,28 @@ export default function NativeVideoPlayer({
     markStarted();
   };
 
-  const handleVlcLoad = (e: { duration: number }) => {
+  const handleVlcLoad = (e: VideoInfo) => {
     if (e.duration > 0) setDurationMs(e.duration);
+    const audio: PlayerTrack[] = (e.audioTracks ?? []).map((t, i) => ({
+      key: t.id,
+      label: t.name || `Track ${i + 1}`,
+    }));
+    setAudioTracks(audio);
+    if (audio.length > 0) {
+      setSelectedAudioKey((prev) => (prev === null ? audio[0].key : prev));
+    }
+    // VLC may already include a "disable"/id -1 row; drop it and add a single
+    // synthetic "Off" so the option appears exactly once.
+    const subs: PlayerTrack[] = (e.textTracks ?? [])
+      .filter((t) => t.id !== -1)
+      .map((t, i) => ({ key: t.id, label: t.name || `Track ${i + 1}` }));
+    setTextTracks(subs.length > 0 ? [{ key: -1, label: "Off" }, ...subs] : []);
+    // VLC reports no default-selected subtitle; seed "Off" once per stream so a
+    // re-fired onLoad can't override a user's later choice.
+    if (!didSeedTextRef.current) {
+      setSelectedTextKey(-1);
+      didSeedTextRef.current = true;
+    }
     markStarted();
   };
 
@@ -413,6 +477,35 @@ export default function NativeVideoPlayer({
     setPositionMs(ms);
     saveProgressIfDue(ms);
     markStarted();
+  };
+
+  const handleRnvAudioTracks = (e: OnAudioTracksData) => {
+    const tracks: PlayerTrack[] = e.audioTracks.map((t) => ({
+      key: t.index,
+      label: t.title || t.language || `Track ${t.index + 1}`,
+    }));
+    setAudioTracks(tracks);
+    const sel = e.audioTracks.find((t) => t.selected);
+    if (sel) {
+      setSelectedAudioKey(sel.index);
+    } else if (tracks.length > 0) {
+      setSelectedAudioKey((prev) => (prev === null ? tracks[0].key : prev));
+    }
+  };
+
+  const handleRnvTextTracks = (e: OnTextTracksData) => {
+    const subs: PlayerTrack[] = e.textTracks.map((t) => ({
+      key: t.index,
+      label: t.title || t.language || `Track ${t.index + 1}`,
+    }));
+    // Only offer subtitles (with an "Off" entry) when real tracks exist.
+    setTextTracks(subs.length > 0 ? [{ key: -1, label: "Off" }, ...subs] : []);
+    // Seed the initial selection once so re-fires don't clobber a user choice.
+    if (!didSeedTextRef.current) {
+      const sel = e.textTracks.find((t) => t.selected);
+      setSelectedTextKey(sel ? sel.index : -1);
+      didSeedTextRef.current = true;
+    }
   };
 
   const seekVlcBy = (deltaMs: number) => {
@@ -491,6 +584,26 @@ export default function NativeVideoPlayer({
     [current.url, current.headers, current.type],
   );
 
+  // react-native-video track selection is iOS-only. On Android we leave these
+  // off entirely so ExoPlayer's native track menu stays in full control —
+  // passing a controlled selectedTextTrack there would force subtitles off and
+  // fight the native menu.
+  const rnvTrackProps: Partial<React.ComponentProps<typeof Video>> =
+    Platform.OS === "ios"
+      ? {
+          selectedAudioTrack:
+            selectedAudioKey !== null
+              ? { type: SelectedTrackType.INDEX, value: selectedAudioKey }
+              : undefined,
+          selectedTextTrack:
+            selectedTextKey === -1
+              ? { type: SelectedTrackType.DISABLED }
+              : { type: SelectedTrackType.INDEX, value: selectedTextKey },
+          onAudioTracks: handleRnvAudioTracks,
+          onTextTracks: handleRnvTextTracks,
+        }
+      : {};
+
   const livePositionFraction =
     durationMs > 0 ? Math.min(1, positionMs / durationMs) : 0;
   const displayFraction =
@@ -519,6 +632,8 @@ export default function NativeVideoPlayer({
             source={vlcSource}
             paused={paused}
             seek={seekFraction}
+            audioTrack={selectedAudioKey ?? undefined}
+            textTrack={selectedTextKey}
             resizeMode="contain"
             onPlaying={markStarted}
             onProgress={handleVlcProgress}
@@ -535,6 +650,7 @@ export default function NativeVideoPlayer({
           resizeMode="contain"
           controls={nativeControlsEnabled}
           paused={paused}
+          {...rnvTrackProps}
           playInBackground={false}
           ignoreSilentSwitch="ignore"
           onLoad={handleRnvLoad}
@@ -707,6 +823,7 @@ export default function NativeVideoPlayer({
           ]}
           focusedStyle={styles.pickerButtonFocused}
           onPress={() => {
+            setShowTrackMenu(false);
             setShowPicker((v) => !v);
             if (useVlc) showControls();
           }}
@@ -715,13 +832,50 @@ export default function NativeVideoPlayer({
         </Focusable>
       )}
 
+      {/* Audio/subtitle button — iOS only, below the sources button. Hidden
+          when the source picker is open so the two never overlap. */}
+      {controlsVisible && !errored && hasTrackChoices && !showPicker && (
+        <Focusable
+          style={[
+            styles.pickerButton,
+            styles.pickerButtonAnchor,
+            showTrackMenu && styles.pickerButtonFocused,
+            { top: 12 + insets.top + 44, right: 12 + insets.right },
+          ]}
+          focusedStyle={styles.pickerButtonFocused}
+          accessibilityRole="button"
+          accessibilityLabel="Audio and subtitles"
+          onPress={() => {
+            setShowPicker(false);
+            setShowTrackMenu((v) => !v);
+            if (useVlc) showControls();
+          }}
+        >
+          <FontAwesome name="cc" size={14} color="#fff" />
+        </Focusable>
+      )}
+
+      {showTrackMenu && hasTrackChoices && (
+        <TrackSelectionMenu
+          style={{ top: 12 + insets.top + 88, right: 16 + insets.right }}
+          audioTracks={audioTracks.length > 1 ? audioTracks : []}
+          textTracks={textTracks}
+          selectedAudioKey={selectedAudioKey}
+          selectedTextKey={selectedTextKey}
+          onSelectAudio={setSelectedAudioKey}
+          onSelectText={setSelectedTextKey}
+          onClose={() => setShowTrackMenu(false)}
+        />
+      )}
+
       {showPicker && (
         <View
           style={[
             styles.pickerPanel,
             {
-              // Sit below the Back button (top: 12 + insets.top, ~36pt tall),
-              // and clear the right-side notch inset.
+              // Sit just below the sources button. The CC button is hidden
+              // whenever this picker is open (`!showPicker` gate), so there's
+              // nothing else to clear on either platform.
               top: 12 + insets.top + 44,
               right: 16 + insets.right,
             },
