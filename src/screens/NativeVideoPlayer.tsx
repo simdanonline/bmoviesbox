@@ -16,6 +16,8 @@ import {
   ScrollView,
   AppState,
   AppStateStatus,
+  Alert,
+  ToastAndroid,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -47,6 +49,13 @@ import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import TrackSelectionMenu, {
   PlayerTrack,
 } from "../components/TrackSelectionMenu";
+import type { Season } from "../services/MovieAPI";
+import {
+  getNextEpisode,
+  resolveEpisodePlayback,
+  type SeriesRef,
+} from "../utils/episodePlayback";
+import { useUserData } from "../context/UserDataContext";
 
 type NativeVideoPlayerProps = NativeStackScreenProps<any, "NativeVideoPlayer">;
 
@@ -142,6 +151,7 @@ export default function NativeVideoPlayer({
     sourceContext,
     streamProgressKey,
     originalLanguage,
+    seriesContext,
   } = route.params as {
     streams: ResolvedStream[];
     title: string;
@@ -159,9 +169,21 @@ export default function NativeVideoPlayer({
     /** Title's original language as an ISO-639 code (e.g. "ja"). When set, the
      * player auto-selects the matching audio track to avoid dubs. */
     originalLanguage?: string;
+    /** Series playback context. Present only for episodes — drives the "next
+     * episode" button, the end-of-episode autoplay countdown, and marking the
+     * episode watched. Absent for movies and downloads. */
+    seriesContext?: {
+      seriesId: string;
+      seriesUrl: string;
+      seriesTitle: string;
+      seasons: Season[];
+      season: number;
+      episode: number;
+    };
   };
 
   const insets = useSafeAreaInsets();
+  const { markEpisodeWatched } = useUserData();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showPicker, setShowPicker] = useState(false);
   // Audio/subtitle track selection (iOS only — Android uses ExoPlayer's native
@@ -184,6 +206,11 @@ export default function NativeVideoPlayer({
   // Bumped to force a fresh player instance (via the `key` prop) when we need to
   // re-open the stream from the current position — see the reconnect logic.
   const [reloadNonce, setReloadNonce] = useState(0);
+  // True while resolving the next episode's streams (between tapping Next /
+  // countdown expiry and the navigation.replace). Drives the button label.
+  const [advancing, setAdvancing] = useState(false);
+  // Seconds left on the end-of-episode autoplay countdown; null when idle.
+  const [countdown, setCountdown] = useState<number | null>(null);
 
   // VLC-only playback state. Times are milliseconds (matches native VLC API).
   const [positionMs, setPositionMs] = useState(0);
@@ -223,6 +250,8 @@ export default function NativeVideoPlayer({
   // a valid user value meaning "Off").
   const didSeedTextRef = useRef(false);
   const lastSavedProgressMsRef = useRef(0);
+  // Guards the 90%-watched write so it fires at most once per mount.
+  const markedWatchedRef = useRef(false);
   // Live mirrors of state the reconnect logic reads from listeners/callbacks
   // whose closures are created once (AppState) — avoids stale captures without
   // re-subscribing every render.
@@ -243,6 +272,16 @@ export default function NativeVideoPlayer({
 
   const current = streams[currentIndex];
   const useVlc = needsVlc(current);
+  // The episode to play after this one (rolls across seasons), or null when
+  // this isn't a series or it's the series finale. Drives the Next button and
+  // the autoplay countdown.
+  const nextEpisode = seriesContext
+    ? getNextEpisode(
+        seriesContext.seasons,
+        seriesContext.season,
+        seriesContext.episode,
+      )
+    : null;
   // Which paths drive their own JS controls vs. lean on the player's native UI.
   // VLC always does (libVLC has no built-in chrome). Android's rnv path does too
   // because ExoPlayer's `controls` flag gates programmatic audio-track selection
@@ -479,6 +518,30 @@ export default function NativeVideoPlayer({
     }
   };
 
+  // Mark the current episode watched once playback passes 90%. Fires at most
+  // once per mount (ref-guarded) and only for series playback — so a user who
+  // bails during the credits still gets credit for finishing.
+  const maybeMarkWatched = (currentMs: number) => {
+    if (markedWatchedRef.current) return;
+    if (!seriesContext || durationMs <= 0) return;
+    if (currentMs / durationMs < 0.9) return;
+    const season = seriesContext.seasons.find(
+      (s) => s.seasonNumber === seriesContext.season,
+    );
+    const ep = season?.episodes.find(
+      (e) => e.episodeNumber === seriesContext.episode,
+    );
+    if (!ep) return;
+    markedWatchedRef.current = true;
+    markEpisodeWatched({
+      seriesUrl: seriesContext.seriesUrl,
+      episodeUrl: ep.episodeUrl,
+      episodeTitle: ep.episodeTitle,
+      seasonNumber: seriesContext.season,
+      episodeNumber: seriesContext.episode,
+    });
+  };
+
   // Final save on unmount — captures the position right before the user
   // backs out, even if the throttle window hadn't elapsed.
   useEffect(() => {
@@ -602,6 +665,7 @@ export default function NativeVideoPlayer({
     setPositionMs(e.currentTime);
     if (e.duration > 0) setDurationMs(e.duration);
     saveProgressIfDue(e.currentTime);
+    maybeMarkWatched(e.currentTime);
     markStarted();
   };
 
@@ -668,6 +732,7 @@ export default function NativeVideoPlayer({
     const ms = data.currentTime * 1000;
     setPositionMs(ms);
     saveProgressIfDue(ms);
+    maybeMarkWatched(ms);
     markStarted();
   };
 
@@ -749,6 +814,73 @@ export default function NativeVideoPlayer({
     setPaused((p) => !p);
     showControls();
   };
+
+  // Resolve and switch to the next episode. Uses navigation.replace so episodes
+  // don't pile up on the back stack and the player fully remounts (reusing all
+  // the mount/seek/reconnect logic). On failure, surface a toast and stay put.
+  const advanceToNextEpisode = async () => {
+    if (!seriesContext || !nextEpisode || advancing) return;
+    setAdvancing(true);
+    const series: SeriesRef = {
+      id: seriesContext.seriesId,
+      url: seriesContext.seriesUrl,
+      title: seriesContext.seriesTitle,
+    };
+    const params = await resolveEpisodePlayback(
+      series,
+      nextEpisode.season,
+      nextEpisode.episode,
+    );
+    setAdvancing(false);
+    if (!params) {
+      if (Platform.OS === "android") {
+        ToastAndroid.show("Couldn't load next episode", ToastAndroid.SHORT);
+      } else {
+        Alert.alert("Couldn't load next episode");
+      }
+      return;
+    }
+    navigation.replace("NativeVideoPlayer", {
+      ...params,
+      seriesContext: {
+        seriesId: seriesContext.seriesId,
+        seriesUrl: seriesContext.seriesUrl,
+        seriesTitle: seriesContext.seriesTitle,
+        seasons: seriesContext.seasons,
+        season: nextEpisode.season,
+        episode: nextEpisode.episode.episodeNumber,
+      },
+    });
+  };
+
+  // At end of playback: if a next episode exists, pause and start a 5s autoplay
+  // countdown; otherwise preserve the original behaviour of leaving the player.
+  const handlePlaybackEnded = () => {
+    if (nextEpisode) {
+      setPaused(true);
+      setCountdown(5);
+    } else {
+      navigation.goBack();
+    }
+  };
+
+  const cancelCountdown = () => setCountdown(null);
+
+  // Tick the autoplay countdown once per second; advance when it reaches 0.
+  useEffect(() => {
+    if (countdown === null) return;
+    if (countdown <= 0) {
+      setCountdown(null);
+      void advanceToNextEpisode();
+      return;
+    }
+    const id = setTimeout(
+      () => setCountdown((c) => (c === null ? null : c - 1)),
+      1000,
+    );
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countdown]);
 
   // Pan = scrub. Tap = jump-to-position (treated as a zero-distance pan).
   // runOnJS keeps callbacks on the JS thread so we can call useState setters
@@ -855,7 +987,7 @@ export default function NativeVideoPlayer({
           "Playback error";
         advanceOnError(msg);
       }}
-      onEnd={() => navigation.goBack()}
+      onEnd={handlePlaybackEnded}
       progressUpdateInterval={1000}
     />
   );
@@ -891,7 +1023,7 @@ export default function NativeVideoPlayer({
             onProgress={handleVlcProgress}
             onLoad={handleVlcLoad}
             onError={() => advanceOnError("VLC playback error")}
-            onEnd={() => navigation.goBack()}
+            onEnd={handlePlaybackEnded}
           />
         </Pressable>
       ) : usesCustomControls ? (
@@ -1022,6 +1154,54 @@ export default function NativeVideoPlayer({
             <Text style={styles.timeText}>{formatTime(durationMs)}</Text>
           </View>
         </>
+      )}
+
+      {/* Next-episode button — shown when controls are up and a next episode
+          exists, on every player path. Hidden while the autoplay countdown is
+          on screen (the countdown has its own "Play now"). */}
+      {nextEpisode && controlsVisible && !errored && countdown === null && (
+        <Focusable
+          style={[
+            styles.nextButton,
+            { bottom: 110 + insets.bottom, right: 16 + insets.right },
+          ]}
+          focusedStyle={styles.buttonFocused}
+          onPress={advanceToNextEpisode}
+        >
+          <Text style={styles.buttonText}>
+            {advancing ? "Loading…" : "Next ▶"}
+          </Text>
+        </Focusable>
+      )}
+
+      {/* End-of-episode autoplay countdown. Auto-advances at 0; Play now jumps
+          immediately, Cancel stops and stays on the finished episode. */}
+      {countdown !== null && nextEpisode && (
+        <View style={styles.overlay}>
+          <Text style={styles.overlayText}>Next episode in {countdown}s</Text>
+          <View style={styles.countdownRow}>
+            <Focusable
+              style={styles.button}
+              focusedStyle={styles.buttonFocused}
+              hasTVPreferredFocus
+              onPress={() => {
+                setCountdown(null);
+                void advanceToNextEpisode();
+              }}
+            >
+              <Text style={styles.buttonText}>
+                {advancing ? "Loading…" : "Play now"}
+              </Text>
+            </Focusable>
+            <Focusable
+              style={styles.button}
+              focusedStyle={styles.buttonFocused}
+              onPress={cancelCountdown}
+            >
+              <Text style={styles.buttonText}>Cancel</Text>
+            </Focusable>
+          </View>
+        </View>
       )}
 
       {/* Footer: title, meta, source picker. Tied to controlsVisible on both
@@ -1259,6 +1439,18 @@ const styles = StyleSheet.create({
   },
   buttonFocused: { backgroundColor: "#c0392b", transform: [{ scale: 1.05 }] },
   buttonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
+  nextButton: {
+    position: "absolute",
+    backgroundColor: "rgba(231,76,60,0.9)",
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  countdownRow: {
+    flexDirection: "row",
+    gap: 16,
+    marginTop: 20,
+  },
 
   // Transport (center)
   transportRow: {
