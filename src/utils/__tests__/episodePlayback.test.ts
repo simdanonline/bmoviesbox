@@ -1,5 +1,18 @@
 import { getNextEpisode } from "../episodePlayback";
 import type { Season } from "../../services/MovieAPI";
+import { resolveEpisodePlayback } from "../episodePlayback";
+import MovieAPI from "../../services/MovieAPI";
+import { getOriginalLanguage } from "../../services/tmdb";
+import { pickBest } from "../streamRanking";
+import { preparePlayableStreams } from "../playbackValidation";
+
+jest.mock("../../services/MovieAPI", () => ({
+  __esModule: true,
+  default: { getResolvedStreams: jest.fn() },
+}));
+jest.mock("../../services/tmdb", () => ({ getOriginalLanguage: jest.fn() }));
+jest.mock("../streamRanking", () => ({ pickBest: jest.fn() }));
+jest.mock("../playbackValidation", () => ({ preparePlayableStreams: jest.fn() }));
 
 const ep = (n: number) => ({
   episodeNumber: n,
@@ -38,5 +51,47 @@ describe("getNextEpisode", () => {
   it("returns null for empty or unknown input", () => {
     expect(getNextEpisode([], 1, 1)).toBeNull();
     expect(getNextEpisode(seasons, 9, 9)).toBeNull();
+  });
+});
+
+const series = { id: "42", url: "https://x/series", title: "My Show" };
+const episode = { episodeNumber: 2, episodeTitle: "Pilot", episodeUrl: "https://x/e2" };
+
+describe("resolveEpisodePlayback", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("returns a param bundle on success", async () => {
+    (getOriginalLanguage as jest.Mock).mockResolvedValue("en");
+    const raw = [{ url: "u1", type: "mp4" }, { url: "magnet", type: "magnet" }];
+    (MovieAPI.getResolvedStreams as jest.Mock).mockResolvedValue(raw);
+    (pickBest as jest.Mock).mockImplementation((s) => s);
+    (preparePlayableStreams as jest.Mock).mockResolvedValue([{ url: "u1", type: "mp4" }]);
+
+    const result = await resolveEpisodePlayback(series, 1, episode);
+
+    expect(result).toEqual({
+      streams: [{ url: "u1", type: "mp4" }],
+      title: "My Show - S1E2 Pilot",
+      sourceContext: { tmdbId: "42", kind: "episode", season: 1, episode: 2 },
+      streamProgressKey: "https://x/series::s1e2",
+      originalLanguage: "en",
+    });
+    expect((pickBest as jest.Mock).mock.calls[0][0]).toEqual([{ url: "u1", type: "mp4" }]);
+  });
+
+  it("returns null when no playable streams resolve", async () => {
+    (getOriginalLanguage as jest.Mock).mockResolvedValue(null);
+    (MovieAPI.getResolvedStreams as jest.Mock).mockResolvedValue([]);
+    (pickBest as jest.Mock).mockReturnValue([]);
+    (preparePlayableStreams as jest.Mock).mockResolvedValue([]);
+
+    expect(await resolveEpisodePlayback(series, 1, episode)).toBeNull();
+  });
+
+  it("returns null and swallows errors", async () => {
+    (getOriginalLanguage as jest.Mock).mockResolvedValue(null);
+    (MovieAPI.getResolvedStreams as jest.Mock).mockRejectedValue(new Error("boom"));
+
+    expect(await resolveEpisodePlayback(series, 1, episode)).toBeNull();
   });
 });
