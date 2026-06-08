@@ -247,6 +247,11 @@ export default function MovieDetailsScreen({
     // the native player and skip the WebView path entirely.
     setResolvingStreams(true);
     try {
+      // Original-language reference (TMDB) so we can prefer non-dubbed audio,
+      // both when ranking sources and when picking the player's audio track.
+      // Kick it off alongside stream resolution — the two are independent, so
+      // running them in parallel avoids a serial round-trip before playback.
+      const languagePromise = getOriginalLanguage(movieDetails.id, "movie");
       const resolved = await MovieAPI.getResolvedStreams("movie", {
         tmdbId: movieDetails.id,
       });
@@ -254,12 +259,7 @@ export default function MovieDetailsScreen({
       // else (MP4/HLS/MKV) is handled — MKV falls back to libVLC on iOS,
       // ExoPlayer plays it natively on Android. pickBest re-ranks for
       // quality-vs-bloat so the auto-played first stream isn't a 60GB REMUX.
-      // Original-language reference (TMDB) so we can prefer non-dubbed audio,
-      // both when ranking sources and when picking the player's audio track.
-      const originalLanguage = await getOriginalLanguage(
-        movieDetails.id,
-        "movie",
-      );
+      const originalLanguage = await languagePromise;
       const compatible = pickBest(
         resolved.filter((s) => s.type !== "magnet"),
         originalLanguage,

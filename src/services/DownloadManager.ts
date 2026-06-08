@@ -615,16 +615,19 @@ class DownloadManagerImpl {
     record: DownloadRecord,
   ): Promise<{ url: string; headers?: Record<string, string> } | null> {
     try {
+      // Independent of stream resolution — run both together so the refresh
+      // doesn't block on an extra TMDB round-trip before re-ranking sources.
+      const languagePromise = getOriginalLanguage(
+        record.tmdbId,
+        record.kind === "episode" ? "series" : "movie",
+      );
       const resolved = await MovieAPI.getResolvedStreams(
         record.kind === "episode" ? "series" : "movie",
         { tmdbId: record.tmdbId },
         record.season,
         record.episode,
       );
-      const originalLanguage = await getOriginalLanguage(
-        record.tmdbId,
-        record.kind === "episode" ? "series" : "movie",
-      );
+      const originalLanguage = await languagePromise;
       const ranked = await filterBadDownloadSources(
         pickForDownload(resolved, originalLanguage),
         {

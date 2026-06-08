@@ -433,16 +433,16 @@ export default function SeriesDetailsScreen({
 
     setDownloadingEpisode(episode.episodeNumber);
     try {
+      // Original-language lookup is independent of stream resolution; start it
+      // in parallel so the TMDB round-trip doesn't add to time-to-first-frame.
+      const languagePromise = getOriginalLanguage(seriesData.id, "series");
       const resolved = await MovieAPI.getResolvedStreams(
         "series",
         { tmdbId: seriesData.id },
         selectedSeason,
         episode.episodeNumber,
       );
-      const originalLanguage = await getOriginalLanguage(
-        seriesData.id,
-        "series",
-      );
+      const originalLanguage = await languagePromise;
       const ranked = await filterBadDownloadSources(
         pickForDownload(resolved, originalLanguage),
         {
@@ -496,16 +496,16 @@ export default function SeriesDetailsScreen({
     // MKV streams stay in the list — NativeVideoPlayer falls back to libVLC
     // on iOS automatically.
     try {
+      // Original-language lookup is independent of stream resolution; start it
+      // in parallel so the TMDB round-trip doesn't add to time-to-first-frame.
+      const languagePromise = getOriginalLanguage(seriesData.id, "series");
       const resolved = await MovieAPI.getResolvedStreams(
         "series",
         { tmdbId: seriesData.id },
         selectedSeason,
         episode.episodeNumber,
       );
-      const originalLanguage = await getOriginalLanguage(
-        seriesData.id,
-        "series",
-      );
+      const originalLanguage = await languagePromise;
       const compatible = pickBest(
         resolved.filter((s) => s.type !== "magnet"),
         originalLanguage,
