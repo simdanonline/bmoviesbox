@@ -806,8 +806,9 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
           /\{\{ALLOW_NEEDLES\}\}/g,
           allowJson,
         ) +
-        "\n" +
-        TV_CONTROL_RUNTIME,
+        // TV control hooks are only used on TV hardware; don't inject them into
+        // phone/tablet WebViews where they'd add unused JS and side effects.
+        (Platform.isTV ? "\n" + TV_CONTROL_RUNTIME : ""),
     };
   }, [initHost]);
 
