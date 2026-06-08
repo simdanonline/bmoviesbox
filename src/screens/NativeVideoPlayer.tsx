@@ -1189,9 +1189,7 @@ export default function NativeVideoPlayer({
                 void advanceToNextEpisode();
               }}
             >
-              <Text style={styles.buttonText}>
-                {advancing ? "Loading…" : "Play now"}
-              </Text>
+              <Text style={styles.buttonText}>Play now</Text>
             </Focusable>
             <Focusable
               style={styles.button}
