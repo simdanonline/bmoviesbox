@@ -55,6 +55,13 @@ const PROGRESS_SAVE_INTERVAL_MS = 5_000;
 // Don't try to resume from positions within 30s of the end; the user clearly
 // finished watching last time.
 const RESUME_THRESHOLD_FROM_END_MS = 30_000;
+// A source that loads but reports a positive-but-implausibly-short duration is
+// almost certainly a fake/error clip (e.g. torrentio's "failed to fetch"
+// sentinel that plays a few seconds of "an error occurred"), not the real
+// title. Preflight can't catch these — they're valid media bytes — so we reject
+// them on load and auto-advance. duration === 0 ("unknown", e.g. some HLS/live)
+// is left alone; no real movie or episode is under this floor.
+const MIN_VALID_DURATION_MS = 3 * 60_000;
 // AsyncStorage prefix for streamed-playback resume points (downloads use the
 // DownloadManager's own progress field instead).
 const STREAM_PROGRESS_KEY_PREFIX = "@bmoviebox_stream_progress::";
@@ -421,6 +428,19 @@ export default function NativeVideoPlayer({
     }
   };
 
+  // Called from both players' onLoad. Returns true (and kicks off an advance) if
+  // the loaded media is too short to be the real title, so the caller can bail
+  // before applying duration/track state from a bogus source.
+  const rejectShortDurationAndAdvance = (loadedMs: number): boolean => {
+    if (loadedMs <= 0 || loadedMs >= MIN_VALID_DURATION_MS) return false;
+    // Local downloads are known-good; never auto-skip them.
+    if (!current || current.url.startsWith("file://")) return false;
+    advanceOnError(
+      `Source is only ${formatTime(loadedMs)} long — likely not the full title.`,
+    );
+    return true;
+  };
+
   const handleTryNext = () => {
     if (currentIndex + 1 < streams.length) {
       setCurrentIndex((i) => i + 1);
@@ -441,6 +461,8 @@ export default function NativeVideoPlayer({
   };
 
   const handleVlcLoad = (e: VideoInfo) => {
+    // VLC reports duration in ms already.
+    if (rejectShortDurationAndAdvance(e.duration > 0 ? e.duration : 0)) return;
     if (e.duration > 0) setDurationMs(e.duration);
     const audio: PlayerTrack[] = (e.audioTracks ?? []).map((t, i) => ({
       key: t.id,
@@ -468,7 +490,9 @@ export default function NativeVideoPlayer({
   // rnv's onLoad gives duration in seconds. Track it in ms so the resume
   // effect (shared with VLC) has the units it expects.
   const handleRnvLoad = (data: OnLoadData) => {
-    if (data.duration > 0) setDurationMs(data.duration * 1000);
+    const loadedMs = data.duration > 0 ? data.duration * 1000 : 0;
+    if (rejectShortDurationAndAdvance(loadedMs)) return;
+    if (loadedMs > 0) setDurationMs(loadedMs);
     markStarted();
   };
 

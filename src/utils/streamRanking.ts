@@ -85,7 +85,14 @@ function scoreStream(s: ResolvedStream): number {
     score -= 5;
   }
 
-  if (s.rdCached) score += 10;
+  // Strongly prefer Real-Debrid–cached ("RD+") sources for auto-play. In
+  // practice the non-cached top pick is frequently a dead or fake link, while
+  // cached sources almost always play. At +250 a cached source within ~2
+  // quality tiers of the best non-cached one wins (e.g. cached 1080p/720p beats
+  // a non-cached 4K), but it's deliberately short of a full 3-tier jump so a
+  // cached CAM can't outrank a genuine 4K. Quality/size ordering is preserved
+  // within the cached group and within the non-cached group.
+  if (s.rdCached) score += 250;
 
   // Tiebreaker: more seeders = healthier torrent (matters even for
   // RD-cached, since RD cache misses fall back to RD downloading on demand).
