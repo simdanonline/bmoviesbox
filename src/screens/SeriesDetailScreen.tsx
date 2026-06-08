@@ -38,7 +38,10 @@ import {
   filterBadDownloadSources,
   markBadDownloadSource,
 } from "../utils/downloadSourceHealth";
-import { preparePlayableStreams } from "../utils/playbackValidation";
+import {
+  resolveEpisodePlayback,
+  type SeriesRef,
+} from "../utils/episodePlayback";
 
 type SeriesDetailsScreenProps = NativeStackScreenProps<any, "SeriesDetails">;
 
@@ -494,42 +497,32 @@ export default function SeriesDetailsScreen({
 
     // Tier 1: backend's resolved-stream pipeline (Stremio + Real-Debrid).
     // MKV streams stay in the list — NativeVideoPlayer falls back to libVLC
-    // on iOS automatically.
-    try {
-      // Original-language lookup is independent of stream resolution; start it
-      // in parallel so the TMDB round-trip doesn't add to time-to-first-frame.
-      const languagePromise = getOriginalLanguage(seriesData.id, "series");
-      const resolved = await MovieAPI.getResolvedStreams(
-        "series",
-        { tmdbId: seriesData.id },
-        selectedSeason,
-        episode.episodeNumber,
-      );
-      const originalLanguage = await languagePromise;
-      const compatible = pickBest(
-        resolved.filter((s) => s.type !== "magnet"),
-        originalLanguage,
-      );
-      const sourceContext = {
-        tmdbId: String(seriesData.id),
-        kind: "episode" as const,
-        season: selectedSeason,
-        episode: episode.episodeNumber,
-      };
-      const playable = await preparePlayableStreams(compatible, sourceContext);
-      if (playable.length > 0) {
-        setGettingLinks(false);
-        navigation.navigate("NativeVideoPlayer", {
-          streams: playable,
-          title: movieTitle,
-          sourceContext,
-          streamProgressKey: `${seriesData.url}::s${selectedSeason}e${episode.episodeNumber}`,
-          originalLanguage: originalLanguage ?? undefined,
-        });
-        return;
-      }
-    } catch (e) {
-      console.warn("Episode stream resolution failed, falling back:", e);
+    // on iOS automatically. Resolve logic lives in resolveEpisodePlayback so
+    // the player can reuse it for the "next episode" flow.
+    const seriesRef: SeriesRef = {
+      id: String(seriesData.id),
+      url: seriesData.url,
+      title: seriesData.title,
+    };
+    const params = await resolveEpisodePlayback(
+      seriesRef,
+      selectedSeason,
+      episode,
+    );
+    if (params) {
+      setGettingLinks(false);
+      navigation.navigate("NativeVideoPlayer", {
+        ...params,
+        seriesContext: {
+          seriesId: seriesRef.id,
+          seriesUrl: seriesRef.url,
+          seriesTitle: seriesRef.title,
+          seasons: seriesData.seasons,
+          season: selectedSeason,
+          episode: episode.episodeNumber,
+        },
+      });
+      return;
     }
 
     // Tier 2: legacy WebView path.

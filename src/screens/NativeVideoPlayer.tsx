@@ -16,6 +16,8 @@ import {
   ScrollView,
   AppState,
   AppStateStatus,
+  Alert,
+  ToastAndroid,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -47,6 +49,13 @@ import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import TrackSelectionMenu, {
   PlayerTrack,
 } from "../components/TrackSelectionMenu";
+import type { Season } from "../services/MovieAPI";
+import {
+  getNextEpisode,
+  resolveEpisodePlayback,
+  type SeriesRef,
+} from "../utils/episodePlayback";
+import { useUserData } from "../context/UserDataContext";
 
 type NativeVideoPlayerProps = NativeStackScreenProps<any, "NativeVideoPlayer">;
 
@@ -142,6 +151,7 @@ export default function NativeVideoPlayer({
     sourceContext,
     streamProgressKey,
     originalLanguage,
+    seriesContext,
   } = route.params as {
     streams: ResolvedStream[];
     title: string;
@@ -159,9 +169,21 @@ export default function NativeVideoPlayer({
     /** Title's original language as an ISO-639 code (e.g. "ja"). When set, the
      * player auto-selects the matching audio track to avoid dubs. */
     originalLanguage?: string;
+    /** Series playback context. Present only for episodes — drives the "next
+     * episode" button, the end-of-episode autoplay countdown, and marking the
+     * episode watched. Absent for movies and downloads. */
+    seriesContext?: {
+      seriesId: string;
+      seriesUrl: string;
+      seriesTitle: string;
+      seasons: Season[];
+      season: number;
+      episode: number;
+    };
   };
 
   const insets = useSafeAreaInsets();
+  const { markEpisodeWatched } = useUserData();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showPicker, setShowPicker] = useState(false);
   // Audio/subtitle track selection (iOS only — Android uses ExoPlayer's native
@@ -184,6 +206,11 @@ export default function NativeVideoPlayer({
   // Bumped to force a fresh player instance (via the `key` prop) when we need to
   // re-open the stream from the current position — see the reconnect logic.
   const [reloadNonce, setReloadNonce] = useState(0);
+  // True while resolving the next episode's streams (between tapping Next /
+  // countdown expiry and the navigation.replace). Drives the button label.
+  const [advancing, setAdvancing] = useState(false);
+  // Seconds left on the end-of-episode autoplay countdown; null when idle.
+  const [countdown, setCountdown] = useState<number | null>(null);
 
   // VLC-only playback state. Times are milliseconds (matches native VLC API).
   const [positionMs, setPositionMs] = useState(0);
@@ -223,6 +250,8 @@ export default function NativeVideoPlayer({
   // a valid user value meaning "Off").
   const didSeedTextRef = useRef(false);
   const lastSavedProgressMsRef = useRef(0);
+  // Guards the 90%-watched write so it fires at most once per mount.
+  const markedWatchedRef = useRef(false);
   // Live mirrors of state the reconnect logic reads from listeners/callbacks
   // whose closures are created once (AppState) — avoids stale captures without
   // re-subscribing every render.
@@ -243,16 +272,37 @@ export default function NativeVideoPlayer({
 
   const current = streams[currentIndex];
   const useVlc = needsVlc(current);
+  // The episode to play after this one (rolls across seasons), or null when
+  // this isn't a series or it's the series finale. Drives the Next button and
+  // the autoplay countdown.
+  const nextEpisode = useMemo(
+    () =>
+      seriesContext
+        ? getNextEpisode(
+            seriesContext.seasons,
+            seriesContext.season,
+            seriesContext.episode,
+          )
+        : null,
+    [seriesContext],
+  );
+  // Which paths drive their own JS controls vs. lean on the player's native UI.
+  // VLC always does (libVLC has no built-in chrome). Android's rnv path does too
+  // because ExoPlayer's `controls` flag gates programmatic audio-track selection
+  // (ReactExoplayerView.setSelectedAudioTrack only applies when `!controls`), so
+  // we must keep `controls={false}` to force original-audio — and then supply
+  // our own overlay. iOS rnv keeps AVPlayer's native controls (no such gate).
+  const usesCustomControls = useVlc || Platform.OS === "android";
+  const usesNativeControls = !usesCustomControls; // iOS rnv only
   // On the iOS rnv path the native AVPlayer controls drive `controlsVisible`,
   // but they auto-hide and offer no back/close affordance — so once they hide,
   // the user's only exit is the system swipe-back gesture. Keep our own back
-  // button always reachable there. (VLC path and Android still tie it to
+  // button always reachable there. (Custom-control paths tie it to
   // `controlsVisible`, which they control directly.)
-  const backButtonAlwaysVisible = Platform.OS === "ios" && !useVlc;
-  // The track menu is iOS-only (Android keeps ExoPlayer's native menu) and only
-  // worth showing when there's an actual choice to make.
-  const hasTrackChoices =
-    Platform.OS === "ios" && (audioTracks.length > 1 || textTracks.length > 0);
+  const backButtonAlwaysVisible = usesNativeControls;
+  // The custom track menu is shown on every custom-controls path (VLC + Android
+  // rnv) and the iOS rnv path, whenever there's an actual choice to make.
+  const hasTrackChoices = audioTracks.length > 1 || textTracks.length > 0;
   const currentLanguageLabel = current
     ? getSourceLanguageLabel(current)
     : null;
@@ -472,6 +522,30 @@ export default function NativeVideoPlayer({
     }
   };
 
+  // Mark the current episode watched once playback passes 90%. Fires at most
+  // once per mount (ref-guarded) and only for series playback — so a user who
+  // bails during the credits still gets credit for finishing.
+  const maybeMarkWatched = (currentMs: number) => {
+    if (markedWatchedRef.current) return;
+    if (!seriesContext || durationMs <= 0) return;
+    if (currentMs / durationMs < 0.9) return;
+    const season = seriesContext.seasons.find(
+      (s) => s.seasonNumber === seriesContext.season,
+    );
+    const ep = season?.episodes.find(
+      (e) => e.episodeNumber === seriesContext.episode,
+    );
+    if (!ep) return;
+    markedWatchedRef.current = true;
+    markEpisodeWatched({
+      seriesUrl: seriesContext.seriesUrl,
+      episodeUrl: ep.episodeUrl,
+      episodeTitle: ep.episodeTitle,
+      seasonNumber: seriesContext.season,
+      episodeNumber: seriesContext.episode,
+    });
+  };
+
   // Final save on unmount — captures the position right before the user
   // backs out, even if the throttle window hadn't elapsed.
   useEffect(() => {
@@ -511,13 +585,13 @@ export default function NativeVideoPlayer({
     // than exit playback. Errored state still goes back so the user isn't
     // trapped on the failure screen.
     if (controlsVisible && !errored) {
-      if (useVlc) {
+      if (usesCustomControls) {
         clearHideTimer();
         setControlsVisible(false);
       } else {
-        // rnv has no imperative hide API for native controls. Re-mount the
+        // iOS rnv has no imperative hide API for native controls. Re-mount the
         // overlay by flipping `controls` off and back on the next tick —
-        // dismisses the visible overlay while keeping ExoPlayer running.
+        // dismisses the visible overlay while keeping AVPlayer running.
         setNativeControlsEnabled(false);
         if (controlsRestoreTimer.current) {
           clearTimeout(controlsRestoreTimer.current);
@@ -595,6 +669,7 @@ export default function NativeVideoPlayer({
     setPositionMs(e.currentTime);
     if (e.duration > 0) setDurationMs(e.duration);
     saveProgressIfDue(e.currentTime);
+    maybeMarkWatched(e.currentTime);
     markStarted();
   };
 
@@ -661,6 +736,7 @@ export default function NativeVideoPlayer({
     const ms = data.currentTime * 1000;
     setPositionMs(ms);
     saveProgressIfDue(ms);
+    maybeMarkWatched(ms);
     markStarted();
   };
 
@@ -701,29 +777,99 @@ export default function NativeVideoPlayer({
     }
   };
 
-  const seekVlcBy = (deltaMs: number) => {
-    if (durationMs <= 0) return;
-    const target = Math.max(
-      0,
-      Math.min(durationMs - 1000, positionMs + deltaMs),
-    );
-    setSeekFraction(target / durationMs);
+  // Seek helpers shared by every custom-controls path. VLC seeks by fraction
+  // (the `seek` prop); rnv seeks imperatively in seconds via the ref.
+  const seekToMs = (target: number) => {
+    if (useVlc) {
+      setSeekFraction(target / durationMs);
+    } else {
+      videoRef.current?.seek(target / 1000);
+    }
     setPositionMs(target); // optimistic — next onProgress will replace
     showControls();
   };
 
-  const seekVlcToFraction = (fraction: number) => {
+  const seekBy = (deltaMs: number) => {
     if (durationMs <= 0) return;
-    const clamped = Math.max(0, Math.min(1, fraction));
-    setSeekFraction(clamped);
-    setPositionMs(clamped * durationMs); // optimistic
-    showControls();
+    seekToMs(Math.max(0, Math.min(durationMs - 1000, positionMs + deltaMs)));
   };
 
-  const toggleVlcPaused = () => {
+  const seekToFraction = (fraction: number) => {
+    if (durationMs <= 0) return;
+    seekToMs(Math.max(0, Math.min(1, fraction)) * durationMs);
+  };
+
+  const togglePaused = () => {
     setPaused((p) => !p);
     showControls();
   };
+
+  // Resolve and switch to the next episode. Uses navigation.replace so episodes
+  // don't pile up on the back stack and the player fully remounts (reusing all
+  // the mount/seek/reconnect logic). On failure, surface a toast and stay put.
+  const advanceToNextEpisode = async () => {
+    if (!seriesContext || !nextEpisode || advancing) return;
+    setAdvancing(true);
+    const series: SeriesRef = {
+      id: seriesContext.seriesId,
+      url: seriesContext.seriesUrl,
+      title: seriesContext.seriesTitle,
+    };
+    const params = await resolveEpisodePlayback(
+      series,
+      nextEpisode.season,
+      nextEpisode.episode,
+    );
+    setAdvancing(false);
+    if (!params) {
+      if (Platform.OS === "android") {
+        ToastAndroid.show("Couldn't load next episode", ToastAndroid.SHORT);
+      } else {
+        Alert.alert("Couldn't load next episode");
+      }
+      return;
+    }
+    navigation.replace("NativeVideoPlayer", {
+      ...params,
+      seriesContext: {
+        seriesId: seriesContext.seriesId,
+        seriesUrl: seriesContext.seriesUrl,
+        seriesTitle: seriesContext.seriesTitle,
+        seasons: seriesContext.seasons,
+        season: nextEpisode.season,
+        episode: nextEpisode.episode.episodeNumber,
+      },
+    });
+  };
+
+  // At end of playback: if a next episode exists, pause and start a 5s autoplay
+  // countdown; otherwise preserve the original behaviour of leaving the player.
+  const handlePlaybackEnded = () => {
+    if (nextEpisode) {
+      setPaused(true);
+      setCountdown(5);
+    } else {
+      navigation.goBack();
+    }
+  };
+
+  const cancelCountdown = () => setCountdown(null);
+
+  // Tick the autoplay countdown once per second; advance when it reaches 0.
+  useEffect(() => {
+    if (countdown === null) return;
+    if (countdown <= 0) {
+      setCountdown(null);
+      void advanceToNextEpisode();
+      return;
+    }
+    const id = setTimeout(
+      () => setCountdown((c) => (c === null ? null : c - 1)),
+      1000,
+    );
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countdown]);
 
   // Pan = scrub. Tap = jump-to-position (treated as a zero-distance pan).
   // runOnJS keeps callbacks on the JS thread so we can call useState setters
@@ -746,7 +892,7 @@ export default function NativeVideoPlayer({
         .onEnd((e) => {
           if (trackWidth <= 0) return;
           const fraction = Math.max(0, Math.min(1, e.x / trackWidth));
-          seekVlcToFraction(fraction);
+          seekToFraction(fraction);
           setScrubFraction(null);
         })
         .onFinalize(() => {
@@ -777,37 +923,24 @@ export default function NativeVideoPlayer({
     [current.url, current.headers, current.type],
   );
 
-  // react-native-video track selection is iOS-only. On Android we leave these
-  // off entirely so ExoPlayer's native track menu stays in full control —
-  // passing a controlled selectedTextTrack there would force subtitles off and
-  // fight the native menu.
-  const rnvTrackProps: Partial<React.ComponentProps<typeof Video>> =
-    Platform.OS === "ios"
-      ? {
-          selectedAudioTrack:
-            selectedAudioKey !== null
-              ? { type: SelectedTrackType.INDEX, value: selectedAudioKey }
-              : undefined,
-          selectedTextTrack:
-            selectedTextKey === -1
-              ? { type: SelectedTrackType.DISABLED }
-              : { type: SelectedTrackType.INDEX, value: selectedTextKey },
-          onAudioTracks: handleRnvAudioTracks,
-          onTextTracks: handleRnvTextTracks,
-        }
-      : originalLanguage
-        ? {
-            // Android keeps ExoPlayer's native track menu, so we don't take over
-            // selection. But we still nudge the INITIAL audio track to the
-            // original language so playback can't start on a dub. This is
-            // audio-only and language-based — it doesn't force subtitles off or
-            // remove the native menu (the user can still switch tracks there).
-            selectedAudioTrack: {
-              type: SelectedTrackType.LANGUAGE,
-              value: originalLanguage,
-            },
-          }
-        : {};
+  // Controlled track selection for both rnv platforms. Index-based so the custom
+  // menu can target any specific track, and so the original-audio seed (computed
+  // in handleRnvAudioTracks via fuzzy language/title matching) is applied
+  // exactly. This only takes effect because we keep `controls={false}` on the
+  // custom-controls paths — ExoPlayer ignores programmatic audio selection while
+  // its native controls are on (see `usesCustomControls`).
+  const rnvTrackProps: Partial<React.ComponentProps<typeof Video>> = {
+    selectedAudioTrack:
+      selectedAudioKey !== null
+        ? { type: SelectedTrackType.INDEX, value: selectedAudioKey }
+        : undefined,
+    selectedTextTrack:
+      selectedTextKey === -1
+        ? { type: SelectedTrackType.DISABLED }
+        : { type: SelectedTrackType.INDEX, value: selectedTextKey },
+    onAudioTracks: handleRnvAudioTracks,
+    onTextTracks: handleRnvTextTracks,
+  };
 
   const livePositionFraction =
     durationMs > 0 ? Math.min(1, positionMs / durationMs) : 0;
@@ -815,6 +948,38 @@ export default function NativeVideoPlayer({
     scrubFraction !== null ? scrubFraction : livePositionFraction;
   const displayMs =
     scrubFraction !== null ? scrubFraction * durationMs : positionMs;
+
+  // `controls` stays on only for the iOS rnv path. On Android it must be false
+  // so ExoPlayer honors the programmatic audio-track selection (see
+  // `usesCustomControls`); our overlay supplies the transport instead.
+  const rnvVideo = (
+    <Video
+      // Bumping reloadNonce remounts a fresh AVPlayer/ExoPlayer instance to
+      // drop a dead connection and re-open the stream from position.
+      key={`rnv-${currentIndex}-${reloadNonce}`}
+      ref={videoRef}
+      source={rnvSource}
+      style={styles.video}
+      resizeMode="contain"
+      controls={usesNativeControls && nativeControlsEnabled}
+      paused={paused}
+      {...rnvTrackProps}
+      playInBackground={false}
+      ignoreSilentSwitch="ignore"
+      onLoad={handleRnvLoad}
+      onProgress={handleRnvProgress}
+      onControlsVisibilityChange={(e) => setControlsVisible(e.isVisible)}
+      onError={(e) => {
+        const msg =
+          e?.error?.errorString ??
+          e?.error?.localizedDescription ??
+          "Playback error";
+        advanceOnError(msg);
+      }}
+      onEnd={handlePlaybackEnded}
+      progressUpdateInterval={1000}
+    />
+  );
 
   return (
     <View style={styles.root}>
@@ -847,36 +1012,23 @@ export default function NativeVideoPlayer({
             onProgress={handleVlcProgress}
             onLoad={handleVlcLoad}
             onError={() => advanceOnError("VLC playback error")}
-            onEnd={() => navigation.goBack()}
+            onEnd={handlePlaybackEnded}
           />
         </Pressable>
-      ) : (
-        <Video
-          // Bumping reloadNonce remounts a fresh AVPlayer/ExoPlayer instance to
-          // drop a dead connection and re-open the stream from position.
-          key={`rnv-${currentIndex}-${reloadNonce}`}
-          ref={videoRef}
-          source={rnvSource}
+      ) : usesCustomControls ? (
+        // Android rnv: native controls are off (to allow programmatic audio
+        // selection), so a Pressable toggles our overlay just like the VLC path.
+        <Pressable
           style={styles.video}
-          resizeMode="contain"
-          controls={nativeControlsEnabled}
-          paused={paused}
-          {...rnvTrackProps}
-          playInBackground={false}
-          ignoreSilentSwitch="ignore"
-          onLoad={handleRnvLoad}
-          onProgress={handleRnvProgress}
-          onControlsVisibilityChange={(e) => setControlsVisible(e.isVisible)}
-          onError={(e) => {
-            const msg =
-              e?.error?.errorString ??
-              e?.error?.localizedDescription ??
-              "Playback error";
-            advanceOnError(msg);
-          }}
-          onEnd={() => navigation.goBack()}
-          progressUpdateInterval={1000}
-        />
+          onPress={() =>
+            controlsVisible ? setControlsVisible(false) : showControls()
+          }
+        >
+          {rnvVideo}
+        </Pressable>
+      ) : (
+        // iOS rnv: native AVPlayer controls handle taps and visibility.
+        rnvVideo
       )}
 
       {!hasStarted && !errored && (
@@ -914,16 +1066,16 @@ export default function NativeVideoPlayer({
         </View>
       )}
 
-      {/* VLC-only custom controls. rnv path uses the native AVPlayer/ExoPlayer
-          controls (better scrubber, fullscreen, AirPlay built-in). */}
-      {useVlc && controlsVisible && !errored && (
+      {/* Custom controls for the VLC and Android rnv paths. The iOS rnv path
+          uses native AVPlayer controls instead (scrubber, AirPlay built-in). */}
+      {usesCustomControls && controlsVisible && !errored && (
         <>
           {/* Center transport row */}
           <View style={styles.transportRow} pointerEvents="box-none">
             <Focusable
               style={styles.transportButton}
               focusedStyle={styles.transportButtonFocused}
-              onPress={() => seekVlcBy(-SEEK_STEP_MS)}
+              onPress={() => seekBy(-SEEK_STEP_MS)}
             >
               <Text style={styles.transportButtonText}>« 10s</Text>
             </Focusable>
@@ -931,7 +1083,7 @@ export default function NativeVideoPlayer({
               style={[styles.transportButton, styles.transportPlayButton]}
               focusedStyle={styles.transportButtonFocused}
               hasTVPreferredFocus
-              onPress={toggleVlcPaused}
+              onPress={togglePaused}
             >
               <Text style={styles.transportPlayText}>
                 {paused ? "▶" : "❚❚"}
@@ -940,7 +1092,7 @@ export default function NativeVideoPlayer({
             <Focusable
               style={styles.transportButton}
               focusedStyle={styles.transportButtonFocused}
-              onPress={() => seekVlcBy(SEEK_STEP_MS)}
+              onPress={() => seekBy(SEEK_STEP_MS)}
             >
               <Text style={styles.transportButtonText}>10s »</Text>
             </Focusable>
@@ -993,6 +1145,52 @@ export default function NativeVideoPlayer({
         </>
       )}
 
+      {/* Next-episode button — shown when controls are up and a next episode
+          exists, on every player path. Hidden while the autoplay countdown is
+          on screen (the countdown has its own "Play now"). */}
+      {nextEpisode && controlsVisible && !errored && countdown === null && (
+        <Focusable
+          style={[
+            styles.nextButton,
+            { bottom: 110 + insets.bottom, right: 16 + insets.right },
+          ]}
+          focusedStyle={styles.buttonFocused}
+          onPress={advanceToNextEpisode}
+        >
+          <Text style={styles.buttonText}>
+            {advancing ? "Loading…" : "Next ▶"}
+          </Text>
+        </Focusable>
+      )}
+
+      {/* End-of-episode autoplay countdown. Auto-advances at 0; Play now jumps
+          immediately, Cancel stops and stays on the finished episode. */}
+      {countdown !== null && nextEpisode && (
+        <View style={styles.overlay}>
+          <Text style={styles.overlayText}>Next episode in {countdown}s</Text>
+          <View style={styles.countdownRow}>
+            <Focusable
+              style={styles.button}
+              focusedStyle={styles.buttonFocused}
+              hasTVPreferredFocus
+              onPress={() => {
+                setCountdown(null);
+                void advanceToNextEpisode();
+              }}
+            >
+              <Text style={styles.buttonText}>Play now</Text>
+            </Focusable>
+            <Focusable
+              style={styles.button}
+              focusedStyle={styles.buttonFocused}
+              onPress={cancelCountdown}
+            >
+              <Text style={styles.buttonText}>Cancel</Text>
+            </Focusable>
+          </View>
+        </View>
+      )}
+
       {/* Footer: title, meta, source picker. Tied to controlsVisible on both
           paths — on the rnv path, the native player drives visibility via
           onControlsVisibilityChange so this stays in sync with the native UI. */}
@@ -1036,7 +1234,7 @@ export default function NativeVideoPlayer({
           onPress={() => {
             setShowTrackMenu(false);
             setShowPicker((v) => !v);
-            if (useVlc) showControls();
+            if (usesCustomControls) showControls();
           }}
         >
           <Text style={styles.pickerButtonText}>{streams.length} sources</Text>
@@ -1059,7 +1257,7 @@ export default function NativeVideoPlayer({
           onPress={() => {
             setShowPicker(false);
             setShowTrackMenu((v) => !v);
-            if (useVlc) showControls();
+            if (usesCustomControls) showControls();
           }}
         >
           <FontAwesome name="cc" size={14} color="#fff" />
@@ -1228,6 +1426,18 @@ const styles = StyleSheet.create({
   },
   buttonFocused: { backgroundColor: "#c0392b", transform: [{ scale: 1.05 }] },
   buttonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
+  nextButton: {
+    position: "absolute",
+    backgroundColor: "rgba(231,76,60,0.9)",
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  countdownRow: {
+    flexDirection: "row",
+    gap: 16,
+    marginTop: 20,
+  },
 
   // Transport (center)
   transportRow: {
