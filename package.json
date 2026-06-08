@@ -12,7 +12,8 @@
     "build:ios": "eas build --profile production --platform ios",
     "build:android": "eas build --profile production --platform android",
     "tv:build": "eas build --profile tv --platform android",
-    "update": "eas update --branch production --message"
+    "update": "eas update --branch production --message",
+    "test": "jest"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -57,7 +58,10 @@
     "typescript": "~5.9.2"
   },
   "devDependencies": {
-    "@babel/core": "^7.20.0"
+    "@babel/core": "^7.20.0",
+    "@types/jest": "^30.0.0",
+    "jest": "^29.7.0",
+    "jest-expo": "^54.0.17"
   },
   "private": true
 }
