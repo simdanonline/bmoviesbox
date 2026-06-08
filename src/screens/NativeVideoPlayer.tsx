@@ -873,9 +873,10 @@ export default function NativeVideoPlayer({
           style={[
             styles.pickerPanel,
             {
-              // Sit below the button stack: clear the CC button (iOS only) when
-              // present, otherwise just the sources button.
-              top: 12 + insets.top + (Platform.OS === "ios" ? 88 : 44),
+              // Sit just below the sources button. The CC button is hidden
+              // whenever this picker is open (`!showPicker` gate), so there's
+              // nothing else to clear on either platform.
+              top: 12 + insets.top + 44,
               right: 16 + insets.right,
             },
           ]}
