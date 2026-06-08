@@ -23,6 +23,7 @@ import { useTVBackHandler } from "../hooks/useTVBackHandler";
 import Focusable from "../components/Focusable";
 import TvSafeImage from "../components/TvSafeImage";
 import { pickBest, pickForDownload } from "../utils/streamRanking";
+import { getOriginalLanguage } from "../services/tmdb";
 import { useDownloads } from "../context/DownloadContext";
 import {
   DownloadRecord,
@@ -253,7 +254,16 @@ export default function MovieDetailsScreen({
       // else (MP4/HLS/MKV) is handled — MKV falls back to libVLC on iOS,
       // ExoPlayer plays it natively on Android. pickBest re-ranks for
       // quality-vs-bloat so the auto-played first stream isn't a 60GB REMUX.
-      const compatible = pickBest(resolved.filter((s) => s.type !== "magnet"));
+      // Original-language reference (TMDB) so we can prefer non-dubbed audio,
+      // both when ranking sources and when picking the player's audio track.
+      const originalLanguage = await getOriginalLanguage(
+        movieDetails.id,
+        "movie",
+      );
+      const compatible = pickBest(
+        resolved.filter((s) => s.type !== "magnet"),
+        originalLanguage,
+      );
       const sourceContext = {
         tmdbId: String(movieDetails.id),
         kind: "movie" as const,
@@ -265,6 +275,7 @@ export default function MovieDetailsScreen({
           title: movieDetails.title,
           sourceContext,
           streamProgressKey: movieDetails.url,
+          originalLanguage: originalLanguage ?? undefined,
         });
         return;
       }
@@ -386,6 +397,10 @@ export default function MovieDetailsScreen({
 
     // Already on disk → play the local file via the same NativeVideoPlayer.
     if (downloadRecord?.status === "completed") {
+      const originalLanguage = await getOriginalLanguage(
+        downloadRecord.tmdbId,
+        downloadRecord.kind === "episode" ? "series" : "movie",
+      );
       navigation.navigate("NativeVideoPlayer", {
         streams: [
           {
@@ -401,6 +416,7 @@ export default function MovieDetailsScreen({
         title: downloadRecord.title,
         recordId: downloadRecord.id,
         initialPositionMs: downloadRecord.watchProgressMs,
+        originalLanguage: originalLanguage ?? undefined,
       });
       return;
     }
@@ -411,10 +427,17 @@ export default function MovieDetailsScreen({
       const resolved = await MovieAPI.getResolvedStreams("movie", {
         tmdbId: movieDetails.id,
       });
-      const ranked = await filterBadDownloadSources(pickForDownload(resolved), {
-        tmdbId: String(movieDetails.id),
-        kind: "movie",
-      });
+      const originalLanguage = await getOriginalLanguage(
+        movieDetails.id,
+        "movie",
+      );
+      const ranked = await filterBadDownloadSources(
+        pickForDownload(resolved, originalLanguage),
+        {
+          tmdbId: String(movieDetails.id),
+          kind: "movie",
+        },
+      );
       if (ranked.length === 0) {
         Alert.alert(
           "No downloadable sources",

@@ -39,6 +39,7 @@ import {
 import {
   getSourceLanguageBadges,
   getSourceLanguageLabel,
+  trackTextMatchesIso,
 } from "../utils/sourceLanguage";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import TrackSelectionMenu, {
@@ -122,6 +123,7 @@ export default function NativeVideoPlayer({
     initialPositionMs,
     sourceContext,
     streamProgressKey,
+    originalLanguage,
   } = route.params as {
     streams: ResolvedStream[];
     title: string;
@@ -136,6 +138,9 @@ export default function NativeVideoPlayer({
      * playback. Ignored when `recordId` is set (downloads have their own
      * progress field). Typically the movie URL, or `${seriesUrl}::s${n}e${m}`. */
     streamProgressKey?: string;
+    /** Title's original language as an ISO-639 code (e.g. "ja"). When set, the
+     * player auto-selects the matching audio track to avoid dubs. */
+    originalLanguage?: string;
   };
 
   const insets = useSafeAreaInsets();
@@ -470,7 +475,15 @@ export default function NativeVideoPlayer({
     }));
     setAudioTracks(audio);
     if (audio.length > 0) {
-      setSelectedAudioKey((prev) => (prev === null ? audio[0].key : prev));
+      // Prefer the original-language track (matched against VLC's free-text
+      // name); fall back to the first track when there's no match or no
+      // reference language. Seeded once per stream so a re-fired onLoad can't
+      // clobber a user's later manual choice.
+      const original = (e.audioTracks ?? []).find((t) =>
+        trackTextMatchesIso(t.name, originalLanguage),
+      );
+      const target = original ? original.id : audio[0].key;
+      setSelectedAudioKey((prev) => (prev === null ? target : prev));
     }
     // VLC may already include a "disable"/id -1 row; drop it and add a single
     // synthetic "Off" so the option appears exactly once.
@@ -509,11 +522,19 @@ export default function NativeVideoPlayer({
       label: t.title || t.language || `Track ${t.index + 1}`,
     }));
     setAudioTracks(tracks);
+    // Prefer the original-language audio (by ISO code or title) when we know it,
+    // else the track the player marked selected, else the first. Seeded only
+    // while no choice exists for this stream (reset to null on stream change) so
+    // a re-fired event or a user's manual pick is never overridden.
+    const original = e.audioTracks.find(
+      (t) =>
+        trackTextMatchesIso(t.language, originalLanguage) ||
+        trackTextMatchesIso(t.title, originalLanguage),
+    );
     const sel = e.audioTracks.find((t) => t.selected);
-    if (sel) {
-      setSelectedAudioKey(sel.index);
-    } else if (tracks.length > 0) {
-      setSelectedAudioKey((prev) => (prev === null ? tracks[0].key : prev));
+    const target = original?.index ?? sel?.index ?? tracks[0]?.key ?? null;
+    if (target !== null) {
+      setSelectedAudioKey((prev) => (prev === null ? target : prev));
     }
   };
 
@@ -626,7 +647,19 @@ export default function NativeVideoPlayer({
           onAudioTracks: handleRnvAudioTracks,
           onTextTracks: handleRnvTextTracks,
         }
-      : {};
+      : originalLanguage
+        ? {
+            // Android keeps ExoPlayer's native track menu, so we don't take over
+            // selection. But we still nudge the INITIAL audio track to the
+            // original language so playback can't start on a dub. This is
+            // audio-only and language-based — it doesn't force subtitles off or
+            // remove the native menu (the user can still switch tracks there).
+            selectedAudioTrack: {
+              type: SelectedTrackType.LANGUAGE,
+              value: originalLanguage,
+            },
+          }
+        : {};
 
   const livePositionFraction =
     durationMs > 0 ? Math.min(1, positionMs / durationMs) : 0;

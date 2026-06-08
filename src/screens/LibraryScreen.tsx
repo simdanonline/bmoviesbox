@@ -13,6 +13,7 @@ import { useUserData } from "../context/UserDataContext";
 import { useDownloads } from "../context/DownloadContext";
 import { useTvApp } from "../context/TvAppContext";
 import { DownloadRecord } from "../services/DownloadManager";
+import { getOriginalLanguage } from "../services/tmdb";
 import {
   LibraryItem,
   WatchStatus,
@@ -81,7 +82,11 @@ export default function LibraryScreen({
     [downloads.records],
   );
 
-  const handlePlayOffline = (r: DownloadRecord) => {
+  const handlePlayOffline = async (r: DownloadRecord) => {
+    const originalLanguage = await getOriginalLanguage(
+      r.tmdbId,
+      r.kind === "episode" ? "series" : "movie",
+    );
     navigation.navigate("NativeVideoPlayer", {
       streams: [
         {
@@ -100,6 +105,7 @@ export default function LibraryScreen({
           : r.title,
       recordId: r.id,
       initialPositionMs: r.watchProgressMs,
+      originalLanguage: originalLanguage ?? undefined,
     });
   };
 

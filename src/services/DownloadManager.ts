@@ -13,6 +13,7 @@ import { Platform } from "react-native";
 import MovieAPI from "./MovieAPI";
 import type { ResolvedStream } from "./MovieAPI";
 import { pickForDownload } from "../utils/streamRanking";
+import { getOriginalLanguage } from "./tmdb";
 import { notifyDownloadComplete } from "./NotificationService";
 import { validateLocalVideoFile } from "../utils/downloadValidation";
 import {
@@ -620,12 +621,19 @@ class DownloadManagerImpl {
         record.season,
         record.episode,
       );
-      const ranked = await filterBadDownloadSources(pickForDownload(resolved), {
-        tmdbId: record.tmdbId,
-        kind: record.kind,
-        season: record.season,
-        episode: record.episode,
-      });
+      const originalLanguage = await getOriginalLanguage(
+        record.tmdbId,
+        record.kind === "episode" ? "series" : "movie",
+      );
+      const ranked = await filterBadDownloadSources(
+        pickForDownload(resolved, originalLanguage),
+        {
+          tmdbId: record.tmdbId,
+          kind: record.kind,
+          season: record.season,
+          episode: record.episode,
+        },
+      );
       if (ranked.length === 0) return null;
       let pick = ranked[0];
       if (record.sizeBytes > 0) {
