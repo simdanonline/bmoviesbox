@@ -243,16 +243,23 @@ export default function NativeVideoPlayer({
 
   const current = streams[currentIndex];
   const useVlc = needsVlc(current);
+  // Which paths drive their own JS controls vs. lean on the player's native UI.
+  // VLC always does (libVLC has no built-in chrome). Android's rnv path does too
+  // because ExoPlayer's `controls` flag gates programmatic audio-track selection
+  // (ReactExoplayerView.setSelectedAudioTrack only applies when `!controls`), so
+  // we must keep `controls={false}` to force original-audio — and then supply
+  // our own overlay. iOS rnv keeps AVPlayer's native controls (no such gate).
+  const usesCustomControls = useVlc || Platform.OS === "android";
+  const usesNativeControls = !usesCustomControls; // iOS rnv only
   // On the iOS rnv path the native AVPlayer controls drive `controlsVisible`,
   // but they auto-hide and offer no back/close affordance — so once they hide,
   // the user's only exit is the system swipe-back gesture. Keep our own back
-  // button always reachable there. (VLC path and Android still tie it to
+  // button always reachable there. (Custom-control paths tie it to
   // `controlsVisible`, which they control directly.)
-  const backButtonAlwaysVisible = Platform.OS === "ios" && !useVlc;
-  // The track menu is iOS-only (Android keeps ExoPlayer's native menu) and only
-  // worth showing when there's an actual choice to make.
-  const hasTrackChoices =
-    Platform.OS === "ios" && (audioTracks.length > 1 || textTracks.length > 0);
+  const backButtonAlwaysVisible = usesNativeControls;
+  // The custom track menu is shown on every custom-controls path (VLC + Android
+  // rnv) and the iOS rnv path, whenever there's an actual choice to make.
+  const hasTrackChoices = audioTracks.length > 1 || textTracks.length > 0;
   const currentLanguageLabel = current
     ? getSourceLanguageLabel(current)
     : null;
@@ -511,13 +518,13 @@ export default function NativeVideoPlayer({
     // than exit playback. Errored state still goes back so the user isn't
     // trapped on the failure screen.
     if (controlsVisible && !errored) {
-      if (useVlc) {
+      if (usesCustomControls) {
         clearHideTimer();
         setControlsVisible(false);
       } else {
-        // rnv has no imperative hide API for native controls. Re-mount the
+        // iOS rnv has no imperative hide API for native controls. Re-mount the
         // overlay by flipping `controls` off and back on the next tick —
-        // dismisses the visible overlay while keeping ExoPlayer running.
+        // dismisses the visible overlay while keeping AVPlayer running.
         setNativeControlsEnabled(false);
         if (controlsRestoreTimer.current) {
           clearTimeout(controlsRestoreTimer.current);
@@ -681,6 +688,21 @@ export default function NativeVideoPlayer({
     );
     const sel = e.audioTracks.find((t) => t.selected);
     const target = original?.index ?? sel?.index ?? tracks[0]?.key ?? null;
+    // TEMP(verify-android-original-audio): remove once confirmed on-device.
+    console.log(
+      "[NativeVideoPlayer] onAudioTracks",
+      JSON.stringify({
+        originalLanguage,
+        tracks: e.audioTracks.map((t) => ({
+          index: t.index,
+          language: t.language,
+          title: t.title,
+          selected: t.selected,
+        })),
+        matchedOriginalIndex: original?.index ?? null,
+        target,
+      }),
+    );
     if (target !== null) {
       setSelectedAudioKey((prev) => (prev === null ? target : prev));
     }
@@ -701,26 +723,29 @@ export default function NativeVideoPlayer({
     }
   };
 
-  const seekVlcBy = (deltaMs: number) => {
-    if (durationMs <= 0) return;
-    const target = Math.max(
-      0,
-      Math.min(durationMs - 1000, positionMs + deltaMs),
-    );
-    setSeekFraction(target / durationMs);
+  // Seek helpers shared by every custom-controls path. VLC seeks by fraction
+  // (the `seek` prop); rnv seeks imperatively in seconds via the ref.
+  const seekToMs = (target: number) => {
+    if (useVlc) {
+      setSeekFraction(target / durationMs);
+    } else {
+      videoRef.current?.seek(target / 1000);
+    }
     setPositionMs(target); // optimistic — next onProgress will replace
     showControls();
   };
 
-  const seekVlcToFraction = (fraction: number) => {
+  const seekBy = (deltaMs: number) => {
     if (durationMs <= 0) return;
-    const clamped = Math.max(0, Math.min(1, fraction));
-    setSeekFraction(clamped);
-    setPositionMs(clamped * durationMs); // optimistic
-    showControls();
+    seekToMs(Math.max(0, Math.min(durationMs - 1000, positionMs + deltaMs)));
   };
 
-  const toggleVlcPaused = () => {
+  const seekToFraction = (fraction: number) => {
+    if (durationMs <= 0) return;
+    seekToMs(Math.max(0, Math.min(1, fraction)) * durationMs);
+  };
+
+  const togglePaused = () => {
     setPaused((p) => !p);
     showControls();
   };
@@ -746,7 +771,7 @@ export default function NativeVideoPlayer({
         .onEnd((e) => {
           if (trackWidth <= 0) return;
           const fraction = Math.max(0, Math.min(1, e.x / trackWidth));
-          seekVlcToFraction(fraction);
+          seekToFraction(fraction);
           setScrubFraction(null);
         })
         .onFinalize(() => {
@@ -777,37 +802,24 @@ export default function NativeVideoPlayer({
     [current.url, current.headers, current.type],
   );
 
-  // react-native-video track selection is iOS-only. On Android we leave these
-  // off entirely so ExoPlayer's native track menu stays in full control —
-  // passing a controlled selectedTextTrack there would force subtitles off and
-  // fight the native menu.
-  const rnvTrackProps: Partial<React.ComponentProps<typeof Video>> =
-    Platform.OS === "ios"
-      ? {
-          selectedAudioTrack:
-            selectedAudioKey !== null
-              ? { type: SelectedTrackType.INDEX, value: selectedAudioKey }
-              : undefined,
-          selectedTextTrack:
-            selectedTextKey === -1
-              ? { type: SelectedTrackType.DISABLED }
-              : { type: SelectedTrackType.INDEX, value: selectedTextKey },
-          onAudioTracks: handleRnvAudioTracks,
-          onTextTracks: handleRnvTextTracks,
-        }
-      : originalLanguage
-        ? {
-            // Android keeps ExoPlayer's native track menu, so we don't take over
-            // selection. But we still nudge the INITIAL audio track to the
-            // original language so playback can't start on a dub. This is
-            // audio-only and language-based — it doesn't force subtitles off or
-            // remove the native menu (the user can still switch tracks there).
-            selectedAudioTrack: {
-              type: SelectedTrackType.LANGUAGE,
-              value: originalLanguage,
-            },
-          }
-        : {};
+  // Controlled track selection for both rnv platforms. Index-based so the custom
+  // menu can target any specific track, and so the original-audio seed (computed
+  // in handleRnvAudioTracks via fuzzy language/title matching) is applied
+  // exactly. This only takes effect because we keep `controls={false}` on the
+  // custom-controls paths — ExoPlayer ignores programmatic audio selection while
+  // its native controls are on (see `usesCustomControls`).
+  const rnvTrackProps: Partial<React.ComponentProps<typeof Video>> = {
+    selectedAudioTrack:
+      selectedAudioKey !== null
+        ? { type: SelectedTrackType.INDEX, value: selectedAudioKey }
+        : undefined,
+    selectedTextTrack:
+      selectedTextKey === -1
+        ? { type: SelectedTrackType.DISABLED }
+        : { type: SelectedTrackType.INDEX, value: selectedTextKey },
+    onAudioTracks: handleRnvAudioTracks,
+    onTextTracks: handleRnvTextTracks,
+  };
 
   const livePositionFraction =
     durationMs > 0 ? Math.min(1, positionMs / durationMs) : 0;
@@ -815,6 +827,38 @@ export default function NativeVideoPlayer({
     scrubFraction !== null ? scrubFraction : livePositionFraction;
   const displayMs =
     scrubFraction !== null ? scrubFraction * durationMs : positionMs;
+
+  // `controls` stays on only for the iOS rnv path. On Android it must be false
+  // so ExoPlayer honors the programmatic audio-track selection (see
+  // `usesCustomControls`); our overlay supplies the transport instead.
+  const rnvVideo = (
+    <Video
+      // Bumping reloadNonce remounts a fresh AVPlayer/ExoPlayer instance to
+      // drop a dead connection and re-open the stream from position.
+      key={`rnv-${currentIndex}-${reloadNonce}`}
+      ref={videoRef}
+      source={rnvSource}
+      style={styles.video}
+      resizeMode="contain"
+      controls={usesNativeControls && nativeControlsEnabled}
+      paused={paused}
+      {...rnvTrackProps}
+      playInBackground={false}
+      ignoreSilentSwitch="ignore"
+      onLoad={handleRnvLoad}
+      onProgress={handleRnvProgress}
+      onControlsVisibilityChange={(e) => setControlsVisible(e.isVisible)}
+      onError={(e) => {
+        const msg =
+          e?.error?.errorString ??
+          e?.error?.localizedDescription ??
+          "Playback error";
+        advanceOnError(msg);
+      }}
+      onEnd={() => navigation.goBack()}
+      progressUpdateInterval={1000}
+    />
+  );
 
   return (
     <View style={styles.root}>
@@ -850,33 +894,20 @@ export default function NativeVideoPlayer({
             onEnd={() => navigation.goBack()}
           />
         </Pressable>
-      ) : (
-        <Video
-          // Bumping reloadNonce remounts a fresh AVPlayer/ExoPlayer instance to
-          // drop a dead connection and re-open the stream from position.
-          key={`rnv-${currentIndex}-${reloadNonce}`}
-          ref={videoRef}
-          source={rnvSource}
+      ) : usesCustomControls ? (
+        // Android rnv: native controls are off (to allow programmatic audio
+        // selection), so a Pressable toggles our overlay just like the VLC path.
+        <Pressable
           style={styles.video}
-          resizeMode="contain"
-          controls={nativeControlsEnabled}
-          paused={paused}
-          {...rnvTrackProps}
-          playInBackground={false}
-          ignoreSilentSwitch="ignore"
-          onLoad={handleRnvLoad}
-          onProgress={handleRnvProgress}
-          onControlsVisibilityChange={(e) => setControlsVisible(e.isVisible)}
-          onError={(e) => {
-            const msg =
-              e?.error?.errorString ??
-              e?.error?.localizedDescription ??
-              "Playback error";
-            advanceOnError(msg);
-          }}
-          onEnd={() => navigation.goBack()}
-          progressUpdateInterval={1000}
-        />
+          onPress={() =>
+            controlsVisible ? setControlsVisible(false) : showControls()
+          }
+        >
+          {rnvVideo}
+        </Pressable>
+      ) : (
+        // iOS rnv: native AVPlayer controls handle taps and visibility.
+        rnvVideo
       )}
 
       {!hasStarted && !errored && (
@@ -914,16 +945,16 @@ export default function NativeVideoPlayer({
         </View>
       )}
 
-      {/* VLC-only custom controls. rnv path uses the native AVPlayer/ExoPlayer
-          controls (better scrubber, fullscreen, AirPlay built-in). */}
-      {useVlc && controlsVisible && !errored && (
+      {/* Custom controls for the VLC and Android rnv paths. The iOS rnv path
+          uses native AVPlayer controls instead (scrubber, AirPlay built-in). */}
+      {usesCustomControls && controlsVisible && !errored && (
         <>
           {/* Center transport row */}
           <View style={styles.transportRow} pointerEvents="box-none">
             <Focusable
               style={styles.transportButton}
               focusedStyle={styles.transportButtonFocused}
-              onPress={() => seekVlcBy(-SEEK_STEP_MS)}
+              onPress={() => seekBy(-SEEK_STEP_MS)}
             >
               <Text style={styles.transportButtonText}>« 10s</Text>
             </Focusable>
@@ -931,7 +962,7 @@ export default function NativeVideoPlayer({
               style={[styles.transportButton, styles.transportPlayButton]}
               focusedStyle={styles.transportButtonFocused}
               hasTVPreferredFocus
-              onPress={toggleVlcPaused}
+              onPress={togglePaused}
             >
               <Text style={styles.transportPlayText}>
                 {paused ? "▶" : "❚❚"}
@@ -940,7 +971,7 @@ export default function NativeVideoPlayer({
             <Focusable
               style={styles.transportButton}
               focusedStyle={styles.transportButtonFocused}
-              onPress={() => seekVlcBy(SEEK_STEP_MS)}
+              onPress={() => seekBy(SEEK_STEP_MS)}
             >
               <Text style={styles.transportButtonText}>10s »</Text>
             </Focusable>
@@ -1036,7 +1067,7 @@ export default function NativeVideoPlayer({
           onPress={() => {
             setShowTrackMenu(false);
             setShowPicker((v) => !v);
-            if (useVlc) showControls();
+            if (usesCustomControls) showControls();
           }}
         >
           <Text style={styles.pickerButtonText}>{streams.length} sources</Text>
@@ -1059,7 +1090,7 @@ export default function NativeVideoPlayer({
           onPress={() => {
             setShowPicker(false);
             setShowTrackMenu((v) => !v);
-            if (useVlc) showControls();
+            if (usesCustomControls) showControls();
           }}
         >
           <FontAwesome name="cc" size={14} color="#fff" />
