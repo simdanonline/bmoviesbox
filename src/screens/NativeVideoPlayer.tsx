@@ -275,13 +275,17 @@ export default function NativeVideoPlayer({
   // The episode to play after this one (rolls across seasons), or null when
   // this isn't a series or it's the series finale. Drives the Next button and
   // the autoplay countdown.
-  const nextEpisode = seriesContext
-    ? getNextEpisode(
-        seriesContext.seasons,
-        seriesContext.season,
-        seriesContext.episode,
-      )
-    : null;
+  const nextEpisode = useMemo(
+    () =>
+      seriesContext
+        ? getNextEpisode(
+            seriesContext.seasons,
+            seriesContext.season,
+            seriesContext.episode,
+          )
+        : null,
+    [seriesContext],
+  );
   // Which paths drive their own JS controls vs. lean on the player's native UI.
   // VLC always does (libVLC has no built-in chrome). Android's rnv path does too
   // because ExoPlayer's `controls` flag gates programmatic audio-track selection
@@ -753,21 +757,6 @@ export default function NativeVideoPlayer({
     );
     const sel = e.audioTracks.find((t) => t.selected);
     const target = original?.index ?? sel?.index ?? tracks[0]?.key ?? null;
-    // TEMP(verify-android-original-audio): remove once confirmed on-device.
-    console.log(
-      "[NativeVideoPlayer] onAudioTracks",
-      JSON.stringify({
-        originalLanguage,
-        tracks: e.audioTracks.map((t) => ({
-          index: t.index,
-          language: t.language,
-          title: t.title,
-          selected: t.selected,
-        })),
-        matchedOriginalIndex: original?.index ?? null,
-        target,
-      }),
-    );
     if (target !== null) {
       setSelectedAudioKey((prev) => (prev === null ? target : prev));
     }

@@ -38,7 +38,6 @@ import {
   filterBadDownloadSources,
   markBadDownloadSource,
 } from "../utils/downloadSourceHealth";
-import { preparePlayableStreams } from "../utils/playbackValidation";
 import {
   resolveEpisodePlayback,
   type SeriesRef,
