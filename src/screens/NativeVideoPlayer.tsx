@@ -1088,7 +1088,7 @@ export default function NativeVideoPlayer({
       controls={false}
       paused={paused}
       volume={volume}
-      allowsExternalPlayback={isFocused}
+      allowsExternalPlayback
       {...rnvTrackProps}
       playInBackground={false}
       ignoreSilentSwitch="ignore"
@@ -1413,6 +1413,7 @@ export default function NativeVideoPlayer({
           that occupies the same column is open. */}
       {controlsActive &&
         !errored &&
+        !useVlc &&
         !showPicker &&
         !showTrackMenu && (
           <View
