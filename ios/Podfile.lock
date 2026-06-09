@@ -1,4 +1,6 @@
 PODS:
+  - AirplayRoutePicker (1.0.0):
+    - ExpoModulesCore
   - EASClient (1.0.7):
     - ExpoModulesCore
   - EXApplication (7.0.8):
@@ -36,6 +38,8 @@ PODS:
     - ReactNativeDependencies
     - Yoga
   - ExpoAsset (12.0.10):
+    - ExpoModulesCore
+  - ExpoBrightness (14.0.8):
     - ExpoModulesCore
   - ExpoDevice (8.0.10):
     - ExpoModulesCore
@@ -2150,6 +2154,7 @@ PODS:
   - Yoga (0.0.0)
 
 DEPENDENCIES:
+  - AirplayRoutePicker (from `../modules/airplay-route-picker/ios`)
   - EASClient (from `../node_modules/expo-eas-client/ios`)
   - EXApplication (from `../node_modules/expo-application/ios`)
   - EXConstants (from `../node_modules/expo-constants/ios`)
@@ -2158,6 +2163,7 @@ DEPENDENCIES:
   - EXNotifications (from `../node_modules/expo-notifications/ios`)
   - Expo (from `../node_modules/expo`)
   - ExpoAsset (from `../node_modules/expo/node_modules/expo-asset/ios`)
+  - ExpoBrightness (from `../node_modules/expo-brightness/ios`)
   - ExpoDevice (from `../node_modules/expo-device/ios`)
   - ExpoFileSystem (from `../node_modules/expo/node_modules/expo-file-system/ios`)
   - ExpoFont (from `../node_modules/expo-font/ios`)
@@ -2268,6 +2274,8 @@ SPEC REPOS:
     - SDWebImageWebPCoder
 
 EXTERNAL SOURCES:
+  AirplayRoutePicker:
+    :path: "../modules/airplay-route-picker/ios"
   EASClient:
     :path: "../node_modules/expo-eas-client/ios"
   EXApplication:
@@ -2284,6 +2292,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo"
   ExpoAsset:
     :path: "../node_modules/expo/node_modules/expo-asset/ios"
+  ExpoBrightness:
+    :path: "../node_modules/expo-brightness/ios"
   ExpoDevice:
     :path: "../node_modules/expo-device/ios"
   ExpoFileSystem:
@@ -2473,6 +2483,7 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
+  AirplayRoutePicker: acccd4704960e3f09cf601d05c5393d56bc9f25b
   EASClient: de38c20c1dd9af7ff435afdc8b2c9b7c20d46767
   EXApplication: 13420f8139864183f8a04fd6099077bdf8cfb186
   EXConstants: 3feb66fd1d94202fc1f0946d74e029d8b224b60e
@@ -2481,6 +2492,7 @@ SPEC CHECKSUMS:
   EXNotifications: 2a3feb7af6194828d9aafda72f63a9a03866230a
   Expo: e852e4b236f95ef9fee36ea9ab20bc6f59c76a10
   ExpoAsset: ee515c16290e521de1870dcdee66d78173fbc533
+  ExpoBrightness: 25956aacce0e8105455193c209363bcca0d92df7
   ExpoDevice: 0773c782b055558ca9b40b74aa4a8133a66cd0d2
   ExpoFileSystem: 73a9f3f2e0affc61eba5b9326153f64870438af1
   ExpoFont: b881d43057dceb7b31ff767b24f612609e80f60f

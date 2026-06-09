@@ -12,7 +12,6 @@ import {
   Platform,
   ActivityIndicator,
   StatusBar,
-  Pressable,
   ScrollView,
   AppState,
   AppStateStatus,
@@ -20,6 +19,7 @@ import {
   ToastAndroid,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useIsFocused } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Video, {
@@ -31,7 +31,19 @@ import Video, {
 } from "react-native-video";
 import { VLCPlayer } from "react-native-vlc-media-player";
 import type { VideoInfo } from "react-native-vlc-media-player";
+import * as Brightness from "expo-brightness";
+import {
+  activateKeepAwakeAsync,
+  deactivateKeepAwake,
+} from "expo-keep-awake";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import PlayerLevelIndicator from "../components/PlayerLevelIndicator";
+import AirPlayButton from "../components/AirPlayButton";
+import {
+  applyVerticalDelta,
+  gestureAxisForX,
+  type GestureAxis,
+} from "../utils/playerGestureMath";
 import Focusable from "../components/Focusable";
 import { useTVBackHandler } from "../hooks/useTVBackHandler";
 import { ResolvedStream } from "../services/MovieAPI";
@@ -183,6 +195,11 @@ export default function NativeVideoPlayer({
   };
 
   const insets = useSafeAreaInsets();
+  // External (AirPlay) video playback is allowed only while this screen is
+  // focused, so navigating away pulls video back from the TV instead of leaving
+  // a half-connected session behind. (The audio route is system-sticky — the
+  // always-visible route button is how the user moves audio back.)
+  const isFocused = useIsFocused();
   const { markEpisodeWatched } = useUserData();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showPicker, setShowPicker] = useState(false);
@@ -228,18 +245,40 @@ export default function NativeVideoPlayer({
   const [scrubFraction, setScrubFraction] = useState<number | null>(null);
   const [trackWidth, setTrackWidth] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(true);
-  // Drives the rnv `controls` prop. Briefly flipped to false on TV back-press
-  // to dismiss the native overlay without leaving the screen, then restored.
-  const [nativeControlsEnabled, setNativeControlsEnabled] = useState(true);
+  // Controls lock. When on, every interactive overlay is suppressed and the
+  // surface stops adjusting brightness/volume — a tap only reveals the unlock
+  // affordance. Prevents accidental pause/seek/level changes while holding the
+  // phone mid-movie. Mirrored to a ref so the memoized gesture closure can read
+  // the live value without rebuilding on every toggle.
+  const [locked, setLocked] = useState(false);
+  const lockedRef = useRef(false);
+  // Player output volume (0..1). Not the device volume — hardware buttons stay
+  // independent. Passed to both players (VLC takes 0..100). Driven by the
+  // right-half vertical drag.
+  const [volume, setVolume] = useState(1);
+  // Live brightness (0..1) for the HUD; original captured for restore on exit.
+  const [brightness, setBrightness] = useState(1);
+  const originalBrightnessRef = useRef<number | null>(null);
+  // Video surface size, measured for the gesture math (full-height drag = full
+  // 0..1 range; start-x picks brightness vs. volume).
+  const [surfaceSize, setSurfaceSize] = useState({ width: 0, height: 0 });
+  // Active brightness/volume HUD (null when idle).
+  const [hud, setHud] = useState<{ axis: GestureAxis; level: number } | null>(
+    null,
+  );
+  const hudHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Captured at gesture start so updates are relative to the starting level.
+  const gestureStartRef = useRef<{ axis: GestureAxis; start: number }>({
+    axis: "brightness",
+    start: 1,
+  });
+  // Live mirrors so the (memoized) gesture closure reads current levels.
+  const brightnessRef = useRef(1);
+  const volumeRef = useRef(1);
   // Streamed-playback resume point loaded asynchronously from AsyncStorage.
   // Merged with `initialPositionMs` (download path) by the seek effect.
   const [streamResumeMs, setStreamResumeMs] = useState<number | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Holds the pending native-controls re-enable timer so unmounts/rebacks
-  // can cancel it before it fires (prevents state updates after unmount).
-  const controlsRestoreTimer = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
 
   const failureCount = useRef(0);
   const videoRef = useRef<VideoRef>(null);
@@ -286,26 +325,15 @@ export default function NativeVideoPlayer({
         : null,
     [seriesContext],
   );
-  // Which paths drive their own JS controls vs. lean on the player's native UI.
-  // VLC always does (libVLC has no built-in chrome). Android's rnv path does too
-  // because ExoPlayer's `controls` flag gates programmatic audio-track selection
-  // (ReactExoplayerView.setSelectedAudioTrack only applies when `!controls`), so
-  // we must keep `controls={false}` to force original-audio — and then supply
-  // our own overlay. iOS rnv keeps AVPlayer's native controls (no such gate).
-  const usesCustomControls = useVlc || Platform.OS === "android";
-  const usesNativeControls = !usesCustomControls; // iOS rnv only
-  // On the iOS rnv path the native AVPlayer controls drive `controlsVisible`,
-  // but they auto-hide and offer no back/close affordance — so once they hide,
-  // the user's only exit is the system swipe-back gesture. Keep our own back
-  // button always reachable there. (Custom-control paths tie it to
-  // `controlsVisible`, which they control directly.)
-  const backButtonAlwaysVisible = usesNativeControls;
-  // The custom track menu is shown on every custom-controls path (VLC + Android
-  // rnv) and the iOS rnv path, whenever there's an actual choice to make.
+  // Every path now uses the app's custom control overlay. The rnv `controls`
+  // flag stays off so (a) ExoPlayer honors programmatic audio selection on
+  // Android (its setSelectedAudioTrack only applies when `!controls`) and
+  // (b) our brightness/volume gestures own the surface uniformly on both
+  // platforms. VLC never had native chrome to begin with.
+  const usesCustomControls = true;
+  // The custom track menu is shown whenever there's an actual choice to make.
   const hasTrackChoices = audioTracks.length > 1 || textTracks.length > 0;
-  const currentLanguageLabel = current
-    ? getSourceLanguageLabel(current)
-    : null;
+  const currentLanguageLabel = current ? getSourceLanguageLabel(current) : null;
 
   const clearHideTimer = useCallback(() => {
     if (hideTimer.current) {
@@ -342,6 +370,7 @@ export default function NativeVideoPlayer({
     setSelectedAudioKey(null);
     setSelectedTextKey(-1);
     setShowTrackMenu(false);
+    setLocked(false);
     scheduleHide();
   }, [currentIndex, scheduleHide]);
 
@@ -357,21 +386,64 @@ export default function NativeVideoPlayer({
 
   useEffect(() => clearHideTimer, [clearHideTimer]);
 
-  // Close the track menu whenever controls hide (rnv's native auto-hide, or a
-  // tap-to-hide on the VLC path) so it never floats without its trigger button.
+  // Hold the screen awake while actually watching. Android (and iOS) let the
+  // display sleep on the OS timeout when untouched; that's wrong mid-movie. We
+  // override it only while playback is live — not while paused or on the error
+  // screen, where the user may have stepped away and the normal sleep timer
+  // should resume. deactivateKeepAwake on cleanup releases the lock on exit.
   useEffect(() => {
-    if (!controlsVisible) setShowTrackMenu(false);
-  }, [controlsVisible]);
+    if (!hasStarted || paused || errored) return;
+    void activateKeepAwakeAsync();
+    return () => {
+      void deactivateKeepAwake();
+    };
+  }, [hasStarted, paused, errored]);
 
+  // Seed the HUD with the current screen brightness and restore it on exit so
+  // we don't leave the device dimmed/brightened after playback.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const current = await Brightness.getBrightnessAsync();
+        if (!active) return;
+        originalBrightnessRef.current = current;
+        setBrightness(current);
+      } catch {
+        // brightness is best-effort; ignore read failures
+      }
+    })();
+    return () => {
+      active = false;
+      const original = originalBrightnessRef.current;
+      if (original != null) void Brightness.setBrightnessAsync(original);
+    };
+  }, []);
+
+  // Keep live mirrors current so the memoized gesture closure reads fresh levels.
+  useEffect(() => {
+    brightnessRef.current = brightness;
+  }, [brightness]);
+  useEffect(() => {
+    volumeRef.current = volume;
+  }, [volume]);
+  useEffect(() => {
+    lockedRef.current = locked;
+  }, [locked]);
+
+  // Clear the HUD auto-hide timer on unmount.
   useEffect(
     () => () => {
-      if (controlsRestoreTimer.current) {
-        clearTimeout(controlsRestoreTimer.current);
-        controlsRestoreTimer.current = null;
-      }
+      if (hudHideTimer.current) clearTimeout(hudHideTimer.current);
     },
     [],
   );
+
+  // Close the track menu whenever controls hide so it never floats without its
+  // trigger button.
+  useEffect(() => {
+    if (!controlsVisible) setShowTrackMenu(false);
+  }, [controlsVisible]);
 
   // Reset resume bookkeeping when the active stream changes — otherwise the
   // initial-seek effect would try to apply the saved offset to a different
@@ -585,23 +657,8 @@ export default function NativeVideoPlayer({
     // than exit playback. Errored state still goes back so the user isn't
     // trapped on the failure screen.
     if (controlsVisible && !errored) {
-      if (usesCustomControls) {
-        clearHideTimer();
-        setControlsVisible(false);
-      } else {
-        // iOS rnv has no imperative hide API for native controls. Re-mount the
-        // overlay by flipping `controls` off and back on the next tick —
-        // dismisses the visible overlay while keeping AVPlayer running.
-        setNativeControlsEnabled(false);
-        if (controlsRestoreTimer.current) {
-          clearTimeout(controlsRestoreTimer.current);
-        }
-        controlsRestoreTimer.current = setTimeout(() => {
-          controlsRestoreTimer.current = null;
-          setNativeControlsEnabled(true);
-        }, 50);
-        setControlsVisible(false);
-      }
+      clearHideTimer();
+      setControlsVisible(false);
       return;
     }
     navigation.goBack();
@@ -804,6 +861,69 @@ export default function NativeVideoPlayer({
     showControls();
   };
 
+  const showHud = (axis: GestureAxis, level: number) => {
+    setHud({ axis, level });
+    if (hudHideTimer.current) clearTimeout(hudHideTimer.current);
+  };
+
+  const scheduleHudHide = () => {
+    if (hudHideTimer.current) clearTimeout(hudHideTimer.current);
+    hudHideTimer.current = setTimeout(() => setHud(null), 800);
+  };
+
+  // Surface gesture: a quick tap toggles controls; a vertical drag adjusts
+  // brightness (left half) or volume (right half). The recognizers race so a
+  // completed tap wins unless the finger first crosses the vertical-drag
+  // threshold. Horizontal motion fails both and remains available to navigation.
+  const surfaceGesture = useMemo(() => {
+    const tap = Gesture.Tap()
+      .runOnJS(true)
+      .maxDistance(20)
+      .onEnd((_event, success) => {
+        if (!success) return;
+        if (controlsVisible) {
+          clearHideTimer();
+          setControlsVisible(false);
+        } else {
+          showControls();
+        }
+      });
+
+    const verticalPan = Gesture.Pan()
+      .runOnJS(true)
+      .activeOffsetY([-20, 20])
+      .failOffsetX([-24, 24])
+      .onStart((e) => {
+        // Locked: ignore brightness/volume drags entirely.
+        if (lockedRef.current) return;
+        const axis = gestureAxisForX(e.x, surfaceSize.width);
+        const start =
+          axis === "brightness" ? brightnessRef.current : volumeRef.current;
+        gestureStartRef.current = { axis, start };
+        showHud(axis, start);
+      })
+      .onUpdate((e) => {
+        if (lockedRef.current) return;
+        const { axis, start } = gestureStartRef.current;
+        const next = applyVerticalDelta(
+          start,
+          e.translationY,
+          surfaceSize.height,
+        );
+        if (axis === "brightness") {
+          setBrightness(next);
+          void Brightness.setBrightnessAsync(next);
+        } else {
+          setVolume(next);
+        }
+        showHud(axis, next);
+      })
+      .onFinalize(scheduleHudHide);
+
+    return Gesture.Race(verticalPan, tap);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [surfaceSize.width, surfaceSize.height, controlsVisible]);
+
   // Resolve and switch to the next episode. Uses navigation.replace so episodes
   // don't pile up on the back stack and the player fully remounts (reusing all
   // the mount/seek/reconnect logic). On failure, surface a toast and stay put.
@@ -949,9 +1069,13 @@ export default function NativeVideoPlayer({
   const displayMs =
     scrubFraction !== null ? scrubFraction * durationMs : positionMs;
 
-  // `controls` stays on only for the iOS rnv path. On Android it must be false
-  // so ExoPlayer honors the programmatic audio-track selection (see
-  // `usesCustomControls`); our overlay supplies the transport instead.
+  // While locked, every interactive overlay is suppressed; only the unlock
+  // affordance (gated on controlsVisible alone) shows through.
+  const controlsActive = controlsVisible && !locked;
+
+  // `controls` is always off: our custom overlay drives every path now, and
+  // keeping native controls off is what lets ExoPlayer honor programmatic audio
+  // selection on Android (and our brightness/volume gestures own the surface).
   const rnvVideo = (
     <Video
       // Bumping reloadNonce remounts a fresh AVPlayer/ExoPlayer instance to
@@ -961,14 +1085,15 @@ export default function NativeVideoPlayer({
       source={rnvSource}
       style={styles.video}
       resizeMode="contain"
-      controls={usesNativeControls && nativeControlsEnabled}
+      controls={false}
       paused={paused}
+      volume={volume}
+      allowsExternalPlayback={isFocused}
       {...rnvTrackProps}
       playInBackground={false}
       ignoreSilentSwitch="ignore"
       onLoad={handleRnvLoad}
       onProgress={handleRnvProgress}
-      onControlsVisibilityChange={(e) => setControlsVisible(e.isVisible)}
       onError={(e) => {
         const msg =
           e?.error?.errorString ??
@@ -988,22 +1113,16 @@ export default function NativeVideoPlayer({
           stealing more. */}
       <StatusBar hidden />
 
-      {useVlc ? (
-        // Pressable wraps VLC so a tap on the video toggles controls; libVLC
-        // doesn't surface tap events itself.
-        <Pressable
-          style={styles.video}
-          onPress={() =>
-            controlsVisible ? setControlsVisible(false) : showControls()
-          }
-        >
+      <View style={styles.video}>
+        {useVlc ? (
           <VLCPlayer
-            // Bumping reloadNonce remounts a fresh libVLC instance, the reliable
-            // way to drop a dead connection and re-open the stream from position.
+            // Bumping reloadNonce remounts a fresh libVLC instance, the
+            // reliable way to drop a dead connection and re-open from position.
             key={`vlc-${currentIndex}-${reloadNonce}`}
             style={styles.video}
             source={vlcSource}
             paused={paused}
+            volume={Math.round(volume * 100)}
             seek={seekFraction}
             audioTrack={selectedAudioKey ?? undefined}
             textTrack={selectedTextKey}
@@ -1014,22 +1133,33 @@ export default function NativeVideoPlayer({
             onError={() => advanceOnError("VLC playback error")}
             onEnd={handlePlaybackEnded}
           />
-        </Pressable>
-      ) : usesCustomControls ? (
-        // Android rnv: native controls are off (to allow programmatic audio
-        // selection), so a Pressable toggles our overlay just like the VLC path.
-        <Pressable
-          style={styles.video}
-          onPress={() =>
-            controlsVisible ? setControlsVisible(false) : showControls()
+        ) : (
+          rnvVideo
+        )}
+      </View>
+
+      {/* Keep the recognizer on a transparent sibling above the native player.
+          On physical iOS devices AVPlayer/libVLC can consume touches before an
+          ancestor GestureDetector sees them. Later siblings (the actual control
+          buttons and menus) still render above this catcher and remain tappable. */}
+      <GestureDetector gesture={surfaceGesture}>
+        <View
+          style={styles.gestureSurface}
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel={
+            controlsVisible
+              ? "Hide playback controls"
+              : "Show playback controls"
           }
-        >
-          {rnvVideo}
-        </Pressable>
-      ) : (
-        // iOS rnv: native AVPlayer controls handle taps and visibility.
-        rnvVideo
-      )}
+          onLayout={(e) =>
+            setSurfaceSize({
+              width: e.nativeEvent.layout.width,
+              height: e.nativeEvent.layout.height,
+            })
+          }
+        />
+      </GestureDetector>
 
       {!hasStarted && !errored && (
         <View style={styles.overlay} pointerEvents="none">
@@ -1068,7 +1198,7 @@ export default function NativeVideoPlayer({
 
       {/* Custom controls for the VLC and Android rnv paths. The iOS rnv path
           uses native AVPlayer controls instead (scrubber, AirPlay built-in). */}
-      {usesCustomControls && controlsVisible && !errored && (
+      {usesCustomControls && controlsActive && !errored && (
         <>
           {/* Center transport row */}
           <View style={styles.transportRow} pointerEvents="box-none">
@@ -1148,7 +1278,7 @@ export default function NativeVideoPlayer({
       {/* Next-episode button — shown when controls are up and a next episode
           exists, on every player path. Hidden while the autoplay countdown is
           on screen (the countdown has its own "Play now"). */}
-      {nextEpisode && controlsVisible && !errored && countdown === null && (
+      {nextEpisode && controlsActive && !errored && countdown === null && (
         <Focusable
           style={[
             styles.nextButton,
@@ -1194,7 +1324,7 @@ export default function NativeVideoPlayer({
       {/* Footer: title, meta, source picker. Tied to controlsVisible on both
           paths — on the rnv path, the native player drives visibility via
           onControlsVisibilityChange so this stays in sync with the native UI. */}
-      {controlsVisible && !errored && (
+      {controlsActive && !errored && (
         <View
           style={[
             styles.footer,
@@ -1223,7 +1353,7 @@ export default function NativeVideoPlayer({
       {/* Source picker button — top-right, mirroring the Back button on the
           left. Visible whenever controls are, so the user can swap sources
           without first hunting the footer. */}
-      {controlsVisible && !errored && (
+      {controlsActive && !errored && (
         <Focusable
           style={[
             styles.pickerButton,
@@ -1243,7 +1373,7 @@ export default function NativeVideoPlayer({
 
       {/* Audio/subtitle button — iOS only, below the sources button. Hidden
           when the source picker is open so the two never overlap. */}
-      {controlsVisible && !errored && hasTrackChoices && !showPicker && (
+      {controlsActive && !errored && hasTrackChoices && !showPicker && (
         <Focusable
           style={[
             styles.pickerButton,
@@ -1263,6 +1393,28 @@ export default function NativeVideoPlayer({
           <FontAwesome name="cc" size={14} color="#fff" />
         </Focusable>
       )}
+
+      {/* AirPlay / route-picker button — shown on every path. AVRoutePickerView
+          controls the system audio route regardless of player, so it lets the
+          user send audio back to the phone even on the VLC path (where the route
+          would otherwise stay stuck on a previously-picked AirPlay device with no
+          way to change it). On rnv it also hands off video. Hidden while a menu
+          that occupies the same column is open. */}
+      {controlsActive &&
+        !errored &&
+        !showPicker &&
+        !showTrackMenu && (
+          <View
+            style={[
+              styles.pickerButton,
+              styles.pickerButtonAnchor,
+              { top: 12 + insets.top + 88, right: 12 + insets.right },
+            ]}
+            pointerEvents="box-none"
+          >
+            <AirPlayButton style={{ width: 28, height: 28 }} />
+          </View>
+        )}
 
       {showTrackMenu && hasTrackChoices && (
         <TrackSelectionMenu
@@ -1376,10 +1528,10 @@ export default function NativeVideoPlayer({
         </View>
       )}
 
-      {/* Back button — top-left. Offset by safe-area insets so it clears the notch/
-          Dynamic Island in landscape. Always shown on the iOS rnv path since the
-          native controls there auto-hide and have no exit affordance. */}
-      {(controlsVisible || backButtonAlwaysVisible) && (
+      {/* Back button — top-left. Offset by safe-area insets so it clears the
+          notch/Dynamic Island in landscape. Tied to controlsVisible on every
+          path now that all playback uses the custom overlay. */}
+      {controlsActive && (
         <Focusable
           style={[
             styles.backButton,
@@ -1391,6 +1543,51 @@ export default function NativeVideoPlayer({
           <Text style={styles.backButtonText}>‹ Back</Text>
         </Focusable>
       )}
+
+      {/* Lock button — left edge, vertically centered. Engaging it suppresses
+          every control and the brightness/volume gestures so the phone can't be
+          nudged mid-movie; closes any open menu and hides the chrome so the
+          locked state is clean. Both platforms (Android especially). */}
+      {controlsActive && !errored && (
+        <Focusable
+          style={[styles.lockButton, { left: 12 + insets.left }]}
+          focusedStyle={styles.lockButtonFocused}
+          accessibilityRole="button"
+          accessibilityLabel="Lock controls"
+          onPress={() => {
+            setShowPicker(false);
+            setShowTrackMenu(false);
+            clearHideTimer();
+            setControlsVisible(false);
+            setLocked(true);
+          }}
+        >
+          <FontAwesome name="unlock-alt" size={16} color="#fff" />
+        </Focusable>
+      )}
+
+      {/* Unlock affordance — the only thing visible while locked, and only
+          after a tap reveals it (controlsVisible). Tapping unlocks and restores
+          the normal control overlay. */}
+      {locked && controlsVisible && (
+        <Focusable
+          style={[styles.lockButton, styles.lockButtonActive, { left: 12 + insets.left }]}
+          focusedStyle={styles.lockButtonFocused}
+          hasTVPreferredFocus
+          accessibilityRole="button"
+          accessibilityLabel="Unlock controls"
+          onPress={() => {
+            setLocked(false);
+            showControls();
+          }}
+        >
+          <FontAwesome name="lock" size={16} color="#fff" />
+        </Focusable>
+      )}
+
+      {/* Brightness/volume HUD — shown only during a drag, independent of
+          controlsVisible so it works while controls are hidden. */}
+      {hud && <PlayerLevelIndicator axis={hud.axis} level={hud.level} />}
     </View>
   );
 }
@@ -1398,6 +1595,7 @@ export default function NativeVideoPlayer({
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
   video: { flex: 1, backgroundColor: "#000" },
+  gestureSurface: StyleSheet.absoluteFillObject,
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.55)",
@@ -1639,4 +1837,28 @@ const styles = StyleSheet.create({
     transform: [{ scale: 1.05 }],
   },
   backButtonText: { color: "#fff", fontSize: 14, fontWeight: "600" },
+
+  // Lock/unlock toggle — circular, left edge, vertically centered.
+  lockButton: {
+    position: "absolute",
+    top: "50%",
+    marginTop: -24,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  // Engaged state gets the accent fill so the unlock affordance reads as active.
+  lockButtonActive: {
+    backgroundColor: "rgba(231,76,60,0.85)",
+  },
+  lockButtonFocused: {
+    borderColor: "#fff",
+    backgroundColor: "#e74c3c",
+    transform: [{ scale: 1.08 }],
+  },
 });
