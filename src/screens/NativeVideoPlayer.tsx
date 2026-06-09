@@ -1152,6 +1152,16 @@ export default function NativeVideoPlayer({
               ? "Hide playback controls"
               : "Show playback controls"
           }
+          // The tap-to-toggle lives in the Pan gesture, which a screen reader
+          // can't trigger — so wire the a11y "activate" action to the same
+          // toggle, otherwise this is a dead accessible element.
+          accessibilityActions={[{ name: "activate" }]}
+          onAccessibilityAction={(e) => {
+            if (e.nativeEvent.actionName === "activate") {
+              if (controlsVisible) setControlsVisible(false);
+              else showControls();
+            }
+          }}
           onLayout={(e) =>
             setSurfaceSize({
               width: e.nativeEvent.layout.width,
@@ -1196,8 +1206,9 @@ export default function NativeVideoPlayer({
         </View>
       )}
 
-      {/* Custom controls for the VLC and Android rnv paths. The iOS rnv path
-          uses native AVPlayer controls instead (scrubber, AirPlay built-in). */}
+      {/* Custom transport controls. Every path uses these now — all rnv
+          playback runs with controls={false} so the app overlay is the only
+          chrome on both platforms. */}
       {usesCustomControls && controlsActive && !errored && (
         <>
           {/* Center transport row */}
@@ -1321,9 +1332,9 @@ export default function NativeVideoPlayer({
         </View>
       )}
 
-      {/* Footer: title, meta, source picker. Tied to controlsVisible on both
-          paths — on the rnv path, the native player drives visibility via
-          onControlsVisibilityChange so this stays in sync with the native UI. */}
+      {/* Footer: title, meta, source picker. Visibility is driven entirely by
+          the app's own controlsVisible/lock state (controlsActive) — there are
+          no native player controls to sync with. */}
       {controlsActive && !errored && (
         <View
           style={[

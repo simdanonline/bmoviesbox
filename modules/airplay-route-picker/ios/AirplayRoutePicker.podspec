@@ -6,7 +6,9 @@ Pod::Spec.new do |s|
   s.author         = ''
   s.homepage       = 'https://docs.expo.dev/modules/'
   s.platforms      = { :ios => '15.1' }
-  s.source         = { git: '' }
+  # Local module linked via :path; a concrete git URL keeps `pod spec lint`
+  # happy instead of an empty source.
+  s.source         = { git: 'https://github.com/simdanonline/bmoviesbox.git' }
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'

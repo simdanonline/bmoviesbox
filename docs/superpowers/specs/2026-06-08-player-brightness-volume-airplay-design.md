@@ -37,8 +37,13 @@ native AirPlay button that iOS loses in that move, add a custom AirPlay button.
   and the `onControlsVisibilityChange` handler.
 - The custom overlay drives every path; `controlsVisible` is governed solely by
   tap + the existing auto-hide timer.
-- Keep `allowsExternalPlayback={true}` on the rnv `<Video>` so AirPlay still
-  functions via iOS Control Center even independent of the in-player button.
+- Gate external (AirPlay) video playback on focus: `allowsExternalPlayback={isFocused}`.
+  While the player is focused (i.e. you're watching) AirPlay still works, including
+  Control-Center-initiated handoff. When you navigate away the screen loses focus
+  and the AVPlayer pulls video back from the TV instead of leaving a half-connected
+  session behind. (Revised from the original "always `true`" — see the AirPlay
+  lifecycle note in §6. The audio output route is system-sticky regardless; the
+  always-visible route button is how the user moves audio back.)
 - iOS audio-track selection is unaffected — the iOS native module has no `controls`
   guard (unlike Android, which is exactly why this whole unification matters there).
 - **TV:** gestures are touch-only and inert on TV; the existing `Focusable` transport
@@ -92,8 +97,22 @@ native AirPlay button that iOS loses in that move, add a custom AirPlay button.
 - `src/components/AirPlayButton.tsx`: renders the native view on iOS, `null` on Android.
 - Placed in the top-right overlay cluster (near sources / CC buttons), shown with
   `controlsVisible`.
-- Shown only on the **rnv path** (`!useVlc`): AVPlayer hands off to AirPlay cleanly;
-  libVLC cannot, so the button is hidden on the MKV/VLC path.
+- Shown on **every** path (revised from the original rnv-only `!useVlc` plan).
+  `AVRoutePickerView` controls the *system audio route*, not a specific player, so
+  it must be reachable even on the VLC/MKV path — otherwise a previously-picked
+  AirPlay route stays stuck on the TV with no in-app way to move audio back. On the
+  rnv path it also hands off video; on VLC it only re-routes audio (libVLC can't
+  hand off video), which is acceptable and still useful.
+
+### AirPlay lifecycle note (why §1 gates `allowsExternalPlayback`)
+
+The AirPlay *route* is a system-wide, user-selected audio output that iOS keeps
+after you pick it; deactivating rnv's audio session on unmount does not clear it.
+So after AirPlaying movie A and leaving, movie B's audio follows the same route.
+We don't force-override the user's chosen route (hacky, inconsistent for AirPlay,
+untestable without hardware). Instead: (a) the route button is always reachable so
+the user can re-select iPhone, and (b) `allowsExternalPlayback={isFocused}` ends
+external *video* when leaving so a full handoff doesn't linger.
 - Android: renders nothing here (Chromecast is a separate future effort, out of scope).
 
 ## Files touched
