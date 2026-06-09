@@ -95,6 +95,10 @@ native AirPlay button that iOS loses in that move, add a custom AirPlay button.
   in a **local Expo native module** at `modules/airplay-route-picker/`
   (`npx create-expo-module --local`), exposing a native view with tint props.
 - `src/components/AirPlayButton.tsx`: renders the native view on iOS, `null` on Android.
+- Configure `AVInitialRouteSharingPolicy` as `LongFormVideo` and re-apply
+  `AVAudioSession.RouteSharingPolicy.longFormVideo` immediately before the picker
+  presents routes. `prioritizesVideoDevices` only sorts the route list; without the
+  long-form video policy iOS may send audio to AirPlay while leaving video local.
 - Placed in the top-right overlay cluster (near sources / CC buttons), shown with
   `controlsVisible`.
 - Shown on **every** path (revised from the original rnv-only `!useVlc` plan).
@@ -142,6 +146,7 @@ On Android emulator + iOS simulator/device:
 2. Drag right half up/down → volume indicator shows and audio level changes.
 3. Quick tap still toggles controls; bottom scrubber still seeks; track menu + sources
    still work on all paths.
-4. iOS rnv shows the AirPlay button and it opens the route picker; VLC path hides it.
+4. iOS rnv shows the AirPlay button; selecting an Apple TV moves both audio and
+   video. VLC still exposes the picker for audio-route recovery only.
 5. Original-audio still auto-selects (Android fix) and iOS audio selection still works
    after `controls={false}`.

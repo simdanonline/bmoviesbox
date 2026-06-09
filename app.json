@@ -12,6 +12,7 @@
     "ios": {
       "bundleIdentifier": "com.simdanonline.bmoviebox",
       "infoPlist": {
+        "AVInitialRouteSharingPolicy": "LongFormVideo",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
