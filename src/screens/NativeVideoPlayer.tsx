@@ -288,6 +288,16 @@ export default function NativeVideoPlayer({
   // user's explicit choice (we can't use a null-guard like audio because -1 is
   // a valid user value meaning "Off").
   const didSeedTextRef = useRef(false);
+  // Maps each react-native-video subtitle index (as reported by onTextTracks) to
+  // its language/title. On Android the controlled `selectedTextTrack` by index is
+  // broken: the native selectTextTrackInternal matches the value against the
+  // per-group track index, but onTextTracks numbers tracks with a flat counter
+  // across groups — so any track past the first (each subtitle is its own group)
+  // matches nothing and ExoPlayer keeps subtitles off. We select by language/title
+  // instead, which the native side matches across every group. See handleRnvTextTracks.
+  const rnvTextMetaRef = useRef<
+    Map<number, { language?: string; title?: string }>
+  >(new Map());
   const lastSavedProgressMsRef = useRef(0);
   // Guards the 90%-watched write so it fires at most once per mount.
   const markedWatchedRef = useRef(false);
@@ -452,6 +462,7 @@ export default function NativeVideoPlayer({
     didInitialSeekRef.current = false;
     lastSavedProgressMsRef.current = 0;
     didSeedTextRef.current = false;
+    rnvTextMetaRef.current = new Map();
     // A pending reconnect-seek belongs to the previous source; dropping to a new
     // stream is fresh playback, so clear it and the reconnect bookkeeping.
     pendingReloadSeekMsRef.current = null;
@@ -824,6 +835,13 @@ export default function NativeVideoPlayer({
       key: t.index,
       label: t.title || t.language || `Track ${t.index + 1}`,
     }));
+    // Remember each track's language/title so the Android selection path can
+    // target it by name instead of the broken index match (see rnvTrackProps).
+    const meta = new Map<number, { language?: string; title?: string }>();
+    e.textTracks.forEach((t) =>
+      meta.set(t.index, { language: t.language, title: t.title }),
+    );
+    rnvTextMetaRef.current = meta;
     // Only offer subtitles (with an "Off" entry) when real tracks exist.
     setTextTracks(subs.length > 0 ? [{ key: -1, label: "Off" }, ...subs] : []);
     // Seed the initial selection once so re-fires don't clobber a user choice.
@@ -1043,21 +1061,46 @@ export default function NativeVideoPlayer({
     [current.url, current.headers, current.type],
   );
 
-  // Controlled track selection for both rnv platforms. Index-based so the custom
-  // menu can target any specific track, and so the original-audio seed (computed
-  // in handleRnvAudioTracks via fuzzy language/title matching) is applied
-  // exactly. This only takes effect because we keep `controls={false}` on the
-  // custom-controls paths — ExoPlayer ignores programmatic audio selection while
-  // its native controls are on (see `usesCustomControls`).
+  // Resolve the controlled subtitle selection for react-native-video.
+  //
+  // iOS (AVPlayer) honors index-based selection — the index lines up with the
+  // onTextTracks order. Android (ExoPlayer) does NOT: its selectTextTrackInternal
+  // matches an "index" value against the per-group track index, while onTextTracks
+  // numbers tracks with a flat counter across groups. Since each subtitle is
+  // normally its own single-track group, only index 0 ever matches and every other
+  // pick silently leaves subtitles off. So on Android we target the track by its
+  // language (or title) instead, which the native side matches across all groups.
+  const rnvSelectedTextTrack = () => {
+    if (selectedTextKey === -1) {
+      return { type: SelectedTrackType.DISABLED };
+    }
+    if (Platform.OS !== "android") {
+      return { type: SelectedTrackType.INDEX, value: selectedTextKey };
+    }
+    const meta = rnvTextMetaRef.current.get(selectedTextKey);
+    if (meta?.language) {
+      return { type: SelectedTrackType.LANGUAGE, value: meta.language };
+    }
+    if (meta?.title) {
+      return { type: SelectedTrackType.TITLE, value: meta.title };
+    }
+    // No language/title to match on — fall back to index (works for the first
+    // track, which is the only one ExoPlayer's index path can resolve anyway).
+    return { type: SelectedTrackType.INDEX, value: selectedTextKey };
+  };
+
+  // Controlled track selection for both rnv platforms. Audio stays index-based
+  // (the original-audio seed in handleRnvAudioTracks resolves an exact index);
+  // subtitles resolve per-platform via rnvSelectedTextTrack. This only takes
+  // effect because we keep `controls={false}` on the custom-controls paths —
+  // ExoPlayer ignores programmatic selection while its native controls are on
+  // (see `usesCustomControls`).
   const rnvTrackProps: Partial<React.ComponentProps<typeof Video>> = {
     selectedAudioTrack:
       selectedAudioKey !== null
         ? { type: SelectedTrackType.INDEX, value: selectedAudioKey }
         : undefined,
-    selectedTextTrack:
-      selectedTextKey === -1
-        ? { type: SelectedTrackType.DISABLED }
-        : { type: SelectedTrackType.INDEX, value: selectedTextKey },
+    selectedTextTrack: rnvSelectedTextTrack(),
     onAudioTracks: handleRnvAudioTracks,
     onTextTracks: handleRnvTextTracks,
   };
