@@ -1214,6 +1214,34 @@ export default function NativeVideoPlayer({
         />
       </GestureDetector>
 
+      {/* TV focus catcher. With the overlay hidden nothing on screen is
+          focusable, so the remote's OK/select key has no target — the gesture
+          surface above is touch-only. (ExoPlayer's native controller used to
+          be focusable and showed itself on any key; that went away with
+          controls={false}.) Mounted only while the chrome is hidden so it
+          never competes with real buttons for D-pad focus: on hide it grabs
+          focus and turns OK into "show controls"; on show it unmounts and the
+          play/pause button's hasTVPreferredFocus takes over. Excluded while a
+          panel that outlives the chrome (source picker / track menu / autoplay
+          countdown / error) holds its own focus. */}
+      {Platform.isTV &&
+        !controlsVisible &&
+        !errored &&
+        countdown === null &&
+        !showPicker &&
+        !showTrackMenu && (
+          <Focusable
+            style={styles.gestureSurface}
+            focusedStyle={styles.tvCatcherFocused}
+            hasTVPreferredFocus
+            accessibilityRole="button"
+            accessibilityLabel="Show playback controls"
+            onPress={showControls}
+          >
+            {null}
+          </Focusable>
+        )}
+
       {!hasStarted && !errored && (
         <View style={styles.overlay} pointerEvents="none">
           <ActivityIndicator size="large" color="#fff" />
@@ -1256,9 +1284,13 @@ export default function NativeVideoPlayer({
         <>
           {/* Center transport row */}
           <View style={styles.transportRow} pointerEvents="box-none">
+            {/* onFocus keeps the chrome alive while the user D-pads between
+                buttons — focus moves don't tick the auto-hide timer otherwise,
+                and a mid-navigation hide strands TV focus on the catcher. */}
             <Focusable
               style={styles.transportButton}
               focusedStyle={styles.transportButtonFocused}
+              onFocus={showControls}
               onPress={() => seekBy(-SEEK_STEP_MS)}
             >
               <Text style={styles.transportButtonText}>« 10s</Text>
@@ -1267,6 +1299,7 @@ export default function NativeVideoPlayer({
               style={[styles.transportButton, styles.transportPlayButton]}
               focusedStyle={styles.transportButtonFocused}
               hasTVPreferredFocus
+              onFocus={showControls}
               onPress={togglePaused}
             >
               <Text style={styles.transportPlayText}>
@@ -1276,6 +1309,7 @@ export default function NativeVideoPlayer({
             <Focusable
               style={styles.transportButton}
               focusedStyle={styles.transportButtonFocused}
+              onFocus={showControls}
               onPress={() => seekBy(SEEK_STEP_MS)}
             >
               <Text style={styles.transportButtonText}>10s »</Text>
@@ -1339,6 +1373,7 @@ export default function NativeVideoPlayer({
             { bottom: 110 + insets.bottom, right: 16 + insets.right },
           ]}
           focusedStyle={styles.buttonFocused}
+          onFocus={showControls}
           onPress={advanceToNextEpisode}
         >
           <Text style={styles.buttonText}>
@@ -1415,6 +1450,7 @@ export default function NativeVideoPlayer({
             { top: 12 + insets.top, right: 12 + insets.right },
           ]}
           focusedStyle={styles.pickerButtonFocused}
+          onFocus={showControls}
           onPress={() => {
             setShowTrackMenu(false);
             setShowPicker((v) => !v);
@@ -1438,6 +1474,7 @@ export default function NativeVideoPlayer({
           focusedStyle={styles.pickerButtonFocused}
           accessibilityRole="button"
           accessibilityLabel="Audio and subtitles"
+          onFocus={showControls}
           onPress={() => {
             setShowPicker(false);
             setShowTrackMenu((v) => !v);
@@ -1481,6 +1518,7 @@ export default function NativeVideoPlayer({
           onSelectAudio={setSelectedAudioKey}
           onSelectText={setSelectedTextKey}
           onClose={() => setShowTrackMenu(false)}
+          onInteraction={showControls}
         />
       )}
 
@@ -1593,6 +1631,7 @@ export default function NativeVideoPlayer({
             { top: 12 + insets.top, left: 12 + insets.left },
           ]}
           focusedStyle={styles.backButtonFocused}
+          onFocus={showControls}
           onPress={() => navigation.goBack()}
         >
           <Text style={styles.backButtonText}>‹ Back</Text>
@@ -1609,6 +1648,7 @@ export default function NativeVideoPlayer({
           focusedStyle={styles.lockButtonFocused}
           accessibilityRole="button"
           accessibilityLabel="Lock controls"
+          onFocus={showControls}
           onPress={() => {
             setShowPicker(false);
             setShowTrackMenu(false);
@@ -1631,6 +1671,7 @@ export default function NativeVideoPlayer({
           hasTVPreferredFocus
           accessibilityRole="button"
           accessibilityLabel="Unlock controls"
+          onFocus={showControls}
           onPress={() => {
             setLocked(false);
             showControls();
@@ -1651,6 +1692,10 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
   video: { flex: 1, backgroundColor: "#000" },
   gestureSurface: StyleSheet.absoluteFillObject,
+  // The TV focus catcher is invisible by design; an empty focused style
+  // suppresses Focusable's default focus border, which would otherwise
+  // outline the whole screen whenever the catcher holds focus.
+  tvCatcherFocused: {},
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.55)",
