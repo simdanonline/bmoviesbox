@@ -79,6 +79,16 @@ const formatKickoff = (iso: string): string => {
   }
 };
 
+const matchesQuery = (game: LiveGame, query: string): boolean => {
+  const q = query.toLowerCase();
+  return (
+    game.homeTeam.toLowerCase().includes(q) ||
+    game.awayTeam.toLowerCase().includes(q) ||
+    game.league.toLowerCase().includes(q) ||
+    game.status.toLowerCase().includes(q)
+  );
+};
+
 type Props = {};
 type NavigationProp = NativeStackNavigationProp<any>;
 
@@ -92,11 +102,36 @@ const LiveTab = (props: Props) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSport, setSelectedSport] = useState<string | null>(null);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [serverResults, setServerResults] = useState<LiveGame[]>([]);
+  const [serverLoading, setServerLoading] = useState(false);
   const { top } = useSafeAreaInsets();
 
   useEffect(() => {
     fetchGames();
   }, []);
+
+  // Server search: the local filter only sees today's fetched games from the
+  // hardcoded leagues; this finds anything ESPN knows about.
+  useEffect(() => {
+    let cancelled = false;
+    const q = searchQuery.trim();
+    if (q.length < 3) {
+      setServerResults([]);
+      setServerLoading(false);
+      return;
+    }
+    setServerLoading(true);
+    const timer = setTimeout(async () => {
+      const results = await MovieAPI.searchLiveGames(q);
+      if (cancelled) return;
+      setServerResults(results);
+      setServerLoading(false);
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery]);
 
   const fetchGames = async () => {
     try {
@@ -257,18 +292,24 @@ const LiveTab = (props: Props) => {
     );
   };
 
-  // Filter games by selected sport + search query
+  // Filter games by selected sport + search query. Trim so stray whitespace
+  // can't hide matches — the server search trims the same input.
+  const trimmedQuery = searchQuery.trim();
   const filteredGames = games.filter((game) => {
     if (selectedSport && game.sport !== selectedSport) return false;
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      game.homeTeam.toLowerCase().includes(query) ||
-      game.awayTeam.toLowerCase().includes(query) ||
-      game.league.toLowerCase().includes(query) ||
-      game.status.toLowerCase().includes(query)
-    );
+    if (!trimmedQuery) return true;
+    return matchesQuery(game, trimmedQuery);
   });
+
+  // Merge server-search extras (cross-league results not already shown).
+  const localIds = new Set(filteredGames.map((g) => g.id));
+  const serverExtras = serverResults.filter(
+    (g) =>
+      !localIds.has(g.id) &&
+      (!selectedSport || g.sport === selectedSport) &&
+      (!trimmedQuery || matchesQuery(g, trimmedQuery)),
+  );
+  const combinedGames = [...filteredGames, ...serverExtras];
 
   // Bucket all games by sport (ignores selectedSport — used for the grid view)
   const sportBuckets = games.reduce(
@@ -332,7 +373,7 @@ const LiveTab = (props: Props) => {
     );
   };
 
-  const groupedGames = filteredGames.reduce(
+  const groupedGames = combinedGames.reduce(
     (acc, game) => {
       const league = game.league;
       if (!acc[league]) {
@@ -347,8 +388,8 @@ const LiveTab = (props: Props) => {
   const renderLeagueSection = (league: string, leagueGames: LiveGame[]) => (
     <View key={league} style={styles.leagueSection}>
       <Text style={styles.leagueTitle}>{league}</Text>
-      {leagueGames.map((game, index) => (
-        <View key={`${league}-${index}`}>{renderGameCard({ item: game })}</View>
+      {leagueGames.map((game) => (
+        <View key={game.id}>{renderGameCard({ item: game })}</View>
       ))}
     </View>
   );
@@ -412,11 +453,12 @@ const LiveTab = (props: Props) => {
     );
   }
 
-  const noSearchResults = searchQuery && filteredGames.length === 0;
+  const noSearchResults =
+    trimmedQuery && combinedGames.length === 0 && !serverLoading;
 
   // Show the sports grid when no sport is selected and the user hasn't searched.
   // Searching jumps to a flat results view across all sports.
-  const showSportsGrid = !selectedSport && !searchQuery;
+  const showSportsGrid = !selectedSport && !trimmedQuery;
   const selectedMeta = selectedSport ? sportMeta(selectedSport) : null;
 
   return (
@@ -444,8 +486,8 @@ const LiveTab = (props: Props) => {
             <View style={{ marginLeft: 12, flex: 1 }}>
               <Text style={styles.headerTitle}>{selectedMeta.label}</Text>
               <Text style={styles.headerSportLabel}>
-                {filteredGames.length}{" "}
-                {filteredGames.length === 1 ? "game" : "games"}
+                {combinedGames.length}{" "}
+                {combinedGames.length === 1 ? "game" : "games"}
               </Text>
             </View>
           </>
@@ -488,6 +530,13 @@ const LiveTab = (props: Props) => {
           autoCapitalize="none"
           autoCorrect={false}
         />
+        {serverLoading ? (
+          <ActivityIndicator
+            size="small"
+            color="#e74c3c"
+            style={{ marginRight: 4 }}
+          />
+        ) : null}
         {searchQuery ? (
           <Focusable
             onPress={() => setSearchQuery("")}
@@ -522,6 +571,11 @@ const LiveTab = (props: Props) => {
           }
           showsVerticalScrollIndicator={false}
         />
+      ) : trimmedQuery && combinedGames.length === 0 && serverLoading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#e74c3c" />
+          <Text style={styles.loadingText}>{selectedMeta ? `Searching ${selectedMeta.label.toLowerCase()} games...` : "Searching all leagues..."}</Text>
+        </View>
       ) : noSearchResults ? (
         <View style={styles.centered}>
           <MaterialCommunityIcons
@@ -531,7 +585,7 @@ const LiveTab = (props: Props) => {
             style={{ marginBottom: 16 }}
           />
           <Text style={styles.emptyText}>
-            No games found for "{searchQuery}"
+            No games found for "{trimmedQuery}"
           </Text>
           <Focusable
             style={styles.retryButton}
@@ -542,7 +596,7 @@ const LiveTab = (props: Props) => {
             <Text style={styles.retryButtonText}>Clear Search</Text>
           </Focusable>
         </View>
-      ) : filteredGames.length === 0 ? (
+      ) : combinedGames.length === 0 ? (
         <View style={styles.centered}>
           <MaterialCommunityIcons
             name="calendar-blank"

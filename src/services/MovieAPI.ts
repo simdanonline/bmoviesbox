@@ -178,9 +178,9 @@ interface CacheEntry<T> {
 
 class MovieAPI {
   private apiClient: AxiosInstance;
-  // private baseURL: string = "http://192.168.1.118:4001/api";
+  // Local dev: swap in the sibling movie-scraper backend
+  // private baseURL: string = "http://localhost:4001/api";
   private baseURL: string = "https://bmoviebox-b.simdan.dev/api";
-  //192.168.1.118
   private movieCache: Map<string, CacheEntry<MoviesResponse>> = new Map();
   private seriesCache: Map<string, CacheEntry<MoviesResponse>> = new Map();
   private readonly CACHE_DURATION = 10 * 60 * 1000; // 10 minutes in milliseconds
@@ -443,6 +443,19 @@ class MovieAPI {
     } catch (error) {
       console.error("Error fetching live games:", error);
       throw this.handleError(error);
+    }
+  }
+
+  // Cross-league game search — backend returns [] on upstream failure, and we
+  // also swallow transport errors: search extras are best-effort.
+  async searchLiveGames(query: string): Promise<LiveGame[]> {
+    try {
+      const response = await this.apiClient.get<LiveGame[]>("/sports/search", {
+        params: { q: query },
+      });
+      return response.data ?? [];
+    } catch {
+      return [];
     }
   }
 
