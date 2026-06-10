@@ -343,7 +343,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             focusedStyle={styles.iconButtonFocused}
             onPress={handleHeaderTap}
           >
-            <Text style={styles.headerTitle}>BMovieBox</Text>
+            <Text style={styles.headerTitle}>BMovie</Text>
           </Focusable>
           <Focusable
             style={styles.headerIconWrap}
