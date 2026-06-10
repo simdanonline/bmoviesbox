@@ -446,6 +446,19 @@ class MovieAPI {
     }
   }
 
+  // Cross-league game search — backend returns [] on upstream failure, and we
+  // also swallow transport errors: search extras are best-effort.
+  async searchLiveGames(query: string): Promise<LiveGame[]> {
+    try {
+      const response = await this.apiClient.get<LiveGame[]>("/sports/search", {
+        params: { q: query },
+      });
+      return response.data ?? [];
+    } catch {
+      return [];
+    }
+  }
+
   async getSportsLeagues(): Promise<SportsLeague[]> {
     try {
       const response =
