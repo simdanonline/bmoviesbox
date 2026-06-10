@@ -90,7 +90,7 @@ const MIN_VALID_DURATION_MS = 3 * 60_000;
 // Credits ("outro") heuristic for the persistent Next-episode prompt. There's
 // no real credits metadata for these streams, so the prompt appears once the
 // remaining time drops under a fraction of the runtime, capped so long movies
-// of TV episodes don't surface it absurdly early.
+// or TV episodes don't surface it absurdly early.
 const OUTRO_WINDOW_FRACTION = 0.05;
 const OUTRO_WINDOW_MAX_MS = 2 * 60_000;
 // AsyncStorage prefix for streamed-playback resume points (downloads use the
