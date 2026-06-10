@@ -86,6 +86,13 @@ const RESUME_THRESHOLD_FROM_END_MS = 30_000;
 // them on load and auto-advance. duration === 0 ("unknown", e.g. some HLS/live)
 // is left alone; no real movie or episode is under this floor.
 const MIN_VALID_DURATION_MS = 3 * 60_000;
+
+// Credits ("outro") heuristic for the persistent Next-episode prompt. There's
+// no real credits metadata for these streams, so the prompt appears once the
+// remaining time drops under a fraction of the runtime, capped so long movies
+// or TV episodes don't surface it absurdly early.
+const OUTRO_WINDOW_FRACTION = 0.05;
+const OUTRO_WINDOW_MAX_MS = 2 * 60_000;
 // AsyncStorage prefix for streamed-playback resume points (downloads use the
 // DownloadManager's own progress field instead).
 const STREAM_PROGRESS_KEY_PREFIX = "@bmoviebox_stream_progress::";
@@ -228,6 +235,10 @@ export default function NativeVideoPlayer({
   const [advancing, setAdvancing] = useState(false);
   // Seconds left on the end-of-episode autoplay countdown; null when idle.
   const [countdown, setCountdown] = useState<number | null>(null);
+  // True once the user dismisses the outro Next-episode prompt ("watch the
+  // credits"). Cleared whenever playback leaves the outro window, so seeking
+  // back out and returning re-arms the prompt.
+  const [outroDismissed, setOutroDismissed] = useState(false);
 
   // VLC-only playback state. Times are milliseconds (matches native VLC API).
   const [positionMs, setPositionMs] = useState(0);
@@ -1124,6 +1135,33 @@ export default function NativeVideoPlayer({
   // affordance (gated on controlsVisible alone) shows through.
   const controlsActive = controlsVisible && !locked;
 
+  // Netflix-style outro prompt: once playback enters the credits window the
+  // Next-episode button stays on screen even with the chrome hidden.
+  // `positionMs > 0` keeps a not-yet-reported position (VLC briefly reports 0
+  // after load) from counting as "remaining ≈ duration window" on short items.
+  const outroWindowMs = Math.min(
+    OUTRO_WINDOW_MAX_MS,
+    durationMs * OUTRO_WINDOW_FRACTION,
+  );
+  const inOutroWindow =
+    nextEpisode !== null &&
+    hasStarted &&
+    durationMs > 0 &&
+    positionMs > 0 &&
+    durationMs - positionMs <= outroWindowMs;
+  const outroPromptVisible =
+    inOutroWindow &&
+    !outroDismissed &&
+    !locked &&
+    !errored &&
+    countdown === null;
+
+  // Re-arm the dismissed prompt when playback leaves the outro window (seek
+  // back, source switch, next episode mounts fresh anyway).
+  useEffect(() => {
+    if (!inOutroWindow) setOutroDismissed(false);
+  }, [inOutroWindow]);
+
   // `controls` is always off: our custom overlay drives every path now, and
   // keeping native controls off is what lets ExoPlayer honor programmatic audio
   // selection on Android (and our brightness/volume gestures own the surface).
@@ -1231,11 +1269,12 @@ export default function NativeVideoPlayer({
           focus and turns OK into "show controls"; on show it unmounts and the
           play/pause button's hasTVPreferredFocus takes over. Excluded while a
           panel that outlives the chrome (source picker / track menu / autoplay
-          countdown / error) holds its own focus. */}
+          countdown / error / outro Next prompt) holds its own focus. */}
       {Platform.isTV &&
         !controlsVisible &&
         !errored &&
         countdown === null &&
+        !outroPromptVisible &&
         !showPicker &&
         !showTrackMenu && (
           <Focusable
@@ -1371,24 +1410,47 @@ export default function NativeVideoPlayer({
         </>
       )}
 
-      {/* Next-episode button — shown when controls are up and a next episode
-          exists, on every player path. Hidden while the autoplay countdown is
-          on screen (the countdown has its own "Play now"). */}
-      {nextEpisode && controlsActive && !errored && countdown === null && (
-        <Focusable
-          style={[
-            styles.nextButton,
-            { bottom: 110 + insets.bottom, right: 16 + insets.right },
-          ]}
-          focusedStyle={styles.buttonFocused}
-          onFocus={showControls}
-          onPress={advanceToNextEpisode}
-        >
-          <Text style={styles.buttonText}>
-            {advancing ? "Loading…" : "Next ▶"}
-          </Text>
-        </Focusable>
-      )}
+      {/* Next-episode button — shown when controls are up, and persistently
+          during the outro window (credits heuristic) even with the chrome
+          hidden. Hidden while the autoplay countdown is on screen (the
+          countdown has its own "Play now"). In outro-only mode a ✕ pill lets
+          the user dismiss it and watch the credits; on TV the prompt takes
+          D-pad focus (the catcher is excluded), so OK advances — Netflix
+          behaviour. */}
+      {nextEpisode &&
+        (controlsActive || outroPromptVisible) &&
+        !errored &&
+        countdown === null && (
+          <View
+            style={[
+              styles.nextRow,
+              { bottom: 110 + insets.bottom, right: 16 + insets.right },
+            ]}
+            pointerEvents="box-none"
+          >
+            {!controlsActive && (
+              <Focusable
+                style={styles.outroDismissButton}
+                focusedStyle={styles.buttonFocused}
+                accessibilityLabel="Dismiss and watch credits"
+                onPress={() => setOutroDismissed(true)}
+              >
+                <Text style={styles.buttonText}>✕</Text>
+              </Focusable>
+            )}
+            <Focusable
+              style={styles.nextButton}
+              focusedStyle={styles.buttonFocused}
+              hasTVPreferredFocus={!controlsVisible}
+              onFocus={controlsActive ? showControls : undefined}
+              onPress={advanceToNextEpisode}
+            >
+              <Text style={styles.buttonText}>
+                {advancing ? "Loading…" : "Next ▶"}
+              </Text>
+            </Focusable>
+          </View>
+        )}
 
       {/* End-of-episode autoplay countdown. Auto-advances at 0; Play now jumps
           immediately, Cancel stops and stays on the finished episode. */}
@@ -1732,10 +1794,23 @@ const styles = StyleSheet.create({
   },
   buttonFocused: { backgroundColor: "#c0392b", transform: [{ scale: 1.05 }] },
   buttonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
-  nextButton: {
+  // Positioning lives on the row so the outro ✕ pill and the Next button
+  // share the same anchor whether or not the dismiss pill is mounted.
+  nextRow: {
     position: "absolute",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  nextButton: {
     backgroundColor: "rgba(231,76,60,0.9)",
     paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  outroDismissButton: {
+    backgroundColor: "rgba(40,40,40,0.85)",
+    paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 8,
   },
