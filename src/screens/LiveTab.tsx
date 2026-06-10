@@ -292,11 +292,13 @@ const LiveTab = (props: Props) => {
     );
   };
 
-  // Filter games by selected sport + search query
+  // Filter games by selected sport + search query. Trim so stray whitespace
+  // can't hide matches — the server search trims the same input.
+  const trimmedQuery = searchQuery.trim();
   const filteredGames = games.filter((game) => {
     if (selectedSport && game.sport !== selectedSport) return false;
-    if (!searchQuery) return true;
-    return matchesQuery(game, searchQuery);
+    if (!trimmedQuery) return true;
+    return matchesQuery(game, trimmedQuery);
   });
 
   // Merge server-search extras (cross-league results not already shown).
@@ -305,7 +307,7 @@ const LiveTab = (props: Props) => {
     (g) =>
       !localIds.has(g.id) &&
       (!selectedSport || g.sport === selectedSport) &&
-      (!searchQuery || matchesQuery(g, searchQuery)),
+      (!trimmedQuery || matchesQuery(g, trimmedQuery)),
   );
   const combinedGames = [...filteredGames, ...serverExtras];
 
@@ -451,11 +453,12 @@ const LiveTab = (props: Props) => {
     );
   }
 
-  const noSearchResults = searchQuery && combinedGames.length === 0 && !serverLoading;
+  const noSearchResults =
+    trimmedQuery && combinedGames.length === 0 && !serverLoading;
 
   // Show the sports grid when no sport is selected and the user hasn't searched.
   // Searching jumps to a flat results view across all sports.
-  const showSportsGrid = !selectedSport && !searchQuery;
+  const showSportsGrid = !selectedSport && !trimmedQuery;
   const selectedMeta = selectedSport ? sportMeta(selectedSport) : null;
 
   return (
@@ -568,7 +571,7 @@ const LiveTab = (props: Props) => {
           }
           showsVerticalScrollIndicator={false}
         />
-      ) : searchQuery && combinedGames.length === 0 && serverLoading ? (
+      ) : trimmedQuery && combinedGames.length === 0 && serverLoading ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#e74c3c" />
           <Text style={styles.loadingText}>{selectedMeta ? `Searching ${selectedMeta.label.toLowerCase()} games...` : "Searching all leagues..."}</Text>
@@ -582,7 +585,7 @@ const LiveTab = (props: Props) => {
             style={{ marginBottom: 16 }}
           />
           <Text style={styles.emptyText}>
-            No games found for "{searchQuery}"
+            No games found for "{trimmedQuery}"
           </Text>
           <Focusable
             style={styles.retryButton}

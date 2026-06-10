@@ -178,7 +178,7 @@ interface CacheEntry<T> {
 
 class MovieAPI {
   private apiClient: AxiosInstance;
-  // QA ONLY — revert before commit: point at local backend for live-game-search testing
+  // Local dev: swap in the sibling movie-scraper backend
   // private baseURL: string = "http://localhost:4001/api";
   private baseURL: string = "https://bmoviebox-b.simdan.dev/api";
   private movieCache: Map<string, CacheEntry<MoviesResponse>> = new Map();
