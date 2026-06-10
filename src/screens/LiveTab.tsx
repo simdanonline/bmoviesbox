@@ -79,6 +79,16 @@ const formatKickoff = (iso: string): string => {
   }
 };
 
+const matchesQuery = (game: LiveGame, query: string): boolean => {
+  const q = query.toLowerCase();
+  return (
+    game.homeTeam.toLowerCase().includes(q) ||
+    game.awayTeam.toLowerCase().includes(q) ||
+    game.league.toLowerCase().includes(q) ||
+    game.status.toLowerCase().includes(q)
+  );
+};
+
 type Props = {};
 type NavigationProp = NativeStackNavigationProp<any>;
 
@@ -286,19 +296,16 @@ const LiveTab = (props: Props) => {
   const filteredGames = games.filter((game) => {
     if (selectedSport && game.sport !== selectedSport) return false;
     if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      game.homeTeam.toLowerCase().includes(query) ||
-      game.awayTeam.toLowerCase().includes(query) ||
-      game.league.toLowerCase().includes(query) ||
-      game.status.toLowerCase().includes(query)
-    );
+    return matchesQuery(game, searchQuery);
   });
 
   // Merge server-search extras (cross-league results not already shown).
   const localIds = new Set(filteredGames.map((g) => g.id));
   const serverExtras = serverResults.filter(
-    (g) => !localIds.has(g.id) && (!selectedSport || g.sport === selectedSport),
+    (g) =>
+      !localIds.has(g.id) &&
+      (!selectedSport || g.sport === selectedSport) &&
+      (!searchQuery || matchesQuery(g, searchQuery)),
   );
   const combinedGames = [...filteredGames, ...serverExtras];
 
@@ -379,8 +386,8 @@ const LiveTab = (props: Props) => {
   const renderLeagueSection = (league: string, leagueGames: LiveGame[]) => (
     <View key={league} style={styles.leagueSection}>
       <Text style={styles.leagueTitle}>{league}</Text>
-      {leagueGames.map((game, index) => (
-        <View key={`${league}-${index}`}>{renderGameCard({ item: game })}</View>
+      {leagueGames.map((game) => (
+        <View key={game.id}>{renderGameCard({ item: game })}</View>
       ))}
     </View>
   );
@@ -564,7 +571,7 @@ const LiveTab = (props: Props) => {
       ) : searchQuery && combinedGames.length === 0 && serverLoading ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#e74c3c" />
-          <Text style={styles.loadingText}>Searching all leagues...</Text>
+          <Text style={styles.loadingText}>{selectedMeta ? `Searching ${selectedMeta.label.toLowerCase()} games...` : "Searching all leagues..."}</Text>
         </View>
       ) : noSearchResults ? (
         <View style={styles.centered}>
