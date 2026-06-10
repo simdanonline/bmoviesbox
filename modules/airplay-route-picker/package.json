@@ -1,0 +1,7 @@
+{
+  "name": "airplay-route-picker",
+  "version": "0.1.0",
+  "description": "iOS AVRoutePickerView (AirPlay) as a React Native view",
+  "main": "index.ts",
+  "private": true
+}
