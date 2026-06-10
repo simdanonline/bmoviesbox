@@ -307,6 +307,9 @@ export default function NativeVideoPlayer({
   const positionMsRef = useRef(0);
   const hasStartedRef = useRef(false);
   const erroredRef = useRef(false);
+  // Mirrored for showControls, whose identity must stay stable for the
+  // surfaceGesture memo — depending on `paused` state would stale-capture it.
+  const pausedRef = useRef(false);
   // Timestamps marking when the network last went idle. One is set while paused,
   // the other while backgrounded; whichever fired is read on resume/foreground.
   const pausedAtRef = useRef<number | null>(null);
@@ -362,7 +365,9 @@ export default function NativeVideoPlayer({
 
   const showControls = useCallback(() => {
     setControlsVisible(true);
-    scheduleHide();
+    // While paused the controls must stay up — arming the timer here would
+    // bypass the paused-state effect, which only clears it on transitions.
+    if (!pausedRef.current) scheduleHide();
   }, [scheduleHide]);
 
   // Reset transient state when the active stream changes.
@@ -481,6 +486,9 @@ export default function NativeVideoPlayer({
   useEffect(() => {
     erroredRef.current = errored;
   }, [errored]);
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
 
   // Re-open the current stream from the last known position by remounting the
   // player (fresh `key`). Used both proactively on resume after a long idle and
