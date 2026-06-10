@@ -16,6 +16,12 @@ interface TrackSelectionMenuProps {
   onSelectAudio: (key: number) => void;
   onSelectText: (key: number) => void;
   onClose: () => void;
+  /**
+   * Fired when D-pad/a11y focus lands on any row or the close button. Lets the
+   * parent reset its controls auto-hide timer so the menu isn't force-closed
+   * out from under a TV user who is still navigating it.
+   */
+  onInteraction?: () => void;
   /** Absolute positioning (top/right + insets) supplied by the parent. */
   style?: StyleProp<ViewStyle>;
 }
@@ -24,11 +30,13 @@ function TrackRow({
   label,
   selected,
   onPress,
+  onFocus,
   hasTVPreferredFocus,
 }: {
   label: string;
   selected: boolean;
   onPress: () => void;
+  onFocus?: () => void;
   hasTVPreferredFocus?: boolean;
 }) {
   return (
@@ -36,6 +44,7 @@ function TrackRow({
       style={[styles.row, selected && styles.rowActive]}
       focusedStyle={styles.rowFocused}
       hasTVPreferredFocus={hasTVPreferredFocus}
+      onFocus={onFocus}
       onPress={onPress}
     >
       <FontAwesome
@@ -59,6 +68,7 @@ export default function TrackSelectionMenu({
   onSelectAudio,
   onSelectText,
   onClose,
+  onInteraction,
   style,
 }: TrackSelectionMenuProps) {
   return (
@@ -68,6 +78,7 @@ export default function TrackSelectionMenu({
         <Focusable
           style={styles.closeButton}
           focusedStyle={styles.closeButtonFocused}
+          onFocus={onInteraction}
           onPress={onClose}
         >
           <Text style={styles.closeText}>Close</Text>
@@ -87,6 +98,7 @@ export default function TrackSelectionMenu({
                 label={t.label}
                 selected={t.key === selectedAudioKey}
                 hasTVPreferredFocus={idx === 0}
+                onFocus={onInteraction}
                 onPress={() => onSelectAudio(t.key)}
               />
             ))}
@@ -101,6 +113,7 @@ export default function TrackSelectionMenu({
                 label={t.label}
                 selected={t.key === selectedTextKey}
                 hasTVPreferredFocus={audioTracks.length === 0 && idx === 0}
+                onFocus={onInteraction}
                 onPress={() => onSelectText(t.key)}
               />
             ))}

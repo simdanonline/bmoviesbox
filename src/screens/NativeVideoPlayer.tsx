@@ -288,6 +288,16 @@ export default function NativeVideoPlayer({
   // user's explicit choice (we can't use a null-guard like audio because -1 is
   // a valid user value meaning "Off").
   const didSeedTextRef = useRef(false);
+  // Maps each react-native-video subtitle index (as reported by onTextTracks) to
+  // its language/title. On Android the controlled `selectedTextTrack` by index is
+  // broken: the native selectTextTrackInternal matches the value against the
+  // per-group track index, but onTextTracks numbers tracks with a flat counter
+  // across groups — so any track past the first (each subtitle is its own group)
+  // matches nothing and ExoPlayer keeps subtitles off. We select by language/title
+  // instead, which the native side matches across every group. See handleRnvTextTracks.
+  const rnvTextMetaRef = useRef<
+    Map<number, { language?: string; title?: string }>
+  >(new Map());
   const lastSavedProgressMsRef = useRef(0);
   // Guards the 90%-watched write so it fires at most once per mount.
   const markedWatchedRef = useRef(false);
@@ -297,6 +307,9 @@ export default function NativeVideoPlayer({
   const positionMsRef = useRef(0);
   const hasStartedRef = useRef(false);
   const erroredRef = useRef(false);
+  // Mirrored for showControls, whose identity must stay stable for the
+  // surfaceGesture memo — depending on `paused` state would stale-capture it.
+  const pausedRef = useRef(false);
   // Timestamps marking when the network last went idle. One is set while paused,
   // the other while backgrounded; whichever fired is read on resume/foreground.
   const pausedAtRef = useRef<number | null>(null);
@@ -352,7 +365,9 @@ export default function NativeVideoPlayer({
 
   const showControls = useCallback(() => {
     setControlsVisible(true);
-    scheduleHide();
+    // While paused the controls must stay up — arming the timer here would
+    // bypass the paused-state effect, which only clears it on transitions.
+    if (!pausedRef.current) scheduleHide();
   }, [scheduleHide]);
 
   // Reset transient state when the active stream changes.
@@ -452,6 +467,7 @@ export default function NativeVideoPlayer({
     didInitialSeekRef.current = false;
     lastSavedProgressMsRef.current = 0;
     didSeedTextRef.current = false;
+    rnvTextMetaRef.current = new Map();
     // A pending reconnect-seek belongs to the previous source; dropping to a new
     // stream is fresh playback, so clear it and the reconnect bookkeeping.
     pendingReloadSeekMsRef.current = null;
@@ -470,6 +486,9 @@ export default function NativeVideoPlayer({
   useEffect(() => {
     erroredRef.current = errored;
   }, [errored]);
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
 
   // Re-open the current stream from the last known position by remounting the
   // player (fresh `key`). Used both proactively on resume after a long idle and
@@ -824,6 +843,13 @@ export default function NativeVideoPlayer({
       key: t.index,
       label: t.title || t.language || `Track ${t.index + 1}`,
     }));
+    // Remember each track's language/title so the Android selection path can
+    // target it by name instead of the broken index match (see rnvTrackProps).
+    const meta = new Map<number, { language?: string; title?: string }>();
+    e.textTracks.forEach((t) =>
+      meta.set(t.index, { language: t.language, title: t.title }),
+    );
+    rnvTextMetaRef.current = meta;
     // Only offer subtitles (with an "Off" entry) when real tracks exist.
     setTextTracks(subs.length > 0 ? [{ key: -1, label: "Off" }, ...subs] : []);
     // Seed the initial selection once so re-fires don't clobber a user choice.
@@ -1043,21 +1069,46 @@ export default function NativeVideoPlayer({
     [current.url, current.headers, current.type],
   );
 
-  // Controlled track selection for both rnv platforms. Index-based so the custom
-  // menu can target any specific track, and so the original-audio seed (computed
-  // in handleRnvAudioTracks via fuzzy language/title matching) is applied
-  // exactly. This only takes effect because we keep `controls={false}` on the
-  // custom-controls paths — ExoPlayer ignores programmatic audio selection while
-  // its native controls are on (see `usesCustomControls`).
+  // Resolve the controlled subtitle selection for react-native-video.
+  //
+  // iOS (AVPlayer) honors index-based selection — the index lines up with the
+  // onTextTracks order. Android (ExoPlayer) does NOT: its selectTextTrackInternal
+  // matches an "index" value against the per-group track index, while onTextTracks
+  // numbers tracks with a flat counter across groups. Since each subtitle is
+  // normally its own single-track group, only index 0 ever matches and every other
+  // pick silently leaves subtitles off. So on Android we target the track by its
+  // language (or title) instead, which the native side matches across all groups.
+  const rnvSelectedTextTrack = () => {
+    if (selectedTextKey === -1) {
+      return { type: SelectedTrackType.DISABLED };
+    }
+    if (Platform.OS !== "android") {
+      return { type: SelectedTrackType.INDEX, value: selectedTextKey };
+    }
+    const meta = rnvTextMetaRef.current.get(selectedTextKey);
+    if (meta?.language) {
+      return { type: SelectedTrackType.LANGUAGE, value: meta.language };
+    }
+    if (meta?.title) {
+      return { type: SelectedTrackType.TITLE, value: meta.title };
+    }
+    // No language/title to match on — fall back to index (works for the first
+    // track, which is the only one ExoPlayer's index path can resolve anyway).
+    return { type: SelectedTrackType.INDEX, value: selectedTextKey };
+  };
+
+  // Controlled track selection for both rnv platforms. Audio stays index-based
+  // (the original-audio seed in handleRnvAudioTracks resolves an exact index);
+  // subtitles resolve per-platform via rnvSelectedTextTrack. This only takes
+  // effect because we keep `controls={false}` on the custom-controls paths —
+  // ExoPlayer ignores programmatic selection while its native controls are on
+  // (see `usesCustomControls`).
   const rnvTrackProps: Partial<React.ComponentProps<typeof Video>> = {
     selectedAudioTrack:
       selectedAudioKey !== null
         ? { type: SelectedTrackType.INDEX, value: selectedAudioKey }
         : undefined,
-    selectedTextTrack:
-      selectedTextKey === -1
-        ? { type: SelectedTrackType.DISABLED }
-        : { type: SelectedTrackType.INDEX, value: selectedTextKey },
+    selectedTextTrack: rnvSelectedTextTrack(),
     onAudioTracks: handleRnvAudioTracks,
     onTextTracks: handleRnvTextTracks,
   };
@@ -1171,6 +1222,34 @@ export default function NativeVideoPlayer({
         />
       </GestureDetector>
 
+      {/* TV focus catcher. With the overlay hidden nothing on screen is
+          focusable, so the remote's OK/select key has no target — the gesture
+          surface above is touch-only. (ExoPlayer's native controller used to
+          be focusable and showed itself on any key; that went away with
+          controls={false}.) Mounted only while the chrome is hidden so it
+          never competes with real buttons for D-pad focus: on hide it grabs
+          focus and turns OK into "show controls"; on show it unmounts and the
+          play/pause button's hasTVPreferredFocus takes over. Excluded while a
+          panel that outlives the chrome (source picker / track menu / autoplay
+          countdown / error) holds its own focus. */}
+      {Platform.isTV &&
+        !controlsVisible &&
+        !errored &&
+        countdown === null &&
+        !showPicker &&
+        !showTrackMenu && (
+          <Focusable
+            style={styles.gestureSurface}
+            focusedStyle={styles.tvCatcherFocused}
+            hasTVPreferredFocus
+            accessibilityRole="button"
+            accessibilityLabel="Show playback controls"
+            onPress={showControls}
+          >
+            {null}
+          </Focusable>
+        )}
+
       {!hasStarted && !errored && (
         <View style={styles.overlay} pointerEvents="none">
           <ActivityIndicator size="large" color="#fff" />
@@ -1213,9 +1292,13 @@ export default function NativeVideoPlayer({
         <>
           {/* Center transport row */}
           <View style={styles.transportRow} pointerEvents="box-none">
+            {/* onFocus keeps the chrome alive while the user D-pads between
+                buttons — focus moves don't tick the auto-hide timer otherwise,
+                and a mid-navigation hide strands TV focus on the catcher. */}
             <Focusable
               style={styles.transportButton}
               focusedStyle={styles.transportButtonFocused}
+              onFocus={showControls}
               onPress={() => seekBy(-SEEK_STEP_MS)}
             >
               <Text style={styles.transportButtonText}>« 10s</Text>
@@ -1224,6 +1307,7 @@ export default function NativeVideoPlayer({
               style={[styles.transportButton, styles.transportPlayButton]}
               focusedStyle={styles.transportButtonFocused}
               hasTVPreferredFocus
+              onFocus={showControls}
               onPress={togglePaused}
             >
               <Text style={styles.transportPlayText}>
@@ -1233,6 +1317,7 @@ export default function NativeVideoPlayer({
             <Focusable
               style={styles.transportButton}
               focusedStyle={styles.transportButtonFocused}
+              onFocus={showControls}
               onPress={() => seekBy(SEEK_STEP_MS)}
             >
               <Text style={styles.transportButtonText}>10s »</Text>
@@ -1296,6 +1381,7 @@ export default function NativeVideoPlayer({
             { bottom: 110 + insets.bottom, right: 16 + insets.right },
           ]}
           focusedStyle={styles.buttonFocused}
+          onFocus={showControls}
           onPress={advanceToNextEpisode}
         >
           <Text style={styles.buttonText}>
@@ -1372,6 +1458,7 @@ export default function NativeVideoPlayer({
             { top: 12 + insets.top, right: 12 + insets.right },
           ]}
           focusedStyle={styles.pickerButtonFocused}
+          onFocus={showControls}
           onPress={() => {
             setShowTrackMenu(false);
             setShowPicker((v) => !v);
@@ -1395,6 +1482,7 @@ export default function NativeVideoPlayer({
           focusedStyle={styles.pickerButtonFocused}
           accessibilityRole="button"
           accessibilityLabel="Audio and subtitles"
+          onFocus={showControls}
           onPress={() => {
             setShowPicker(false);
             setShowTrackMenu((v) => !v);
@@ -1438,6 +1526,7 @@ export default function NativeVideoPlayer({
           onSelectAudio={setSelectedAudioKey}
           onSelectText={setSelectedTextKey}
           onClose={() => setShowTrackMenu(false)}
+          onInteraction={showControls}
         />
       )}
 
@@ -1550,6 +1639,7 @@ export default function NativeVideoPlayer({
             { top: 12 + insets.top, left: 12 + insets.left },
           ]}
           focusedStyle={styles.backButtonFocused}
+          onFocus={showControls}
           onPress={() => navigation.goBack()}
         >
           <Text style={styles.backButtonText}>‹ Back</Text>
@@ -1566,6 +1656,7 @@ export default function NativeVideoPlayer({
           focusedStyle={styles.lockButtonFocused}
           accessibilityRole="button"
           accessibilityLabel="Lock controls"
+          onFocus={showControls}
           onPress={() => {
             setShowPicker(false);
             setShowTrackMenu(false);
@@ -1588,6 +1679,7 @@ export default function NativeVideoPlayer({
           hasTVPreferredFocus
           accessibilityRole="button"
           accessibilityLabel="Unlock controls"
+          onFocus={showControls}
           onPress={() => {
             setLocked(false);
             showControls();
@@ -1608,6 +1700,10 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
   video: { flex: 1, backgroundColor: "#000" },
   gestureSurface: StyleSheet.absoluteFillObject,
+  // The TV focus catcher is invisible by design; an empty focused style
+  // suppresses Focusable's default focus border, which would otherwise
+  // outline the whole screen whenever the catcher holds focus.
+  tvCatcherFocused: {},
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.55)",
