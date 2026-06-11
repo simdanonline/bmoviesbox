@@ -17,6 +17,7 @@ import {
   AppStateStatus,
   Alert,
   ToastAndroid,
+  Pressable,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useIsFocused } from "@react-navigation/native";
@@ -73,6 +74,15 @@ type NativeVideoPlayerProps = NativeStackScreenProps<any, "NativeVideoPlayer">;
 
 const CONTROLS_HIDE_MS = 4000;
 const SEEK_STEP_MS = 10_000;
+// TV D-pad seeking: vanilla RN (not react-native-tvos) exposes no arrow-key
+// events, so a focused bar can't listen for left/right itself. Instead the
+// progress bar is overlaid with this many invisible focusable segments —
+// D-pad left/right walks native focus across them (each focus move previews
+// that position on the thumb + timestamp) and OK commits the seek. The
+// preview is anchored to the live position on entry (not the segment's
+// absolute fraction), so it always starts where playback is — see
+// tvScrubPreviewFraction. The «10s / 10s» buttons remain for fine seeking.
+const TV_SEEK_SEGMENTS = 20;
 // Save watch progress no more than every 5 seconds — anything more is wasted
 // AsyncStorage writes for a UX that resumes within ±5s anyway.
 const PROGRESS_SAVE_INTERVAL_MS = 5_000;
@@ -254,6 +264,21 @@ export default function NativeVideoPlayer({
   // the live `positionMs`. Decoupled so the bar doesn't snap back to the
   // actual position between drag frames.
   const [scrubFraction, setScrubFraction] = useState<number | null>(null);
+  // TV D-pad scrub state: index of the focused seek segment (see
+  // TV_SEEK_SEGMENTS), or null when focus is elsewhere. Same display role as
+  // scrubFraction but driven by focus moves instead of touch.
+  const [tvScrubIndex, setTvScrubIndex] = useState<number | null>(null);
+  // Anchor recorded the moment focus enters the bar: the entry segment and the
+  // live position then. The preview maps segments relative to this anchor so it
+  // starts at the current position instead of the segment's absolute fraction
+  // (which would snap to a fixed spot every re-entry). Re-seeded on each fresh
+  // entry; held in a ref because it's read during render but never drives one.
+  const tvScrubAnchorRef = useRef<{ index: number; fraction: number } | null>(
+    null,
+  );
+  // True while native focus sits on some seek segment. Lets onBlur tell a
+  // segment-to-segment move (focus immediately returns) from leaving the bar.
+  const tvFocusInRowRef = useRef(false);
   const [trackWidth, setTrackWidth] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(true);
   // Controls lock. When on, every interactive overlay is suppressed and the
@@ -893,6 +918,37 @@ export default function NativeVideoPlayer({
     seekToMs(Math.max(0, Math.min(1, fraction)) * durationMs);
   };
 
+  // Fraction a focused segment previews, relative to the entry anchor: the
+  // anchor segment maps to the live position; segments to its left compress
+  // [0 .. live], to its right compress [live .. 1]. So the whole timeline is
+  // reachable in one motion from a centred entry, yet the preview always
+  // begins at the current position. Division is guarded — `index` can't pass
+  // the anchor on the side whose denominator would be zero.
+  const tvScrubPreviewFraction = (
+    index: number,
+    anchor: { index: number; fraction: number },
+  ) => {
+    if (index <= anchor.index) {
+      return anchor.index === 0
+        ? anchor.fraction
+        : anchor.fraction * (index / anchor.index);
+    }
+    const span = TV_SEEK_SEGMENTS - 1 - anchor.index;
+    return anchor.fraction + (1 - anchor.fraction) * ((index - anchor.index) / span);
+  };
+
+  const commitTvScrub = (index: number) => {
+    if (durationMs <= 0 || !tvScrubAnchorRef.current) return;
+    const fraction = tvScrubPreviewFraction(index, tvScrubAnchorRef.current);
+    // Clamp away from the very end (like seekBy) so committing the last
+    // segment doesn't land on durationMs and immediately fire onEnd.
+    seekToMs(Math.max(0, Math.min(durationMs - 1000, fraction * durationMs)));
+    // Drop the preview + anchor so the bar tracks live playback again; the
+    // next focus move re-anchors at the just-sought position.
+    tvScrubAnchorRef.current = null;
+    setTvScrubIndex(null);
+  };
+
   const togglePaused = () => {
     setPaused((p) => !p);
     showControls();
@@ -1126,14 +1182,34 @@ export default function NativeVideoPlayer({
 
   const livePositionFraction =
     durationMs > 0 ? Math.min(1, positionMs / durationMs) : 0;
+  // Touch scrubbing and TV D-pad scrubbing share the same preview slot —
+  // they can't both be active (no touch on TV, no segments off TV).
+  const previewFraction =
+    scrubFraction !== null
+      ? scrubFraction
+      : tvScrubIndex !== null && tvScrubAnchorRef.current
+        ? tvScrubPreviewFraction(tvScrubIndex, tvScrubAnchorRef.current)
+        : null;
   const displayFraction =
-    scrubFraction !== null ? scrubFraction : livePositionFraction;
+    previewFraction !== null ? previewFraction : livePositionFraction;
   const displayMs =
-    scrubFraction !== null ? scrubFraction * durationMs : positionMs;
+    previewFraction !== null ? previewFraction * durationMs : positionMs;
 
   // While locked, every interactive overlay is suppressed; only the unlock
   // affordance (gated on controlsVisible alone) shows through.
   const controlsActive = controlsVisible && !locked;
+
+  // The TV seek segments unmount with the chrome, which skips their onBlur —
+  // without this the preview fraction would stay pinned and the bar would
+  // reopen frozen at the stale position. Clear the anchor too so the next
+  // entry re-seeds at the live position.
+  useEffect(() => {
+    if (!controlsVisible) {
+      tvScrubAnchorRef.current = null;
+      tvFocusInRowRef.current = false;
+      setTvScrubIndex(null);
+    }
+  }, [controlsVisible]);
 
   // Netflix-style outro prompt: once playback enters the credits window the
   // Next-episode button stays on screen even with the chrome hidden.
@@ -1383,7 +1459,12 @@ export default function NativeVideoPlayer({
                 style={styles.progressHitArea}
                 onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
               >
-                <View style={styles.progressTrack}>
+                <View
+                  style={[
+                    styles.progressTrack,
+                    tvScrubIndex !== null && styles.progressTrackTvFocused,
+                  ]}
+                >
                   <View
                     style={[
                       styles.progressFill,
@@ -1394,15 +1475,59 @@ export default function NativeVideoPlayer({
                 <View
                   style={[
                     styles.progressThumb,
+                    tvScrubIndex !== null && styles.progressThumbTvFocused,
                     {
                       left: `${displayFraction * 100}%`,
                       transform: [
                         { translateX: -7 },
-                        { scale: scrubFraction !== null ? 1.4 : 1 },
+                        { scale: previewFraction !== null ? 1.4 : 1 },
                       ],
                     },
                   ]}
                 />
+                {/* TV D-pad seek segments (see TV_SEEK_SEGMENTS). Invisible
+                    focusables spanning the bar: left/right walks focus across
+                    them, each focus move previews that position, OK commits.
+                    Touch never reaches them off-TV — they aren't rendered. */}
+                {Platform.isTV && (
+                  <View style={styles.tvSeekRow}>
+                    {Array.from({ length: TV_SEEK_SEGMENTS }, (_, i) => (
+                      <Pressable
+                        key={i}
+                        style={styles.tvSeekSegment}
+                        accessibilityRole="adjustable"
+                        accessibilityLabel={`Seek position ${i + 1} of ${TV_SEEK_SEGMENTS}`}
+                        onFocus={() => {
+                          showControls();
+                          tvFocusInRowRef.current = true;
+                          // First segment touched on entry — anchor to the live
+                          // position so the preview starts where playback is.
+                          if (!tvScrubAnchorRef.current) {
+                            tvScrubAnchorRef.current = {
+                              index: i,
+                              fraction: livePositionFraction,
+                            };
+                          }
+                          setTvScrubIndex(i);
+                        }}
+                        onBlur={() => {
+                          tvFocusInRowRef.current = false;
+                          // A within-row move re-focuses a sibling on the same
+                          // tick and flips this back true; if it's still false,
+                          // focus left the bar, so drop the preview + anchor and
+                          // let the next entry re-seed at the live position.
+                          setTimeout(() => {
+                            if (!tvFocusInRowRef.current) {
+                              tvScrubAnchorRef.current = null;
+                              setTvScrubIndex(null);
+                            }
+                          }, 50);
+                        }}
+                        onPress={() => commitTvScrub(i)}
+                      />
+                    ))}
+                  </View>
+                )}
               </View>
             </GestureDetector>
             <Text style={styles.timeText}>{formatTime(durationMs)}</Text>
@@ -1894,6 +2019,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },
+  },
+  // D-pad focus feedback: the bar brightens and the thumb gains a white ring
+  // while a TV seek segment holds focus (the segments themselves stay
+  // invisible — the thumb/timestamp preview is the focus indicator).
+  progressTrackTvFocused: {
+    backgroundColor: "rgba(255,255,255,0.45)",
+  },
+  progressThumbTvFocused: {
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  tvSeekRow: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: "row",
+  },
+  tvSeekSegment: {
+    flex: 1,
+    height: "100%",
   },
 
   footer: {
