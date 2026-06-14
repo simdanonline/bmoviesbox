@@ -146,6 +146,12 @@ class AndroidDownloadTask implements DownloadTask {
   private headers?: Record<string, string>;
 
   private resumable: DownloadResumable | null = null;
+  // Bumped on every download/resume start. A settling promise whose token no
+  // longer matches is stale (it belongs to a download/resume that has since
+  // been superseded) and must not touch task state — otherwise a pre-resume
+  // rejection from a paused download could flip a freshly-resumed task to
+  // FAILED and delete the partial file out from under it.
+  private activeToken = 0;
   private beginHandler?: (p: BeginHandlerParams) => void;
   private progressHandler?: (p: ProgressHandlerParams) => void;
   private doneHandler?: (p: DoneHandlerParams) => void;
@@ -213,8 +219,11 @@ class AndroidDownloadTask implements DownloadTask {
   private attachResult(
     promise: Promise<FileSystemDownloadResult | undefined>,
   ): void {
+    const token = ++this.activeToken;
     promise
       .then(async (result) => {
+        // Ignore a promise that's been superseded by a later resume/start.
+        if (token !== this.activeToken) return;
         // Pause/cancel resolves to undefined; a stale resolution after we've
         // already moved on is ignored via the state guard.
         if (this.state !== "DOWNLOADING") return;
@@ -238,6 +247,11 @@ class AndroidDownloadTask implements DownloadTask {
         });
       })
       .catch(async (err: unknown) => {
+        // Ignore a rejection from a superseded promise — e.g. the cancel that
+        // backs pauseAsync() rejecting the prior downloadAsync() after a newer
+        // resume has already started. Without this, that stale rejection would
+        // mark the resumed task FAILED and delete its partial file.
+        if (token !== this.activeToken) return;
         // Deliberate pause/stop also rejects on some paths — if we already
         // transitioned, swallow.
         if (this.state === "PAUSED" || this.state === "STOPPED") {
