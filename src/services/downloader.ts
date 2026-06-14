@@ -1,17 +1,26 @@
 import { Platform } from "react-native";
 import * as BgDl from "@kesha-antonov/react-native-background-downloader";
 import ReactNativeBlobUtil from "react-native-blob-util";
+import * as LegacyFileSystem from "expo-file-system/legacy";
 import type {
-  StatefulPromise,
-  FetchBlobResponse,
-} from "react-native-blob-util";
+  DownloadResumable,
+  FileSystemDownloadResult,
+} from "expo-file-system/legacy";
 
 // On Android we deliberately bypass @kesha-antonov/react-native-background-downloader.
 // That library declares FOREGROUND_SERVICE_DATA_SYNC + ResumableDownloadService, which
 // trips Play Console's foreground-service review for an app whose download feature is
 // gated behind a hidden mode. Instead we run a foreground-only download via
-// react-native-blob-util — downloads pause when the app is backgrounded, but no FGS
-// permission is needed and the manifest stays clean.
+// expo-file-system's `createDownloadResumable` — downloads pause when the app is
+// backgrounded, but no FGS permission is needed and the manifest stays clean.
+//
+// We previously used react-native-blob-util's `fetch({path})` here, but that path
+// drives the file write via OkHttp's `ResponseBody.bytes()`, which refuses to buffer
+// any body whose Content-Length exceeds Integer.MAX_VALUE (~2 GiB) and throws
+// "Cannot buffer entire body". blob-util swallows that, so every download ≥2 GB (i.e.
+// nearly all real movie sources) failed instantly with "Download interrupted". expo's
+// downloader streams straight to disk with no such limit. blob-util is still used for
+// filesystem ops (mkdir/exists/stat/unlink) and to resolve the documents dir.
 //
 // iOS keeps the kesha lib because NSURLSession background downloads aren't an Android
 // FGS concern and the iOS feature is already battle-tested in this codebase.
@@ -130,21 +139,26 @@ class AndroidDownloadTask implements DownloadTask {
   state: DownloadTaskState = "PENDING";
 
   private url: string;
+  /** file:// URI expo-file-system writes to. */
+  private fileUri: string;
+  /** Plain path (no scheme) for blob-util fs cleanup. */
   private destination: string;
   private headers?: Record<string, string>;
 
-  private fetchTask: StatefulPromise<FetchBlobResponse> | null = null;
+  private resumable: DownloadResumable | null = null;
   private beginHandler?: (p: BeginHandlerParams) => void;
   private progressHandler?: (p: ProgressHandlerParams) => void;
   private doneHandler?: (p: DoneHandlerParams) => void;
   private errorHandler?: (p: ErrorHandlerParams) => void;
   private beginFired = false;
-  private lastBytesTotal = 0;
+  private lastWritten = 0;
+  private lastTotal = 0;
 
   constructor(params: CreateDownloadTaskParams) {
     this.id = params.id;
     this.url = params.url;
     this.destination = params.destination.replace(/^file:\/\//, "");
+    this.fileUri = `file://${this.destination}`;
     this.headers = params.headers;
   }
 
@@ -169,76 +183,68 @@ class AndroidDownloadTask implements DownloadTask {
     if (this.state === "DOWNLOADING" || this.state === "DONE") return;
     this.state = "DOWNLOADING";
     this.beginFired = false;
-    this.lastBytesTotal = 0;
-    this.spawnFetch();
+    this.lastWritten = 0;
+    this.lastTotal = 0;
+
+    androidConfig.logCallback?.("[downloader.android] start", this.id, this.url);
+
+    this.resumable = LegacyFileSystem.createDownloadResumable(
+      this.url,
+      this.fileUri,
+      { headers: this.headers },
+      ({ totalBytesWritten, totalBytesExpectedToWrite }) =>
+        this.onProgress(totalBytesWritten, totalBytesExpectedToWrite),
+    );
+    this.attachResult(this.resumable.downloadAsync());
   }
 
-  private spawnFetch() {
-    const log = androidConfig.logCallback;
-    log?.("[downloader.android] start", this.id, this.url);
+  private onProgress(written: number, total: number) {
+    if (this.state !== "DOWNLOADING") return;
+    this.lastWritten = written;
+    if (total > 0) this.lastTotal = total;
+    if (!this.beginFired && total > 0) {
+      this.beginFired = true;
+      this.beginHandler?.({ expectedBytes: total });
+    }
+    this.progressHandler?.({ bytesDownloaded: written, bytesTotal: total });
+  }
 
-    const fetchTask = ReactNativeBlobUtil.config({
-      fileCache: false,
-      path: this.destination,
-      // overwrite is the default for `path` — keep partial files out of
-      // the way before resume(), which deletes them first.
-    }).fetch("GET", this.url, this.headers);
-
-    this.fetchTask = fetchTask;
-
-    fetchTask.progress(
-      { interval: androidConfig.progressInterval },
-      (received, total) => {
+  /** Wire the download/resume promise to our done/error handlers. */
+  private attachResult(
+    promise: Promise<FileSystemDownloadResult | undefined>,
+  ): void {
+    promise
+      .then(async (result) => {
+        // Pause/cancel resolves to undefined; a stale resolution after we've
+        // already moved on is ignored via the state guard.
         if (this.state !== "DOWNLOADING") return;
-        const r = Number(received);
-        const t = Number(total);
-        if (!this.beginFired && t > 0) {
-          this.beginFired = true;
-          this.beginHandler?.({ expectedBytes: t });
-        }
-        if (t > 0) this.lastBytesTotal = t;
-        this.progressHandler?.({ bytesDownloaded: r, bytesTotal: t });
-      },
-    );
-
-    fetchTask
-      .then(async (res) => {
-        // Pause/stop cancels the fetch — blob-util rejects in that case, so
-        // resolution here means a network completion (success OR HTTP error).
-        if (this.state !== "DOWNLOADING") return;
-        const status = res.info().status;
-        if (status >= 400) {
+        if (!result) return;
+        if (result.status >= 400) {
           this.state = "FAILED";
-          this.fetchTask = null;
-          // Clean up the partial file so retry doesn't see a half-written
-          // body that passes existence checks.
+          this.resumable = null;
           await this.safeUnlink();
-          this.errorHandler?.({ error: `HTTP ${status}`, errorCode: status });
+          this.errorHandler?.({
+            error: `HTTP ${result.status}`,
+            errorCode: result.status,
+          });
           return;
         }
-        let size = this.lastBytesTotal;
-        try {
-          const stat = await ReactNativeBlobUtil.fs.stat(this.destination);
-          size = Number(stat.size) || size;
-        } catch {
-          /* stat failure is non-fatal; use last reported total */
-        }
+        const total = this.lastTotal > 0 ? this.lastTotal : this.lastWritten;
         this.state = "DONE";
-        this.fetchTask = null;
+        this.resumable = null;
         this.doneHandler?.({
-          bytesDownloaded: size,
-          bytesTotal: size,
+          bytesDownloaded: this.lastWritten || total,
+          bytesTotal: total,
         });
       })
       .catch(async (err: unknown) => {
-        // A cancelled task throws here too. If we cancelled deliberately the
-        // state is already PAUSED/STOPPED and we just swallow.
+        // Deliberate pause/stop also rejects on some paths — if we already
+        // transitioned, swallow.
         if (this.state === "PAUSED" || this.state === "STOPPED") {
-          this.fetchTask = null;
           return;
         }
         this.state = "FAILED";
-        this.fetchTask = null;
+        this.resumable = null;
         await this.safeUnlink();
         const msg =
           err instanceof Error
@@ -251,39 +257,34 @@ class AndroidDownloadTask implements DownloadTask {
   }
 
   async pause(): Promise<void> {
-    if (this.state !== "DOWNLOADING") return;
-    // blob-util has no native pause/resume. Cancel the in-flight fetch and
-    // delete the partial file so resume() starts fresh — restarting from
-    // byte 0 is a regression vs the iOS lib, but it's the trade-off for
-    // removing FOREGROUND_SERVICE_DATA_SYNC.
+    if (this.state !== "DOWNLOADING" || !this.resumable) return;
+    // expo-file-system supports true pause/resume (preserves the byte offset),
+    // so unlike the old blob-util path we keep the partial file.
     this.state = "PAUSED";
-    if (this.fetchTask) {
-      try {
-        this.fetchTask.cancel();
-      } catch {
-        /* best effort */
-      }
-      this.fetchTask = null;
+    try {
+      await this.resumable.pauseAsync();
+    } catch {
+      /* best effort */
     }
-    await this.safeUnlink();
   }
 
   async resume(): Promise<void> {
-    if (this.state !== "PAUSED") return;
-    this.state = "PENDING";
-    this.start();
+    if (this.state !== "PAUSED" || !this.resumable) return;
+    this.state = "DOWNLOADING";
+    this.attachResult(this.resumable.resumeAsync());
   }
 
   async stop(): Promise<void> {
     this.state = "STOPPED";
-    if (this.fetchTask) {
+    if (this.resumable) {
       try {
-        this.fetchTask.cancel();
+        await this.resumable.cancelAsync();
       } catch {
         /* best effort */
       }
-      this.fetchTask = null;
+      this.resumable = null;
     }
+    await this.safeUnlink();
   }
 
   private async safeUnlink(): Promise<void> {
