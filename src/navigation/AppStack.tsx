@@ -21,6 +21,7 @@ import OnboardingScreen from "../screens/OnboardingScreen";
 import PreferencesScreen from "../screens/PreferencesScreen";
 import PlannerScreen from "../screens/PlannerScreen";
 import DownloadedTitlesScreen from "../screens/DownloadedTitlesScreen";
+import SettingsScreen from "../screens/SettingsScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -134,6 +135,13 @@ function AppNavigator() {
           name="DownloadedTitles"
           component={DownloadedTitlesScreen}
           options={{ title: "Downloads", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="Settings"
+          component={SettingsScreen}
+          // SettingsScreen renders its own header (with a back chevron when
+          // pushed); hide the native one to avoid a doubled "Settings" title.
+          options={{ headerShown: false }}
         />
       </Stack.Navigator>
     </>

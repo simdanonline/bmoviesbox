@@ -232,6 +232,10 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     navigation.navigate("SearchScreen");
   };
 
+  const onclickSettings = () => {
+    navigation.navigate("Settings");
+  };
+
   const handleHeaderTap = () => {
     if (Platform.OS === "web") return;
     if (isTvApp) {
@@ -345,13 +349,22 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           >
             <Text style={styles.headerTitle}>BMovie</Text>
           </Focusable>
-          <Focusable
-            style={styles.headerIconWrap}
-            focusedStyle={styles.iconButtonFocused}
-            onPress={onclickSearch}
-          >
-            <FontAwesome name="search" size={30} color={"#fff"} />
-          </Focusable>
+          <View style={styles.row}>
+            <Focusable
+              style={styles.headerIconWrap}
+              focusedStyle={styles.iconButtonFocused}
+              onPress={onclickSettings}
+            >
+              <FontAwesome name="gear" size={26} color={"#fff"} />
+            </Focusable>
+            <Focusable
+              style={styles.headerIconWrap}
+              focusedStyle={styles.iconButtonFocused}
+              onPress={onclickSearch}
+            >
+              <FontAwesome name="search" size={30} color={"#fff"} />
+            </Focusable>
+          </View>
         </View>
 
         {/* Welcome hint if onboarding was skipped */}

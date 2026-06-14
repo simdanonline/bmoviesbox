@@ -5,6 +5,7 @@ import {
   ScrollView,
   Alert,
   StyleSheet,
+  TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -194,7 +195,23 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
+        <View
+          style={[
+            styles.header,
+            { flexDirection: "row", alignItems: "center" },
+          ]}
+        >
+          {/* Back chevron only when pushed onto the stack (Home → gear). As a
+              TV tab there's nothing to go back to, so it stays hidden. */}
+          {navigation.canGoBack() && (
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              style={{ marginRight: 14 }}
+            >
+              <FontAwesome name="chevron-left" size={22} color="#fff" />
+            </TouchableOpacity>
+          )}
           <Text style={styles.headerTitle}>Settings</Text>
         </View>
 
