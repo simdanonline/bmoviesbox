@@ -65,6 +65,10 @@ export default function UpcomingReleases() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Guard against the Library Watchlist/Upcoming toggle unmounting us while
+    // the calendar request is still in flight — setState after unmount is
+    // wasted work and warns.
+    let cancelled = false;
     (async () => {
       try {
         const now = new Date();
@@ -73,13 +77,16 @@ export default function UpcomingReleases() {
           .toISOString()
           .split("T")[0];
         const events = await MovieAPI.getCalendar(from, to);
-        setApiEvents(events);
+        if (!cancelled) setApiEvents(events);
       } catch {
         // Calendar endpoint may not exist
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Build events from known metadata with future release dates
@@ -185,6 +192,16 @@ export default function UpcomingReleases() {
       };
 
       const notificationId = await scheduleReminderNotification(reminder);
+      // null means nothing was scheduled (most commonly the trigger time is
+      // already in the past). Don't record an "active" reminder that will
+      // never fire — tell the user instead.
+      if (!notificationId) {
+        Alert.alert(
+          "Couldn't set reminder",
+          "This title releases too soon to schedule a notification.",
+        );
+        return;
+      }
       addReminder({ ...reminder, notificationId });
     },
     [getReminderForTitle, removeReminder, addReminder],
