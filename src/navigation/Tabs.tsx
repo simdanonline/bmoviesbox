@@ -3,11 +3,8 @@ import { Text } from "react-native";
 import HomeScreen from "../screens/HomeScreen";
 import SeriesList from "../screens/SeriesList";
 import LibraryScreen from "../screens/LibraryScreen";
-import CalendarScreen from "../screens/CalendarScreen";
-import SettingsScreen from "../screens/SettingsScreen";
 import AntDesign from "@expo/vector-icons/build/AntDesign";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
-import Ionicons from "@expo/vector-icons/build/Ionicons";
 import LiveTab from "../screens/LiveTab";
 import { useTvApp } from "../context/TvAppContext";
 
@@ -63,36 +60,9 @@ function MyTabs() {
           ),
         }}
       />
-      <Tab.Screen
-        name="Calendar"
-        component={CalendarScreen}
-        options={{
-          headerShown: false,
-          tabBarLabel: () => <Text style={{ color: "#fff" }}>Calendar</Text>,
-          tabBarIcon: ({ focused }) => (
-            <FontAwesome
-              name="calendar"
-              size={22}
-              color={focused ? "#fff" : "#999"}
-            />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="SettingsTab"
-        component={SettingsScreen}
-        options={{
-          headerShown: false,
-          tabBarLabel: () => <Text style={{ color: "#fff" }}>Settings</Text>,
-          tabBarIcon: ({ focused }) => (
-            <Ionicons
-              name="settings-outline"
-              size={24}
-              color={focused ? "#fff" : "#999"}
-            />
-          ),
-        }}
-      />
+      {/* Calendar lives in the Library "Upcoming" tab, and Settings in the Home
+          header (gear icon) — keeping the bar to ≤5 items so labels don't wrap.
+          (Both remain full tabs in TvTabs, where width isn't constrained.) */}
       {isTvApp && (
         <Tab.Screen
           name="LiveTab"

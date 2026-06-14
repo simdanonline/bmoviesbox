@@ -22,12 +22,14 @@ import {
 } from "../types/app";
 import MovieCard from "../components/MovieCard";
 import Focusable from "../components/Focusable";
+import UpcomingReleases from "../components/UpcomingReleases";
 import { styles } from "../styles/styles";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 
 type TypeFilter = "all" | "movies" | "series";
 type StatusFilter = "all" | WatchStatus;
 type SortOrder = "recent" | "title" | "status";
+type ViewMode = "library" | "upcoming";
 
 function formatLibGB(bytes: number): string {
   if (!bytes) return "0 MB";
@@ -46,6 +48,7 @@ export default function LibraryScreen({
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortOrder, setSortOrder] = useState<SortOrder>("recent");
+  const [viewMode, setViewMode] = useState<ViewMode>("library");
 
   const activeDownloads = useMemo(
     () =>
@@ -211,6 +214,43 @@ export default function LibraryScreen({
           </Focusable>
         </View>
 
+        {/* Watchlist / Upcoming switch — Upcoming holds what used to be the
+            Calendar tab (release dates + reminders). */}
+        <View style={libStyles.segmentRow}>
+          {(
+            [
+              { key: "library", label: "Watchlist" },
+              { key: "upcoming", label: "Upcoming" },
+            ] as { key: ViewMode; label: string }[]
+          ).map((seg) => {
+            const active = viewMode === seg.key;
+            return (
+              <Focusable
+                key={seg.key}
+                style={[
+                  libStyles.segmentButton,
+                  active && libStyles.segmentButtonActive,
+                ]}
+                focusedStyle={libStyles.filterChipFocused}
+                onPress={() => setViewMode(seg.key)}
+              >
+                <Text
+                  style={[
+                    libStyles.segmentText,
+                    active && libStyles.segmentTextActive,
+                  ]}
+                >
+                  {seg.label}
+                </Text>
+              </Focusable>
+            );
+          })}
+        </View>
+
+        {viewMode === "upcoming" ? (
+          <UpcomingReleases />
+        ) : (
+          <>
         {/* Type filter */}
         <ScrollView
           horizontal
@@ -553,6 +593,8 @@ export default function LibraryScreen({
             </View>
           </View>
         )}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -597,6 +639,34 @@ const libStyles = StyleSheet.create({
     color: "#fff",
     fontSize: 13,
     fontWeight: "700",
+  },
+  segmentRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  segmentButton: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#1a1a1a",
+    borderWidth: 1,
+    borderColor: "#333",
+  },
+  segmentButtonActive: {
+    backgroundColor: "#e74c3c",
+    borderColor: "#e74c3c",
+  },
+  segmentText: {
+    color: "#aaa",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  segmentTextActive: {
+    color: "#fff",
   },
   filterRow: {
     paddingHorizontal: 16,
