@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import ReactNativeBlobUtil from "react-native-blob-util";
 import type { ResolvedStream } from "../services/MovieAPI";
 
@@ -29,6 +30,14 @@ export async function validateDownloadStream(
   }
   if (!/^https?:\/\//i.test(stream.url)) {
     return fail("Source URL is not a downloadable network file.");
+  }
+
+  // On web the HEAD/ranged-GET preflight below is blocked by the browser's CORS
+  // policy for cross-origin debrid/CDN hosts, so it would wrongly reject every
+  // source. The browser's own download (which doesn't need CORS) is the real
+  // test — accept any direct http(s) file here and let the browser handle it.
+  if (Platform.OS === "web") {
+    return { ok: true };
   }
 
   const baseHeaders = sanitizeHeaders(stream.headers);

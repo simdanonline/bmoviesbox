@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import type { ResolvedStream } from "../services/MovieAPI";
 import { validateVideoBytes } from "./downloadValidation";
 import {
@@ -26,6 +27,15 @@ export async function preparePlayableStreams(
   streams: ResolvedStream[],
   context: PlaybackSourceContext,
 ): Promise<ResolvedStream[]> {
+  // On web, the preflight below (HEAD/ranged-GET via fetch) is blocked by the
+  // browser's CORS policy for cross-origin stream hosts, so every source would
+  // be wrongly rejected. But <video>/<iframe> playback itself does NOT require
+  // CORS — so we skip the network preflight on web and let the web player try
+  // each source in order, falling through on a real playback error.
+  if (Platform.OS === "web") {
+    return filterBadPlaybackSources(streams, context);
+  }
+
   const candidates = await filterBadPlaybackSources(streams, context);
   const rejectedUrls = new Set<string>();
   const limit = Math.min(MAX_PREFLIGHT_ATTEMPTS, candidates.length);

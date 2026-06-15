@@ -1,4 +1,4 @@
-import { Alert } from "react-native";
+import { Alert, Platform } from "react-native";
 
 // Threshold above which we ask before queueing. Tuned so a typical efficient
 // 1080p (≤2 GB) downloads silently and 4K-ish or REMUX-ish files prompt once.
@@ -19,6 +19,17 @@ export function confirmLargeDownload(
     return Promise.resolve(true);
   }
   const gb = (sizeBytes / 1024 ** 3).toFixed(1);
+  // react-native-web's Alert doesn't render multi-button dialogs, so the native
+  // path below would hang forever. Use the browser's confirm() instead.
+  if (Platform.OS === "web") {
+    const ok =
+      typeof window !== "undefined" && typeof window.confirm === "function"
+        ? window.confirm(
+            `"${title}" is ${gb} GB. It'll use this much storage and bandwidth. Download?`,
+          )
+        : true;
+    return Promise.resolve(ok);
+  }
   return new Promise((resolve) => {
     Alert.alert(
       `Download ${gb} GB?`,

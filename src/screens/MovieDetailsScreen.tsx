@@ -37,6 +37,7 @@ import {
   markBadDownloadSource,
 } from "../utils/downloadSourceHealth";
 import { preparePlayableStreams } from "../utils/playbackValidation";
+import { getWebPlayerMode } from "../utils/webPlayerMode";
 
 type MovieDetailsScreenProps = NativeStackScreenProps<any, "MovieDetails">;
 
@@ -107,6 +108,9 @@ export default function MovieDetailsScreen({
   useTVBackHandler(() => navigation.goBack());
   const { isTvApp } = useTvApp();
   const usesTvPlaybackControls = Platform.isTV || isTvApp;
+  // Downloads are gated behind TV-app mode on native, but on web a download is
+  // just a browser download — always offer it there.
+  const canDownload = isTvApp || Platform.OS === "web";
   const {
     isInWatchlist,
     toggleWantToWatch,
@@ -242,6 +246,38 @@ export default function MovieDetailsScreen({
   };
 
   const handlePlayPress = async () => {
+    // Tier 2 (embed/WebView) navigation, shared by the web "embedded player"
+    // preference below and the no-direct-stream fallback at the end.
+    const goToEmbedPlayer = () => {
+      if (movieDetails.streamingServers.length === 0) {
+        Alert.alert(
+          "No Servers",
+          "No streaming servers available for this movie",
+        );
+        return;
+      }
+      if (movieDetails.streamingServers.length === 1) {
+        navigation.navigate("VideoPlayer", {
+          server: movieDetails.streamingServers[0],
+          servers: movieDetails.streamingServers,
+          serverIndex: 0,
+          movieTitle: movieDetails.title,
+        });
+      } else {
+        navigation.navigate("ServerSelection", {
+          servers: movieDetails.streamingServers,
+          movieTitle: movieDetails.title,
+        });
+      }
+    };
+
+    // On web the user can opt into the legacy embedded player (better MKV +
+    // subtitle support) via Settings — skip the direct <video> pipeline.
+    if (Platform.OS === "web" && (await getWebPlayerMode()) === "embed") {
+      goToEmbedPlayer();
+      return;
+    }
+
     // Tier 1: try the backend's resolved-stream pipeline (Stremio addon +
     // Real-Debrid → direct CDN URL). If anything comes back, hand off to
     // the native player and skip the WebView path entirely.
@@ -291,26 +327,7 @@ export default function MovieDetailsScreen({
     }
 
     // Tier 2: fall back to the existing embed-URL + SecureWebView path.
-    if (movieDetails.streamingServers.length === 0) {
-      Alert.alert(
-        "No Servers",
-        "No streaming servers available for this movie",
-      );
-      return;
-    }
-    if (movieDetails.streamingServers.length === 1) {
-      navigation.navigate("VideoPlayer", {
-        server: movieDetails.streamingServers[0],
-        servers: movieDetails.streamingServers,
-        serverIndex: 0,
-        movieTitle: movieDetails.title,
-      });
-    } else {
-      navigation.navigate("ServerSelection", {
-        servers: movieDetails.streamingServers,
-        movieTitle: movieDetails.title,
-      });
-    }
+    goToEmbedPlayer();
   };
 
   const startMovieDownload = async (source: ResolvedStream) => {
@@ -554,7 +571,7 @@ export default function MovieDetailsScreen({
 
       {/* Download button — only shown when TV-app mode is unlocked. Cycles idle → downloading → completed.
           Progress fill renders as a relative bar behind the label. */}
-      {isTvApp && (
+      {canDownload && (
         <Focusable
           style={[
             detailActionStyles.downloadButton,
@@ -774,7 +791,7 @@ export default function MovieDetailsScreen({
           </View>
         )}
       </View>
-      {isTvApp && (
+      {canDownload && (
         <DownloadSourcePicker
           visible={downloadPickerVisible}
           title={movieDetails.title}

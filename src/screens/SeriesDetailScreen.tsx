@@ -42,6 +42,7 @@ import {
   resolveEpisodePlayback,
   type SeriesRef,
 } from "../utils/episodePlayback";
+import { getWebPlayerMode } from "../utils/webPlayerMode";
 
 type SeriesDetailsScreenProps = NativeStackScreenProps<any, "SeriesDetails">;
 
@@ -52,6 +53,9 @@ export default function SeriesDetailsScreen({
   useTVBackHandler(() => navigation.goBack());
   const { isTvApp } = useTvApp();
   const usesTvPlaybackControls = Platform.isTV || isTvApp;
+  // Downloads are gated behind TV-app mode on native, but on web a download is
+  // just a browser download — always offer it there.
+  const canDownload = isTvApp || Platform.OS === "web";
   const {
     isInWatchlist,
     toggleWantToWatch,
@@ -504,6 +508,40 @@ export default function SeriesDetailsScreen({
       url: seriesData.url,
       title: seriesData.title,
     };
+    // Tier 2 (legacy WebView/embed) navigation, shared by the web "embedded
+    // player" preference below and the no-direct-stream fallback.
+    const goToEmbedEpisode = async () => {
+      try {
+        const links = await MovieAPI.getSeriesServer(episode.episodeUrl);
+        setGettingLinks(false);
+        const servers = links.videoLinks;
+
+        if (servers.length === 1) {
+          navigation.navigate("VideoPlayer", {
+            server: servers[0],
+            servers,
+            serverIndex: 0,
+            movieTitle,
+          });
+        } else {
+          navigation.navigate("ServerSelection", {
+            servers,
+            movieTitle,
+          });
+        }
+      } catch {
+        setGettingLinks(false);
+        Alert.alert("Error", "Failed to get streaming links.");
+      }
+    };
+
+    // On web the user can opt into the legacy embedded player (better MKV +
+    // subtitle support) via Settings — skip the direct <video> pipeline.
+    if (Platform.OS === "web" && (await getWebPlayerMode()) === "embed") {
+      await goToEmbedEpisode();
+      return;
+    }
+
     const params = await resolveEpisodePlayback(
       seriesRef,
       selectedSeason,
@@ -526,28 +564,7 @@ export default function SeriesDetailsScreen({
     }
 
     // Tier 2: legacy WebView path.
-    try {
-      const links = await MovieAPI.getSeriesServer(episode.episodeUrl);
-      setGettingLinks(false);
-      const servers = links.videoLinks;
-
-      if (servers.length === 1) {
-        navigation.navigate("VideoPlayer", {
-          server: servers[0],
-          servers,
-          serverIndex: 0,
-          movieTitle,
-        });
-      } else {
-        navigation.navigate("ServerSelection", {
-          servers,
-          movieTitle,
-        });
-      }
-    } catch {
-      setGettingLinks(false);
-      Alert.alert("Error", "Failed to get streaming links.");
-    }
+    await goToEmbedEpisode();
   };
 
   if (loading) {
@@ -841,7 +858,7 @@ export default function SeriesDetailsScreen({
                   </Text>
                 )}
               </View>
-              {isTvApp &&
+              {canDownload &&
                 currentEpisodes.length > 0 &&
                 seasonDownloadStats.completed < currentEpisodes.length && (
                   <Focusable
@@ -952,9 +969,10 @@ export default function SeriesDetailsScreen({
                       </>
                     )}
 
-                    {/* Download icon — corner overlay. Only shown when TV-app mode is unlocked.
-                        Nested touchable wins focus over the parent card on phone touch. */}
-                    {isTvApp && (
+                    {/* Download icon — corner overlay. Shown in TV-app mode and
+                        always on web. Nested touchable wins focus over the parent
+                        card on phone touch. */}
+                    {canDownload && (
                       <TouchableOpacity
                         style={[
                           seriesStyles.downloadIconBtn,
@@ -1051,7 +1069,7 @@ export default function SeriesDetailsScreen({
           </View>
         )}
       </View>
-      {isTvApp && (
+      {canDownload && (
         <DownloadSourcePicker
           visible={!!episodeDownloadPicker}
           title={seriesData.title}
