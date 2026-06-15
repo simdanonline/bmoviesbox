@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   View,
   Text,
@@ -61,15 +67,19 @@ export default function NativeVideoPlayerWeb({ route, navigation }: any) {
   // resort instead of failing on it and falling through. The incoming order is
   // already quality-ranked, and the sort is stable, so quality order is kept
   // within each tier.
-  const streams: ResolvedStream[] = (params.streams ?? [])
-    .filter(
-      (s: ResolvedStream) =>
-        s && s.type !== "magnet" && /^https?:\/\//i.test(s.url),
-    )
-    .sort(
-      (a: ResolvedStream, b: ResolvedStream) =>
-        (a.type === "mkv" ? 1 : 0) - (b.type === "mkv" ? 1 : 0),
-    );
+  const streams: ResolvedStream[] = useMemo(
+    () =>
+      (params.streams ?? [])
+        .filter(
+          (s: ResolvedStream) =>
+            s && s.type !== "magnet" && /^https?:\/\//i.test(s.url),
+        )
+        .sort(
+          (a: ResolvedStream, b: ResolvedStream) =>
+            (a.type === "mkv" ? 1 : 0) - (b.type === "mkv" ? 1 : 0),
+        ),
+    [params.streams],
+  );
 
   const [index, setIndex] = useState(0);
   const [fatalError, setFatalError] = useState<string | null>(null);

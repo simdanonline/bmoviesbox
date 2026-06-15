@@ -92,6 +92,7 @@ export default function LiveGamePlayerWeb({ route, navigation }: any) {
         {embedLink ? (
           <iframe
             src={embedLink}
+            title={playerTitle}
             allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
             allowFullScreen
             referrerPolicy="origin"

@@ -42,6 +42,7 @@ const SecureVideoWebView = forwardRef<
       <iframe
         ref={frameRef}
         src={url}
+        title="Video player"
         allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
         allowFullScreen
         referrerPolicy="origin"

@@ -47,6 +47,7 @@ export default function TrailerScreenWeb({ route, navigation }: any) {
       <View style={styles.stage}>
         <iframe
           src={embed}
+          title="Trailer"
           allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
           allowFullScreen
           style={{

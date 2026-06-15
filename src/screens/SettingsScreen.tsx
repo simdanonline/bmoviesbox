@@ -56,7 +56,11 @@ export default function SettingsScreen() {
   } = useUserData();
   const downloads = useDownloads();
   const { isTvApp } = useTvApp();
-  const { mode: webPlayerMode, setMode: setWebPlayerMode } = useWebPlayerMode();
+  const {
+    mode: webPlayerMode,
+    setMode: setWebPlayerMode,
+    ready: webPlayerModeReady,
+  } = useWebPlayerMode();
 
   const downloadBreakdown = (() => {
     let movies = 0;
@@ -336,11 +340,15 @@ export default function SettingsScreen() {
             <Text style={settingsStyles.sectionTitle}>Playback</Text>
             <Focusable
               style={settingsStyles.settingRow}
-              onPress={() =>
+              onPress={() => {
+                // Ignore taps until the stored preference has hydrated, else a
+                // quick first-render tap would toggle off the default and
+                // persist the wrong mode.
+                if (!webPlayerModeReady) return;
                 setWebPlayerMode(
                   webPlayerMode === "embed" ? "native" : "embed",
-                )
-              }
+                );
+              }}
             >
               <View style={settingsStyles.settingLeft}>
                 <FontAwesome
