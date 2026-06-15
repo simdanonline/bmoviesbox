@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useState,
 } from "react";
+import { Platform } from "react-native";
 import {
   DownloadManager,
   DownloadRecord,
@@ -12,6 +13,7 @@ import {
   DownloadPreferences,
 } from "../services/DownloadManager";
 import type { ResolvedStream } from "../services/MovieAPI";
+import { buildDownloadFilename, triggerWebDownload } from "../utils/webDownload";
 
 interface DownloadContextValue {
   records: DownloadRecord[];
@@ -88,8 +90,15 @@ export function DownloadProvider({ children }: { children: React.ReactNode }) {
   }
 
   const start = useCallback(
-    (stream: ResolvedStream, metadata: DownloadMetadata) =>
-      DownloadManager.start(stream, metadata),
+    (stream: ResolvedStream, metadata: DownloadMetadata) => {
+      // Web has no native download engine / filesystem. Hand the resolved URL
+      // to the browser's own downloader instead of DownloadManager.
+      if (Platform.OS === "web") {
+        triggerWebDownload(stream, buildDownloadFilename(metadata.title, stream));
+        return Promise.resolve("web-download");
+      }
+      return DownloadManager.start(stream, metadata);
+    },
     [],
   );
   const pause = useCallback((id: string) => DownloadManager.pause(id), []);

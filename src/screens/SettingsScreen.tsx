@@ -6,6 +6,7 @@ import {
   Alert,
   StyleSheet,
   TouchableOpacity,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -15,6 +16,7 @@ import Focusable from "../components/Focusable";
 import { useUserData } from "../context/UserDataContext";
 import { useDownloads } from "../context/DownloadContext";
 import { useTvApp } from "../context/TvAppContext";
+import { useWebPlayerMode } from "../utils/webPlayerMode";
 import MovieAPI from "../services/MovieAPI";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
@@ -54,6 +56,7 @@ export default function SettingsScreen() {
   } = useUserData();
   const downloads = useDownloads();
   const { isTvApp } = useTvApp();
+  const { mode: webPlayerMode, setMode: setWebPlayerMode } = useWebPlayerMode();
 
   const downloadBreakdown = (() => {
     let movies = 0;
@@ -325,6 +328,51 @@ export default function SettingsScreen() {
         </View>
 
         {/* Reminders */}
+        {/* Playback — web only. Lets the user swap the built-in <video> player
+            for the legacy embedded site players, which handle MKV/HEVC and
+            carry their own subtitle controls. */}
+        {Platform.OS === "web" && (
+          <View style={settingsStyles.section}>
+            <Text style={settingsStyles.sectionTitle}>Playback</Text>
+            <Focusable
+              style={settingsStyles.settingRow}
+              onPress={() =>
+                setWebPlayerMode(
+                  webPlayerMode === "embed" ? "native" : "embed",
+                )
+              }
+            >
+              <View style={settingsStyles.settingLeft}>
+                <FontAwesome
+                  name={webPlayerMode === "embed" ? "globe" : "play-circle"}
+                  size={18}
+                  color={webPlayerMode === "embed" ? "#27ae60" : "#aaa"}
+                />
+                <View style={settingsStyles.settingTextContainer}>
+                  <Text style={settingsStyles.settingText}>
+                    Use embedded player
+                  </Text>
+                  <Text style={settingsStyles.settingDetail}>
+                    {webPlayerMode === "embed"
+                      ? "Plays via external site players — supports MKV & subtitles"
+                      : "Built-in player — faster, but no MKV/HEVC or subtitles in-browser"}
+                  </Text>
+                </View>
+              </View>
+              <View
+                style={[
+                  settingsStyles.toggleBadge,
+                  webPlayerMode === "embed" && settingsStyles.toggleBadgeOn,
+                ]}
+              >
+                <Text style={settingsStyles.toggleBadgeText}>
+                  {webPlayerMode === "embed" ? "ON" : "OFF"}
+                </Text>
+              </View>
+            </Focusable>
+          </View>
+        )}
+
         <View style={settingsStyles.section}>
           <Text style={settingsStyles.sectionTitle}>Notifications</Text>
           <View style={settingsStyles.settingRow}>
