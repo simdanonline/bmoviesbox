@@ -123,6 +123,14 @@ const RECONNECT_GRACE_MS = 20_000;
 // normal advance-and-blacklist path so the user isn't stuck in a reload loop.
 const MAX_RECONNECT_ATTEMPTS = 2;
 
+// User-selectable playback speeds. 1 is normal; applied to both players via
+// their `rate` prop and surfaced through the speed menu. Kept across source
+// switches and reconnect remounts (it's a session preference, not per-stream).
+const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
+
+// "1x", "1.5x", "0.5x" — drops a trailing ".0" so whole speeds read cleanly.
+const formatRate = (rate: number): string => `${rate}x`;
+
 // VLC is only needed on iOS for containers AVPlayer can't open (MKV today;
 // extensible to other formats later). Android's ExoPlayer handles MKV
 // natively in react-native-video, so always use the main player there.
@@ -229,6 +237,10 @@ export default function NativeVideoPlayer({
   const [selectedAudioKey, setSelectedAudioKey] = useState<number | null>(null);
   const [selectedTextKey, setSelectedTextKey] = useState<number>(-1);
   const [showTrackMenu, setShowTrackMenu] = useState(false);
+  // Playback-speed menu + the active rate (1 = normal). Both players take it via
+  // their `rate` prop; the rate persists across source switches and reconnects.
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
   // `hasStarted` flips true the first time playback actually advances —
   // tracked separately from `errored` so re-buffer events during normal
   // playback can't drag the loading overlay back on screen. (rnv's onBuffer
@@ -352,6 +364,18 @@ export default function NativeVideoPlayer({
   const backgroundedAtRef = useRef<number | null>(null);
   // Position to seek back to once the freshly-remounted player reports onLoad.
   const pendingReloadSeekMsRef = useRef<number | null>(null);
+  // Audio track to re-apply after a reconnect remount. Both players honor an
+  // index/id selection only as a post-load change (the null -> value transition
+  // first mount makes), not as a prop already set on a fresh instance — so on
+  // remount we drop the selection to null and restore it once tracks reload.
+  const pendingReloadAudioKeyRef = useRef<number | null>(null);
+  // Mirror of selectedAudioKey for the stable-identity reload callback to read.
+  const selectedAudioKeyRef = useRef<number | null>(null);
+  // Subtitle counterpart of the two refs above: iOS/VLC select subtitles by
+  // index/id, which a fresh instance only honors as a post-load change, so the
+  // pick is captured and restored across a reconnect remount the same way.
+  const pendingReloadTextKeyRef = useRef<number | null>(null);
+  const selectedTextKeyRef = useRef<number>(-1);
   // Until this timestamp, a playback error is treated as a transient
   // dead-connection symptom (silent reload) rather than a bad source.
   const reconnectGraceUntilRef = useRef(0);
@@ -431,6 +455,7 @@ export default function NativeVideoPlayer({
     setSelectedAudioKey(null);
     setSelectedTextKey(-1);
     setShowTrackMenu(false);
+    setShowSpeedMenu(false);
     setLocked(false);
     scheduleHide();
   }, [currentIndex, scheduleHide]);
@@ -503,7 +528,10 @@ export default function NativeVideoPlayer({
   // Close the track menu whenever controls hide so it never floats without its
   // trigger button.
   useEffect(() => {
-    if (!controlsVisible) setShowTrackMenu(false);
+    if (!controlsVisible) {
+      setShowTrackMenu(false);
+      setShowSpeedMenu(false);
+    }
   }, [controlsVisible]);
 
   // Reset resume bookkeeping when the active stream changes — otherwise the
@@ -517,6 +545,8 @@ export default function NativeVideoPlayer({
     // A pending reconnect-seek belongs to the previous source; dropping to a new
     // stream is fresh playback, so clear it and the reconnect bookkeeping.
     pendingReloadSeekMsRef.current = null;
+    pendingReloadAudioKeyRef.current = null;
+    pendingReloadTextKeyRef.current = null;
     reconnectGraceUntilRef.current = 0;
     reconnectAttemptsRef.current = 0;
   }, [currentIndex]);
@@ -535,6 +565,12 @@ export default function NativeVideoPlayer({
   useEffect(() => {
     pausedRef.current = paused;
   }, [paused]);
+  useEffect(() => {
+    selectedAudioKeyRef.current = selectedAudioKey;
+  }, [selectedAudioKey]);
+  useEffect(() => {
+    selectedTextKeyRef.current = selectedTextKey;
+  }, [selectedTextKey]);
 
   // Re-open the current stream from the last known position by remounting the
   // player (fresh `key`). Used both proactively on resume after a long idle and
@@ -544,6 +580,17 @@ export default function NativeVideoPlayer({
     if (!hasStartedRef.current || erroredRef.current) return;
     if (positionMsRef.current <= 0) return;
     pendingReloadSeekMsRef.current = positionMsRef.current;
+    // A fresh player ignores an audio selection already set on its props, so it
+    // would fall back to the native default (often a dubbed track). Remember the
+    // current pick, drop to null for the remount, and re-apply it post-load —
+    // the same transition that makes the selection stick on first mount.
+    pendingReloadAudioKeyRef.current = selectedAudioKeyRef.current;
+    setSelectedAudioKey(null);
+    // Subtitles share the same fresh-instance limitation: capture the pick, drop
+    // to "Off", and let the re-fired track handlers restore it post-load.
+    pendingReloadTextKeyRef.current = selectedTextKeyRef.current;
+    didSeedTextRef.current = false;
+    setSelectedTextKey(-1);
     setReloadNonce((n) => n + 1);
   }, []);
 
@@ -718,6 +765,10 @@ export default function NativeVideoPlayer({
       setShowTrackMenu(false);
       return;
     }
+    if (showSpeedMenu) {
+      setShowSpeedMenu(false);
+      return;
+    }
     // While controls are on-screen, back should dismiss the overlay rather
     // than exit playback. Errored state still goes back so the user isn't
     // trapped on the failure screen.
@@ -820,7 +871,15 @@ export default function NativeVideoPlayer({
       const original = (e.audioTracks ?? []).find((t) =>
         trackTextMatchesIso(t.name, originalLanguage),
       );
-      const target = original ? original.id : audio[0].key;
+      // After a reconnect remount, restore the track that was playing (original
+      // or a manual pick) when it still exists; otherwise seed the original.
+      const pendingReload = pendingReloadAudioKeyRef.current;
+      pendingReloadAudioKeyRef.current = null;
+      const reloadKey =
+        pendingReload !== null && audio.some((t) => t.key === pendingReload)
+          ? pendingReload
+          : null;
+      const target = reloadKey ?? (original ? original.id : audio[0].key);
       setSelectedAudioKey((prev) => (prev === null ? target : prev));
     }
     // VLC may already include a "disable"/id -1 row; drop it and add a single
@@ -830,9 +889,18 @@ export default function NativeVideoPlayer({
       .map((t, i) => ({ key: t.id, label: t.name || `Track ${i + 1}` }));
     setTextTracks(subs.length > 0 ? [{ key: -1, label: "Off" }, ...subs] : []);
     // VLC reports no default-selected subtitle; seed "Off" once per stream so a
-    // re-fired onLoad can't override a user's later choice.
+    // re-fired onLoad can't override a user's later choice. After a reconnect
+    // remount, restore the prior pick instead when that track still exists.
     if (!didSeedTextRef.current) {
-      setSelectedTextKey(-1);
+      const pendingReloadText = pendingReloadTextKeyRef.current;
+      pendingReloadTextKeyRef.current = null;
+      const restored =
+        pendingReloadText !== null &&
+        (pendingReloadText === -1 ||
+          subs.some((t) => t.key === pendingReloadText))
+          ? pendingReloadText
+          : -1;
+      setSelectedTextKey(restored);
       didSeedTextRef.current = true;
     }
     markStarted();
@@ -878,7 +946,16 @@ export default function NativeVideoPlayer({
         trackTextMatchesIso(t.title, originalLanguage),
     );
     const sel = e.audioTracks.find((t) => t.selected);
-    const target = original?.index ?? sel?.index ?? tracks[0]?.key ?? null;
+    // After a reconnect remount, restore the track that was playing (original or
+    // a manual pick) when it still exists; otherwise seed the original.
+    const pendingReload = pendingReloadAudioKeyRef.current;
+    pendingReloadAudioKeyRef.current = null;
+    const reloadKey =
+      pendingReload !== null && tracks.some((t) => t.key === pendingReload)
+        ? pendingReload
+        : null;
+    const target =
+      reloadKey ?? original?.index ?? sel?.index ?? tracks[0]?.key ?? null;
     if (target !== null) {
       setSelectedAudioKey((prev) => (prev === null ? target : prev));
     }
@@ -899,9 +976,22 @@ export default function NativeVideoPlayer({
     // Only offer subtitles (with an "Off" entry) when real tracks exist.
     setTextTracks(subs.length > 0 ? [{ key: -1, label: "Off" }, ...subs] : []);
     // Seed the initial selection once so re-fires don't clobber a user choice.
+    // After a reconnect remount, restore the prior pick when it still exists.
     if (!didSeedTextRef.current) {
-      const sel = e.textTracks.find((t) => t.selected);
-      setSelectedTextKey(sel ? sel.index : -1);
+      const pendingReloadText = pendingReloadTextKeyRef.current;
+      pendingReloadTextKeyRef.current = null;
+      let next: number;
+      if (pendingReloadText !== null) {
+        next =
+          pendingReloadText === -1 ||
+          e.textTracks.some((t) => t.index === pendingReloadText)
+            ? pendingReloadText
+            : -1;
+      } else {
+        const sel = e.textTracks.find((t) => t.selected);
+        next = sel ? sel.index : -1;
+      }
+      setSelectedTextKey(next);
       didSeedTextRef.current = true;
     }
   };
@@ -1262,6 +1352,7 @@ export default function NativeVideoPlayer({
       resizeMode="contain"
       controls={false}
       paused={paused}
+      rate={playbackRate}
       volume={volume}
       allowsExternalPlayback
       {...rnvTrackProps}
@@ -1334,6 +1425,7 @@ export default function NativeVideoPlayer({
             style={styles.vlcVideo}
             source={vlcSource}
             paused={paused}
+            rate={playbackRate}
             volume={Math.round(volume * 100)}
             seek={seekFraction}
             audioTrack={selectedAudioKey ?? undefined}
@@ -1695,6 +1787,7 @@ export default function NativeVideoPlayer({
           onFocus={showControls}
           onPress={() => {
             setShowTrackMenu(false);
+            setShowSpeedMenu(false);
             setShowPicker((v) => !v);
             if (usesCustomControls) showControls();
           }}
@@ -1719,6 +1812,7 @@ export default function NativeVideoPlayer({
           onFocus={showControls}
           onPress={() => {
             setShowPicker(false);
+            setShowSpeedMenu(false);
             setShowTrackMenu((v) => !v);
             if (usesCustomControls) showControls();
           }}
@@ -1749,6 +1843,81 @@ export default function NativeVideoPlayer({
             <AirPlayButton style={{ width: 28, height: 28 }} />
           </View>
         )}
+
+      {/* Playback-speed button — right column, below the AirPlay/track slots.
+          Shows the active rate so the current speed is visible at a glance, and
+          accents when it isn't 1×. Hidden while the source picker or track menu
+          is open so it never sits under those panels. */}
+      {controlsActive && !errored && !showPicker && !showTrackMenu && (
+        <Focusable
+          style={[
+            styles.pickerButton,
+            styles.pickerButtonAnchor,
+            (showSpeedMenu || playbackRate !== 1) && styles.pickerButtonFocused,
+            { top: 12 + insets.top + 132, right: 12 + insets.right },
+          ]}
+          focusedStyle={styles.pickerButtonFocused}
+          accessibilityRole="button"
+          accessibilityLabel={`Playback speed, currently ${formatRate(playbackRate)}`}
+          onFocus={showControls}
+          onPress={() => {
+            setShowPicker(false);
+            setShowTrackMenu(false);
+            setShowSpeedMenu((v) => !v);
+            if (usesCustomControls) showControls();
+          }}
+        >
+          <Text style={styles.pickerButtonText}>{formatRate(playbackRate)}</Text>
+        </Focusable>
+      )}
+
+      {showSpeedMenu && (
+        <View
+          style={[
+            styles.speedPanel,
+            { top: 12 + insets.top + 132, right: 16 + insets.right },
+          ]}
+        >
+          <View style={styles.pickerHeader}>
+            <Text style={styles.pickerHeaderText}>Playback speed</Text>
+            <Focusable
+              style={styles.pickerCloseButton}
+              focusedStyle={styles.pickerCloseButtonFocused}
+              onFocus={showControls}
+              onPress={() => setShowSpeedMenu(false)}
+            >
+              <Text style={styles.pickerCloseText}>Close</Text>
+            </Focusable>
+          </View>
+          {PLAYBACK_RATES.map((rate) => {
+            const selected = rate === playbackRate;
+            return (
+              <Focusable
+                key={rate}
+                style={[styles.speedRow, selected && styles.speedRowActive]}
+                focusedStyle={styles.speedRowFocused}
+                hasTVPreferredFocus={selected}
+                onFocus={showControls}
+                onPress={() => {
+                  setPlaybackRate(rate);
+                  setShowSpeedMenu(false);
+                  showControls();
+                }}
+              >
+                <FontAwesome
+                  name="check"
+                  size={12}
+                  color={selected ? "#fff" : "transparent"}
+                  style={styles.speedRowCheck}
+                />
+                <Text style={styles.speedRowText}>
+                  {rate === 1 ? "Normal (1x)" : formatRate(rate)}
+                </Text>
+              </Focusable>
+            );
+          })}
+        </View>
+      )}
 
       {showTrackMenu && hasTrackChoices && (
         <TrackSelectionMenu
@@ -2158,6 +2327,29 @@ const styles = StyleSheet.create({
     transform: [{ scale: 1.05 }],
   },
   pickerCloseText: { color: "#fff", fontSize: 11, fontWeight: "600" },
+  // Playback-speed menu — compact, mirrors the source picker's look.
+  speedPanel: {
+    position: "absolute",
+    right: 16,
+    width: 200,
+    backgroundColor: "rgba(20,20,20,0.95)",
+    borderRadius: 8,
+    paddingTop: 8,
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+  },
+  speedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 9,
+    borderRadius: 4,
+    marginBottom: 2,
+  },
+  speedRowActive: { backgroundColor: "rgba(231,76,60,0.25)" },
+  speedRowFocused: { backgroundColor: "#e74c3c", transform: [{ scale: 1.02 }] },
+  speedRowCheck: { width: 18 },
+  speedRowText: { color: "#ddd", fontSize: 12, flexShrink: 1 },
   pickerScroll: { flex: 1 },
   pickerScrollContent: { paddingBottom: 4 },
   pickerRow: {
