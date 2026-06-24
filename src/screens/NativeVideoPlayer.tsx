@@ -1669,7 +1669,14 @@ export default function NativeVideoPlayer({
                 )}
               </View>
             </GestureDetector>
-            <Text style={styles.timeText}>{formatTime(durationMs)}</Text>
+            {/* Time remaining (counts down) rather than total duration — tracks
+                the scrub/preview position too, so it reflects where a drag will
+                land. Falls back to total duration until it's known. */}
+            <Text style={styles.timeText}>
+              {durationMs > 0
+                ? `-${formatTime(Math.max(0, durationMs - displayMs))}`
+                : formatTime(durationMs)}
+            </Text>
           </View>
         </>
       )}
