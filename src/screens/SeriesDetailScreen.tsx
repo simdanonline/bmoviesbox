@@ -654,7 +654,7 @@ export default function SeriesDetailsScreen({
           focusedStyle={detailActionStyles.focused}
           onPress={() =>
             Share.share({
-              message: `Check out the series "${seriesData.title}" on BMovieBox!`,
+              message: `Check out the series "${seriesData.title}" on Reelmark!`,
               title: seriesData.title,
             })
           }

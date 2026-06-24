@@ -182,7 +182,7 @@ export default function OnboardingScreen() {
       >
         {/* Header */}
         <View style={obStyles.header}>
-          <Text style={obStyles.logoText}>BMovieBox</Text>
+          <Text style={obStyles.logoText}>Reelmark</Text>
           <Text style={obStyles.tagline}>Let's personalize your experience</Text>
         </View>
 

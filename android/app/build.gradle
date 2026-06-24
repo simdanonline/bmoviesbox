@@ -87,9 +87,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.simdanonline.bmoviebox'
+    namespace 'com.simdanonline.reelmarkapp'
     defaultConfig {
-        applicationId 'com.simdanonline.bmoviebox'
+        applicationId 'com.simdanonline.reelmarkapp'
         minSdkVersion Math.max(rootProject.ext.minSdkVersion as int, 26)
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 16
