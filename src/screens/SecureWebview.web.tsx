@@ -1,5 +1,6 @@
 import React, { forwardRef, useImperativeHandle, useRef } from "react";
 import { View, StyleSheet } from "react-native";
+import { sandboxForEmbed } from "../utils/embedSandbox";
 
 // Web implementation of SecureWebview. The native screen uses react-native-webview
 // to host embed-player pages (vidsrc / multiembed / 2embed / etc.). Those pages
@@ -46,9 +47,11 @@ const SecureVideoWebView = forwardRef<
         allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
         allowFullScreen
         referrerPolicy="origin"
-        // Allow the player's own scripts/forms but block popups and
-        // top-level navigation so ad redirects can't hijack the page.
-        sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
+        // Per-provider sandbox: vidsrc-family hosts tolerate a loosened sandbox
+        // (popups allowed, silent top-nav blocked); multiembed-class hosts detect
+        // ANY sandbox and refuse ("Sandboxing is not allowed!"), so for those
+        // sandboxForEmbed returns undefined and the attribute is omitted.
+        sandbox={sandboxForEmbed(url)}
         style={{
           border: "0",
           width: "100%",
@@ -65,5 +68,9 @@ SecureVideoWebView.displayName = "SecureVideoWebView";
 export default SecureVideoWebView;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000" },
+  // The shared player stage (videoWrapper) centers its child with
+  // alignItems:center, which would shrink a raw <iframe> to its intrinsic
+  // 300px default. alignSelf:stretch + width:100% override that so the iframe
+  // fills the full stage width.
+  container: { flex: 1, width: "100%", alignSelf: "stretch", backgroundColor: "#000" },
 });

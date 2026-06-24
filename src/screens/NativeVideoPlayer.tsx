@@ -357,9 +357,19 @@ export default function NativeVideoPlayer({
   const reconnectGraceUntilRef = useRef(0);
   // Silent reload attempts used within the current resume's grace window.
   const reconnectAttemptsRef = useRef(0);
+  // On Android, react-native-video (ExoPlayer) decodes through device codecs and
+  // fails on content the hardware can't handle — AC3/E-AC3 audio and HEVC 10-bit
+  // are the usual gaps. libVLC bundles software decoders for these, so when
+  // ExoPlayer errors on a source we retry that same source with VLC once before
+  // blacklisting it. Stream indices bumped to VLC this way live here; the ref
+  // mirror guards against a duplicate error firing before the remount lands.
+  const [vlcForcedIndices, setVlcForcedIndices] = useState<Set<number>>(
+    () => new Set(),
+  );
+  const vlcAttemptedRef = useRef<Set<number>>(new Set());
 
   const current = streams[currentIndex];
-  const useVlc = needsVlc(current);
+  const useVlc = needsVlc(current) || vlcForcedIndices.has(currentIndex);
   // The episode to play after this one (rolls across seasons), or null when
   // this isn't a series or it's the series finale. Drives the Next button and
   // the autoplay countdown.
@@ -1264,6 +1274,39 @@ export default function NativeVideoPlayer({
           e?.error?.errorString ??
           e?.error?.localizedDescription ??
           "Playback error";
+        // ExoPlayer leans on device codecs; on Android it fails for content the
+        // hardware can't decode (AC3/E-AC3 audio, HEVC 10-bit). libVLC carries
+        // its own software decoders, so retry this exact source with VLC once
+        // before giving up and skipping to the next server. Resume where we
+        // were (or the original resume point) via the remount-seek channel.
+        if (
+          Platform.OS === "android" &&
+          !useVlc &&
+          !vlcAttemptedRef.current.has(currentIndex)
+        ) {
+          vlcAttemptedRef.current.add(currentIndex);
+          pendingReloadSeekMsRef.current =
+            positionMsRef.current > 0 ? positionMsRef.current : resumeMs;
+          // Resume is handled by the pending-seek channel on VLC's onLoad; keep
+          // the initial-seek effect from double-seeking the fresh instance.
+          didInitialSeekRef.current = true;
+          // Track ids from ExoPlayer's index space don't map to VLC's. Clear the
+          // selection so VLC's onLoad seeds audio/subtitle tracks afresh.
+          didSeedTextRef.current = false;
+          setAudioTracks([]);
+          setTextTracks([]);
+          setSelectedAudioKey(null);
+          setSelectedTextKey(-1);
+          setVlcForcedIndices((prev) => {
+            const next = new Set(prev);
+            next.add(currentIndex);
+            return next;
+          });
+          console.warn(
+            `[NativeVideoPlayer] ExoPlayer failed on stream ${currentIndex} (${msg}); falling back to VLC`,
+          );
+          return;
+        }
         advanceOnError(msg);
       }}
       onEnd={handlePlaybackEnded}
@@ -1284,7 +1327,11 @@ export default function NativeVideoPlayer({
             // Bumping reloadNonce remounts a fresh libVLC instance, the
             // reliable way to drop a dead connection and re-open from position.
             key={`vlc-${currentIndex}-${reloadNonce}`}
-            style={styles.video}
+            // NOT styles.video: that carries backgroundColor, and VLCPlayer's
+            // Android view is a TextureView which crashes on a background
+            // drawable ("TextureView doesn't support displaying a background
+            // drawable"). The wrapping View already paints the black backdrop.
+            style={styles.vlcVideo}
             source={vlcSource}
             paused={paused}
             volume={Math.round(volume * 100)}
@@ -1886,6 +1933,9 @@ export default function NativeVideoPlayer({
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
   video: { flex: 1, backgroundColor: "#000" },
+  // VLCPlayer's Android view is a TextureView, which throws on a background
+  // drawable — so it gets a background-less style. The parent View supplies #000.
+  vlcVideo: { flex: 1 },
   gestureSurface: StyleSheet.absoluteFillObject,
   // The TV focus catcher is invisible by design; an empty focused style
   // suppresses Focusable's default focus border, which would otherwise

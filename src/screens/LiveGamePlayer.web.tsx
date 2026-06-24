@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import MovieAPI from "../services/MovieAPI";
+import { sandboxForEmbed } from "../utils/embedSandbox";
 
 // Web implementation of LiveGamePlayer, mirroring the native two-tier flow:
 //   Tier 1 — /sports/resolve extracts a direct HLS/MP4 stream → hand off to
@@ -96,7 +97,10 @@ export default function LiveGamePlayerWeb({ route, navigation }: any) {
             allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
             allowFullScreen
             referrerPolicy="origin"
-            sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
+            // Per-provider sandbox: vidsrc-family tolerates a loosened sandbox;
+            // multiembed-class hosts detect any sandbox and refuse, so for those
+            // sandboxForEmbed returns undefined and the attribute is omitted.
+            sandbox={sandboxForEmbed(embedLink)}
             style={{
               border: "0",
               width: "100%",
