@@ -1,4 +1,4 @@
-package com.simdanonline.bmoviebox
+package com.simdanonline.reelmarkapp
 
 import android.os.Build
 import android.os.Bundle

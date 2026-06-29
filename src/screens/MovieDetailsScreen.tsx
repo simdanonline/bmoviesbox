@@ -547,7 +547,7 @@ export default function MovieDetailsScreen({
           focusedStyle={detailActionStyles.focused}
           onPress={() =>
             Share.share({
-              message: `Check out "${movieDetails.title}" on BMovieBox!`,
+              message: `Check out "${movieDetails.title}" on Reelmark!`,
               title: movieDetails.title,
             })
           }

@@ -607,7 +607,7 @@ export default function SettingsScreen() {
             <View style={settingsStyles.settingLeft}>
               <FontAwesome name="film" size={18} color="#aaa" />
               <View style={settingsStyles.settingTextContainer}>
-                <Text style={settingsStyles.settingText}>BMovieBox</Text>
+                <Text style={settingsStyles.settingText}>Reelmark</Text>
                 <Text style={settingsStyles.settingDetail}>
                   Movie & Series Discovery
                 </Text>

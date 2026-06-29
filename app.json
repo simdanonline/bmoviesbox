@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "BMovieBox",
+    "name": "Reelmark",
     "slug": "bmoviebox",
     "version": "1.0.0",
     "orientation": "default",
@@ -19,9 +19,9 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#0A0A0E"
       },
-      "package": "com.simdanonline.bmoviebox"
+      "package": "com.simdanonline.reelmarkapp"
     },
     "web": {
       "favicon": "./assets/images/favicon.png"

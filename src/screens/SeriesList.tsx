@@ -120,7 +120,7 @@ export default function SeriesList({ navigation }: SeriesListProps) {
         {/* Header */}
         <View style={[styles.header, styles.row]}>
           <View style={styles.headerLogoWrap}>
-            <Text style={styles.headerTitle}>BMovie</Text>
+            <Text style={styles.headerTitle}>Reelmark</Text>
           </View>
           <Focusable
             style={styles.headerIconWrap}
