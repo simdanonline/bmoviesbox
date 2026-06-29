@@ -122,6 +122,13 @@ const RECONNECT_GRACE_MS = 20_000;
 // this many tries the connection drop isn't transient — fall through to the
 // normal advance-and-blacklist path so the user isn't stuck in a reload loop.
 const MAX_RECONNECT_ATTEMPTS = 2;
+// A freshly-mounted libVLC instance ignores an audio-track selection applied
+// during onLoad — it only sticks as a null -> value change once the player is
+// actually running (the same transition the user makes by hand: "Off", then a
+// track). After an ExoPlayer -> VLC fallback we therefore re-apply the picked
+// track this long after load, by which point VLC has loaded + sought and audio
+// output is live. Short enough not to be noticed, long enough to land post-seek.
+const VLC_AUDIO_REAPPLY_MS = 900;
 
 // User-selectable playback speeds. 1 is normal; applied to both players via
 // their `rate` prop and surfaced through the speed menu. Kept across source
@@ -347,6 +354,12 @@ export default function NativeVideoPlayer({
     Map<number, { language?: string; title?: string }>
   >(new Map());
   const lastSavedProgressMsRef = useRef(0);
+  // One-shot timer that re-applies the audio track after a VLC fallback mount
+  // (see VLC_AUDIO_REAPPLY_MS). Held so a source change can cancel a pending
+  // re-apply that would otherwise land on the next stream.
+  const audioReapplyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   // Guards the 90%-watched write so it fires at most once per mount.
   const markedWatchedRef = useRef(false);
   // Live mirrors of state the reconnect logic reads from listeners/callbacks
@@ -393,7 +406,18 @@ export default function NativeVideoPlayer({
   const vlcAttemptedRef = useRef<Set<number>>(new Set());
 
   const current = streams[currentIndex];
-  const useVlc = needsVlc(current) || vlcForcedIndices.has(currentIndex);
+  // Android TV always plays through libVLC. On these TVs (e.g. Realtek-based
+  // TCL) react-native-video / ExoPlayer silently stalls on some source
+  // encodings — it shows the first frame then drops every later frame with no
+  // error raised, so playback freezes at 0:00 and our onError fallback never
+  // fires. libVLC drives the same hardware MediaCodec decoder through its own
+  // render pipeline and plays those sources fine (4K included), so we skip
+  // ExoPlayer entirely on TV. Phones keep ExoPlayer (with the onError→VLC codec
+  // fallback below), where it's reliable and the native track menu is nicer.
+  const useVlc =
+    needsVlc(current) ||
+    vlcForcedIndices.has(currentIndex) ||
+    (Platform.OS === "android" && Platform.isTV);
   // The episode to play after this one (rolls across seasons), or null when
   // this isn't a series or it's the series finale. Drives the Next button and
   // the autoplay countdown.
@@ -549,6 +573,11 @@ export default function NativeVideoPlayer({
     pendingReloadTextKeyRef.current = null;
     reconnectGraceUntilRef.current = 0;
     reconnectAttemptsRef.current = 0;
+    // A queued VLC audio re-apply belongs to the stream we're leaving.
+    if (audioReapplyTimerRef.current) {
+      clearTimeout(audioReapplyTimerRef.current);
+      audioReapplyTimerRef.current = null;
+    }
   }, [currentIndex]);
 
   // Mirror state the AppState listener (closed over once) and the error handler
@@ -813,6 +842,38 @@ export default function NativeVideoPlayer({
     }
   };
 
+  // Re-open the current stream with libVLC instead of ExoPlayer, remounting from
+  // the current position. Used on phones when ExoPlayer's onError fires for a
+  // codec the device can't decode (AC3/E-AC3, HEVC 10-bit) — retry once with VLC
+  // before skipping. (Android TV bypasses ExoPlayer entirely; see useVlc.)
+  // Returns true when the swap was applied; false when VLC was already tried for
+  // this stream (caller should give up and advance instead).
+  const forceVlcFallback = (reason: string): boolean => {
+    if (useVlc || vlcAttemptedRef.current.has(currentIndex)) return false;
+    vlcAttemptedRef.current.add(currentIndex);
+    pendingReloadSeekMsRef.current =
+      positionMsRef.current > 0 ? positionMsRef.current : resumeMs;
+    // Resume rides the pending-seek channel on VLC's onLoad; stop the
+    // initial-seek effect from double-seeking the fresh instance.
+    didInitialSeekRef.current = true;
+    // ExoPlayer track ids don't map to VLC's index space — clear the selection
+    // so VLC's onLoad seeds audio/subtitle tracks afresh.
+    didSeedTextRef.current = false;
+    setAudioTracks([]);
+    setTextTracks([]);
+    setSelectedAudioKey(null);
+    setSelectedTextKey(-1);
+    setVlcForcedIndices((prev) => {
+      const next = new Set(prev);
+      next.add(currentIndex);
+      return next;
+    });
+    console.warn(
+      `[NativeVideoPlayer] stream ${currentIndex} → VLC fallback: ${reason}`,
+    );
+    return true;
+  };
+
   // Called from both players' onLoad. Returns true (and kicks off an advance) if
   // the loaded media is too short to be the real title, so the caller can bail
   // before applying duration/track state from a bogus source.
@@ -880,7 +941,21 @@ export default function NativeVideoPlayer({
           ? pendingReload
           : null;
       const target = reloadKey ?? (original ? original.id : audio[0].key);
-      setSelectedAudioKey((prev) => (prev === null ? target : prev));
+      // On an ExoPlayer -> VLC fallback mount, setting the track now is too early
+      // — VLC silently ignores it and comes up with no audio. Re-apply once it's
+      // running (null -> value while playing); the functional update preserves a
+      // manual pick the user makes during the short window. Other mounts (iOS
+      // mkv, reconnect remount) keep the immediate path that already works.
+      if (vlcForcedIndices.has(currentIndex)) {
+        if (audioReapplyTimerRef.current) {
+          clearTimeout(audioReapplyTimerRef.current);
+        }
+        audioReapplyTimerRef.current = setTimeout(() => {
+          setSelectedAudioKey((prev) => (prev === null ? target : prev));
+        }, VLC_AUDIO_REAPPLY_MS);
+      } else {
+        setSelectedAudioKey((prev) => (prev === null ? target : prev));
+      }
     }
     // VLC may already include a "disable"/id -1 row; drop it and add a single
     // synthetic "Off" so the option appears exactly once.
@@ -1365,39 +1440,11 @@ export default function NativeVideoPlayer({
           e?.error?.errorString ??
           e?.error?.localizedDescription ??
           "Playback error";
-        // ExoPlayer leans on device codecs; on Android it fails for content the
-        // hardware can't decode (AC3/E-AC3 audio, HEVC 10-bit). libVLC carries
-        // its own software decoders, so retry this exact source with VLC once
-        // before giving up and skipping to the next server. Resume where we
-        // were (or the original resume point) via the remount-seek channel.
-        if (
-          Platform.OS === "android" &&
-          !useVlc &&
-          !vlcAttemptedRef.current.has(currentIndex)
-        ) {
-          vlcAttemptedRef.current.add(currentIndex);
-          pendingReloadSeekMsRef.current =
-            positionMsRef.current > 0 ? positionMsRef.current : resumeMs;
-          // Resume is handled by the pending-seek channel on VLC's onLoad; keep
-          // the initial-seek effect from double-seeking the fresh instance.
-          didInitialSeekRef.current = true;
-          // Track ids from ExoPlayer's index space don't map to VLC's. Clear the
-          // selection so VLC's onLoad seeds audio/subtitle tracks afresh.
-          didSeedTextRef.current = false;
-          setAudioTracks([]);
-          setTextTracks([]);
-          setSelectedAudioKey(null);
-          setSelectedTextKey(-1);
-          setVlcForcedIndices((prev) => {
-            const next = new Set(prev);
-            next.add(currentIndex);
-            return next;
-          });
-          console.warn(
-            `[NativeVideoPlayer] ExoPlayer failed on stream ${currentIndex} (${msg}); falling back to VLC`,
-          );
-          return;
-        }
+        // ExoPlayer leans on device codecs; on Android it errors on content the
+        // hardware can't decode (AC3/E-AC3 audio, HEVC 10-bit). Retry this exact
+        // source once with VLC's software decoders before skipping to the next
+        // server; only fall through to advance if VLC was already tried.
+        if (Platform.OS === "android" && forceVlcFallback(msg)) return;
         advanceOnError(msg);
       }}
       onEnd={handlePlaybackEnded}
