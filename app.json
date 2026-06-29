@@ -19,7 +19,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#0A0A0E"
       },
       "package": "com.simdanonline.reelmarkapp"
     },

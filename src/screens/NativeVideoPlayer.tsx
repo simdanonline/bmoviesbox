@@ -541,10 +541,13 @@ export default function NativeVideoPlayer({
     lockedRef.current = locked;
   }, [locked]);
 
-  // Clear the HUD auto-hide timer on unmount.
+  // Clear timers on unmount so they can't fire on an unmounted component.
   useEffect(
     () => () => {
       if (hudHideTimer.current) clearTimeout(hudHideTimer.current);
+      if (audioReapplyTimerRef.current) {
+        clearTimeout(audioReapplyTimerRef.current);
+      }
     },
     [],
   );
@@ -941,12 +944,17 @@ export default function NativeVideoPlayer({
           ? pendingReload
           : null;
       const target = reloadKey ?? (original ? original.id : audio[0].key);
-      // On an ExoPlayer -> VLC fallback mount, setting the track now is too early
-      // — VLC silently ignores it and comes up with no audio. Re-apply once it's
-      // running (null -> value while playing); the functional update preserves a
-      // manual pick the user makes during the short window. Other mounts (iOS
-      // mkv, reconnect remount) keep the immediate path that already works.
-      if (vlcForcedIndices.has(currentIndex)) {
+      // On a fresh libVLC instance that comes up mid-seek, setting the track now
+      // is too early — VLC silently ignores it and comes up with no audio. This
+      // hits the ExoPlayer -> VLC fallback mount and the Android-TV primary path
+      // (always VLC, often resuming with a seek). Re-apply once it's running
+      // (null -> value while playing); the functional update preserves a manual
+      // pick the user makes during the short window. Other mounts (iOS mkv,
+      // reconnect remount) keep the immediate path that already works.
+      const deferAudioReapply =
+        vlcForcedIndices.has(currentIndex) ||
+        (Platform.OS === "android" && Platform.isTV);
+      if (deferAudioReapply) {
         if (audioReapplyTimerRef.current) {
           clearTimeout(audioReapplyTimerRef.current);
         }
