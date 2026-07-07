@@ -68,7 +68,6 @@ export const styles = StyleSheet.create({
     marginVertical: 20,
     borderRadius: radii.card,
     overflow: "hidden",
-    ...shadows.card,
   },
   featuredFocused: {
     borderWidth: 4,
@@ -291,7 +290,7 @@ export const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: colors.accent,
+    backgroundColor: "rgba(229, 72, 77, 0.8)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -534,11 +533,11 @@ export const styles = StyleSheet.create({
     zIndex: 1,
   },
   playerFooter: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: "#333",
+    borderTopColor: colors.border,
   },
   serverInfo: {
     color: colors.textMuted,
