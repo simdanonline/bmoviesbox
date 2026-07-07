@@ -19,6 +19,7 @@ import RecommendationRail from "../components/RecommendationRail";
 import ContinueWatchingSection from "../components/ContinueWatchingCard";
 import Focusable from "../components/Focusable";
 import { styles } from "../styles/styles";
+import { colors } from "../styles/theme";
 import { useTvApp } from "../context/TvAppContext";
 import { useUserData } from "../context/UserDataContext";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -533,34 +534,34 @@ const modalStyles = StyleSheet.create({
     alignItems: "center",
   },
   modalContent: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 24,
     width: "85%",
     maxWidth: 400,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: colors.border,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#fff",
+    color: colors.text,
     marginBottom: 12,
     textAlign: "center",
   },
   modalMessage: {
     fontSize: 14,
-    color: "#ccc",
+    color: colors.textSecondary,
     marginBottom: 20,
     textAlign: "center",
   },
   textInput: {
-    backgroundColor: "#2a2a2a",
+    backgroundColor: colors.surfaceHigh,
     borderWidth: 2,
     borderColor: "#444",
     borderRadius: 8,
     padding: 12,
-    color: "#fff",
+    color: colors.text,
     fontSize: 16,
     marginBottom: 20,
   },
@@ -584,20 +585,20 @@ const modalStyles = StyleSheet.create({
     borderColor: "#fff",
   },
   cancelButton: {
-    backgroundColor: "#333",
+    backgroundColor: colors.border,
     borderWidth: 1,
     borderColor: "#555",
   },
   confirmButton: {
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
   },
   cancelButtonText: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 16,
     fontWeight: "600",
   },
   confirmButtonText: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 16,
     fontWeight: "600",
   },
@@ -605,17 +606,17 @@ const modalStyles = StyleSheet.create({
 
 const homeStyles = StyleSheet.create({
   hintBanner: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 8,
     padding: 12,
     borderRadius: 8,
     borderLeftWidth: 3,
-    borderLeftColor: "#e74c3c",
+    borderLeftColor: colors.accent,
   },
   hintText: {
-    color: "#aaa",
+    color: colors.textSecondary,
     fontSize: 13,
     lineHeight: 18,
   },
@@ -628,23 +629,23 @@ const homeStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     borderWidth: Platform.isTV ? 2 : 1,
-    borderColor: "#333",
+    borderColor: colors.border,
   },
   genreChipActive: {
-    backgroundColor: "#e74c3c",
-    borderColor: "#e74c3c",
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   genreChipFocused: {
     borderColor: "#fff",
   },
   genreChipText: {
-    color: "#aaa",
+    color: colors.textSecondary,
     fontSize: 13,
     fontWeight: "600",
   },
   genreChipTextActive: {
-    color: "#fff",
+    color: colors.text,
   },
 });

@@ -6,6 +6,7 @@ import { styles } from '../styles/styles';
 import Focusable from './Focusable';
 import TvSafeImage from './TvSafeImage';
 import { useTvApp } from '../context/TvAppContext';
+import { colors } from '../styles/theme';
 
 interface FeaturedMovieProps {
   movie: Movie;
@@ -95,7 +96,8 @@ function FeaturedMovie({ movie, onPress }: FeaturedMovieProps) {
           transition={200}
         />
         <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.85)"]}
+          colors={[colors.scrimTop, colors.scrimMid, colors.scrimBottom]}
+          locations={[0, 0.55, 1]}
           style={styles.featuredGradient}
         >
           <Text style={styles.featuredBadge}>FEATURED</Text>
