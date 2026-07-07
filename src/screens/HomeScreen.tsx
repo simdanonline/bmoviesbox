@@ -585,7 +585,7 @@ const modalStyles = StyleSheet.create({
     borderColor: "#fff",
   },
   cancelButton: {
-    backgroundColor: colors.border,
+    backgroundColor: colors.surfaceHigh,
     borderWidth: 1,
     borderColor: "#555",
   },
