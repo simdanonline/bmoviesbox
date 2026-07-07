@@ -19,7 +19,7 @@ import VideoHintToast from "../components/VideoHintToast";
 import Focusable from "../components/Focusable";
 import { useTVBackHandler } from "../hooks/useTVBackHandler";
 
-type TvPlayerCommand = "play" | "toggle";
+type TvPlayerCommand = "play" | "toggle" | "focus" | "unmute";
 
 // Generic CDN / video infrastructure allowlist (host substring match).
 // The init host (the embed URL hostname) is added at runtime.
@@ -629,8 +629,157 @@ const TV_CONTROL_RUNTIME = `
     return played;
   }
 
+  // A real <video> is considered "playing" once it is un-paused, has buffered
+  // enough to render, and the playhead has moved past 0.
+  function isAnyVideoPlaying() {
+    try {
+      var vids = document.querySelectorAll('video');
+      for (var i = 0; i < vids.length; i++) {
+        var v = vids[i];
+        if (!v.paused && !v.ended && v.readyState >= 2 && v.currentTime > 0) {
+          return true;
+        }
+      }
+    } catch(_) {}
+    return false;
+  }
+
+  // Stream players load their <video> / play button asynchronously, and some
+  // gate the first click behind an ad. A single attemptTvPlay() therefore
+  // misses most links. Retry on an interval until something is actually
+  // playing (or we give up after ~9s).
+  var __bmbPlayTimer = null;
+  function stopPlayRetries() {
+    if (__bmbPlayTimer) { clearInterval(__bmbPlayTimer); __bmbPlayTimer = null; }
+  }
+  function attemptTvPlayWithRetries() {
+    stopPlayRetries();
+    if (isAnyVideoPlaying()) return;
+    attemptTvPlay();
+    var tries = 0;
+    __bmbPlayTimer = setInterval(function() {
+      tries++;
+      if (isAnyVideoPlaying() || tries > 12) { stopPlayRetries(); return; }
+      attemptTvPlay();
+    }, 700);
+  }
+
+  // ---- D-pad reachability -------------------------------------------------
+  // On a TV the only way to press an in-page play button (when scripted clicks
+  // fail) is to land D-pad focus on it. Many players use a non-focusable <div>
+  // for the play control, so the D-pad skips it. We add tabindex=0 to the
+  // likely candidates so spatial navigation can stop on them, and draw a
+  // visible focus ring. (Cross-origin iframes can't be reached on Android — see
+  // the native-side note.)
+  var PLAY_FOCUS_SELECTORS = [
+    'button[aria-label*="play" i]',
+    '[role="button"][aria-label*="play" i]',
+    '.jw-icon-playback',
+    '.jw-display-icon-container',
+    '.vjs-big-play-button',
+    '.plyr__control--overlaid',
+    '.plyr__control[data-plyr="play"]',
+    '[class*="bigPlay" i]',
+    '[class*="big-play" i]',
+    '[class*="play-button" i]',
+    '[class*="playButton" i]',
+    '[class*="poster" i]',
+    '[class*="thumbnail" i]',
+    // Volume / mute controls so the D-pad can also reach "unmute".
+    '.jw-icon-volume',
+    '.vjs-mute-control',
+    '.plyr__control[data-plyr="mute"]',
+    'button[aria-label*="mute" i]',
+    'button[aria-label*="volume" i]',
+    'button[title*="mute" i]',
+    '[role="button"][aria-label*="mute" i]',
+    '[class*="unmute" i]',
+    '[class*="volume" i]',
+    '[class*="mute" i]',
+    'video'
+  ];
+
+  function ensureFocusStyle() {
+    try {
+      if (document.getElementById('__bmb_tv_focus_style__')) return;
+      var st = document.createElement('style');
+      st.id = '__bmb_tv_focus_style__';
+      st.textContent =
+        '[tabindex]:focus, video:focus { outline: 4px solid #e74c3c !important; outline-offset: 2px !important; }';
+      (document.head || document.documentElement).appendChild(st);
+    } catch(_) {}
+  }
+
+  function makePlayControlsFocusable() {
+    var found = [];
+    for (var s = 0; s < PLAY_FOCUS_SELECTORS.length; s++) {
+      try {
+        var els = document.querySelectorAll(PLAY_FOCUS_SELECTORS[s]);
+        for (var i = 0; i < els.length; i++) {
+          var el = els[i];
+          var r;
+          try { r = el.getBoundingClientRect(); } catch(_) { continue; }
+          if (r.width > 0 && r.height > 0) {
+            if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
+            found.push(el);
+          }
+        }
+      } catch(_) {}
+    }
+    return found;
+  }
+
+  function focusPlayControl() {
+    ensureFocusStyle();
+    var found = makePlayControlsFocusable();
+    for (var i = 0; i < found.length; i++) {
+      try {
+        found[i].focus({ preventScroll: true });
+        if (document.activeElement === found[i]) return true;
+      } catch(_) {}
+    }
+    // Fallback: make whatever sits at the centre of the screen focusable.
+    try {
+      var el = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+      if (el) {
+        if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
+        el.focus({ preventScroll: true });
+        return document.activeElement === el;
+      }
+    } catch(_) {}
+    return false;
+  }
+
+  function forceUnmute() {
+    var did = false;
+    try {
+      var vids = document.querySelectorAll('video');
+      for (var i = 0; i < vids.length; i++) {
+        var v = vids[i];
+        try {
+          if (v.hasAttribute('muted')) v.removeAttribute('muted');
+          if (v.muted) v.muted = false;
+          if (v.volume < 1) v.volume = 1;
+          // Re-mute attempts by the player are reverted by the standing 1s loop.
+          did = true;
+        } catch(_) {}
+      }
+    } catch(_) {}
+    // Propagate to child frames (effective on iOS; on Android only the top
+    // frame is scriptable, so cross-origin players are unaffected).
+    try {
+      var frames = document.querySelectorAll('iframe');
+      for (var f = 0; f < frames.length; f++) {
+        try { frames[f].contentWindow.postMessage('__BMB_TV_COMMAND__:unmute', '*'); } catch(_) {}
+      }
+    } catch(_) {}
+    return did;
+  }
+
   function handleTvCommand(command) {
-    if (command === 'play') return attemptTvPlay();
+    if (command === 'focus') { return focusPlayControl(); }
+    if (command === 'unmute') { return forceUnmute(); }
+    if (command === 'play') { attemptTvPlayWithRetries(); return true; }
 
     var handled = false;
     try {
@@ -645,6 +794,9 @@ const TV_CONTROL_RUNTIME = `
               var result = v.play && v.play();
               if (result && result.catch) result.catch(function(){});
             } else {
+              // User-initiated pause: cancel any in-flight play retries so we
+              // don't immediately resume.
+              stopPlayRetries();
               v.pause();
             }
             handled = true;
@@ -654,7 +806,8 @@ const TV_CONTROL_RUNTIME = `
     } catch(_) {}
 
     if (command === 'toggle' && !handled) {
-      handled = attemptTvPlay() || handled;
+      attemptTvPlayWithRetries();
+      handled = true;
     }
 
     try {
@@ -668,11 +821,16 @@ const TV_CONTROL_RUNTIME = `
   }
 
   try {
-    window.__BMB_TV_PLAY__ = attemptTvPlay;
+    window.__BMB_TV_PLAY__ = attemptTvPlayWithRetries;
     window.__BMB_TV_CONTROL__ = handleTvCommand;
+    window.__BMB_TV_FOCUS__ = focusPlayControl;
+    // Keep late-loading play controls D-pad reachable.
+    ensureFocusStyle();
+    makePlayControlsFocusable();
+    setInterval(makePlayControlsFocusable, 1500);
     window.addEventListener('message', function(event) {
       if (event && event.data === '__BMB_TV_PLAY__') {
-        attemptTvPlay();
+        attemptTvPlayWithRetries();
       } else if (event && typeof event.data === 'string' && event.data.indexOf('__BMB_TV_COMMAND__:') === 0) {
         handleTvCommand(event.data.replace('__BMB_TV_COMMAND__:', ''));
       }
@@ -689,9 +847,22 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
   const [error, setError] = useState<string | null>(null);
   const [showPlayOverlay, setShowPlayOverlay] = useState(Platform.isTV);
   const [webViewInteractive, setWebViewInteractive] = useState(false);
+  // TV-only: header + control bar auto-hide after a few idle seconds so the
+  // video can fill the whole screen. `controlsActivity` is bumped on any input
+  // (focus move / button press) to re-arm the hide timer.
+  const [tvControlsVisible, setTvControlsVisible] = useState(true);
+  const [controlsActivity, setControlsActivity] = useState(0);
   const webViewRef = useRef<WebView>(null);
   const playOverlayRef = useRef<View>(null);
   const playPauseRef = useRef<View>(null);
+  const revealRef = useRef<View>(null);
+
+  // Show the TV chrome and re-arm the idle timer. Used by every control press
+  // and by BACK when the chrome is hidden.
+  const pokeControls = useCallback(() => {
+    setTvControlsVisible(true);
+    setControlsActivity((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     resolveAndPlay();
@@ -701,6 +872,13 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
   useTVBackHandler(() => {
     if (webViewInteractive) {
       setWebViewInteractive(false);
+      pokeControls();
+      return;
+    }
+    // First BACK while the video is fullscreen reveals the controls instead of
+    // leaving the screen; a second BACK then goes back.
+    if (!showPlayOverlay && !tvControlsVisible) {
+      pokeControls();
       return;
     }
     navigation.goBack();
@@ -716,7 +894,13 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
         webView?.requestFocus?.();
         return;
       }
-      const target = showPlayOverlay ? playOverlayRef : playPauseRef;
+      // When the chrome is hidden, the invisible full-screen reveal layer holds
+      // focus so a single OK press can bring the controls back.
+      const target = showPlayOverlay
+        ? playOverlayRef
+        : !tvControlsVisible
+          ? revealRef
+          : playPauseRef;
       (target.current as unknown as { focus?: () => void })?.focus?.();
     };
     const raf = requestAnimationFrame(focus);
@@ -725,7 +909,16 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
       cancelAnimationFrame(raf);
       clearTimeout(t);
     };
-  }, [embedLink, showPlayOverlay, webViewInteractive]);
+  }, [embedLink, showPlayOverlay, webViewInteractive, tvControlsVisible]);
+
+  // TV idle timer: hide the chrome after a few seconds so the video is
+  // fullscreen. Re-armed whenever `controlsActivity` is bumped.
+  useEffect(() => {
+    if (!Platform.isTV) return;
+    if (showPlayOverlay || webViewInteractive || !tvControlsVisible) return;
+    const t = setTimeout(() => setTvControlsVisible(false), 6000);
+    return () => clearTimeout(t);
+  }, [showPlayOverlay, webViewInteractive, tvControlsVisible, controlsActivity]);
 
   // Title shown on the native player when Tier-1 resolves. Falls back through
   // game/team data → stream channel → "Live stream" so something is always set.
@@ -747,6 +940,7 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
     setError(null);
     setShowPlayOverlay(Platform.isTV);
     setWebViewInteractive(false);
+    setTvControlsVisible(true);
     try {
       const resolved = await MovieAPI.getResolvedLiveStreams(link);
       // Magnets aren't playable; the native player would just choke. Drop them
@@ -777,10 +971,14 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
     }
   };
 
-  const sendTvCommand = useCallback((command: TvPlayerCommand) => {
-    webViewRef.current?.injectJavaScript(buildTvCommandScript(command));
-    setShowPlayOverlay(false);
-  }, []);
+  const sendTvCommand = useCallback(
+    (command: TvPlayerCommand) => {
+      webViewRef.current?.injectJavaScript(buildTvCommandScript(command));
+      setShowPlayOverlay(false);
+      pokeControls();
+    },
+    [pokeControls],
+  );
 
   // Derive init host from the embed URL
   const initHost = useMemo(() => {
@@ -895,15 +1093,20 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
 
   return (
     <SafeAreaView edges={["bottom"]} style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>
-          {game?.homeTeam} {game?.awayTeam ? "vs " + game.awayTeam : ""}
-        </Text>
-        <Text style={styles.headerSubtitle}>{game?.league}</Text>
-        {stream && (
-          <Text style={styles.headerSource}>Stream: {stream.source}</Text>
-        )}
-      </View>
+      {/* Phone/tablet: inline header. On TV the header is rendered as an
+          overlay inside the player area (below) so it can hide with the
+          rest of the chrome and let the video fill the screen. */}
+      {!Platform.isTV && (
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>
+            {game?.homeTeam} {game?.awayTeam ? "vs " + game.awayTeam : ""}
+          </Text>
+          <Text style={styles.headerSubtitle}>{game?.league}</Text>
+          {stream && (
+            <Text style={styles.headerSource}>Stream: {stream.source}</Text>
+          )}
+        </View>
+      )}
       <View style={styles.playerArea}>
         {Platform.OS === "web" ? (
           <iframe
@@ -982,6 +1185,34 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
             }}
           />
         )}
+        {/* TV header overlay — paints above the WebView, hides with chrome. */}
+        {Platform.isTV && tvControlsVisible && !webViewInteractive && (
+          <View style={styles.headerTvOverlay} pointerEvents="none">
+            <Text style={styles.headerTitle}>
+              {game?.homeTeam} {game?.awayTeam ? "vs " + game.awayTeam : ""}
+            </Text>
+            <Text style={styles.headerSubtitle}>{game?.league}</Text>
+            {stream && (
+              <Text style={styles.headerSource}>Stream: {stream.source}</Text>
+            )}
+          </View>
+        )}
+        {/* Invisible full-screen layer that holds D-pad focus while the chrome
+            is hidden, so a single OK press brings the controls back. */}
+        {Platform.isTV &&
+          !showPlayOverlay &&
+          !webViewInteractive &&
+          !tvControlsVisible && (
+            <Focusable
+              ref={revealRef}
+              style={styles.tvRevealLayer}
+              focusedStyle={styles.tvRevealLayer}
+              hasTVPreferredFocus
+              onPress={pokeControls}
+            >
+              <View />
+            </Focusable>
+          )}
         {Platform.isTV && showPlayOverlay && !webViewInteractive && (
           <View style={styles.tvPlayOverlay} pointerEvents="box-none">
             <Focusable
@@ -1003,43 +1234,64 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
             </Text>
           </View>
         )}
-        {Platform.isTV && !webViewInteractive && !showPlayOverlay && (
-          <View style={styles.tvNativeControlsWrap}>
-            <Focusable
-              ref={playPauseRef}
-              style={[
-                styles.tvNativeControlButton,
-                styles.tvNativeControlButtonPrimary,
-              ]}
-              focusedStyle={styles.tvNativeControlButtonFocused}
-              hasTVPreferredFocus
-              onPress={() => sendTvCommand("toggle")}
-            >
-              <Text style={styles.tvNativeControlLabel}>Play/Pause</Text>
-            </Focusable>
-            <Focusable
-              style={styles.tvNativeControlButton}
-              focusedStyle={styles.tvNativeControlButtonFocused}
-              onPress={() => {
-                webViewRef.current?.reload();
-                setShowPlayOverlay(true);
-                setWebViewInteractive(false);
-              }}
-            >
-              <Text style={styles.tvNativeControlLabel}>Reload</Text>
-            </Focusable>
-            <Focusable
-              style={styles.tvNativeControlButton}
-              focusedStyle={styles.tvNativeControlButtonFocused}
-              onPress={() => {
-                setShowPlayOverlay(false);
-                setWebViewInteractive(true);
-              }}
-            >
-              <Text style={styles.tvNativeControlLabel}>Use Player</Text>
-            </Focusable>
-          </View>
-        )}
+        {Platform.isTV &&
+          !webViewInteractive &&
+          !showPlayOverlay &&
+          tvControlsVisible && (
+            <View style={styles.tvNativeControlsWrap}>
+              <Focusable
+                ref={playPauseRef}
+                style={[
+                  styles.tvNativeControlButton,
+                  styles.tvNativeControlButtonPrimary,
+                ]}
+                focusedStyle={styles.tvNativeControlButtonFocused}
+                hasTVPreferredFocus
+                onFocus={pokeControls}
+                onPress={() => sendTvCommand("toggle")}
+              >
+                <Text style={styles.tvNativeControlLabel}>Play/Pause</Text>
+              </Focusable>
+              <Focusable
+                style={styles.tvNativeControlButton}
+                focusedStyle={styles.tvNativeControlButtonFocused}
+                onFocus={pokeControls}
+                onPress={() => sendTvCommand("unmute")}
+              >
+                <Text style={styles.tvNativeControlLabel}>🔊 Unmute</Text>
+              </Focusable>
+              <Focusable
+                style={styles.tvNativeControlButton}
+                focusedStyle={styles.tvNativeControlButtonFocused}
+                onFocus={pokeControls}
+                onPress={() => {
+                  webViewRef.current?.reload();
+                  setShowPlayOverlay(true);
+                  setWebViewInteractive(false);
+                }}
+              >
+                <Text style={styles.tvNativeControlLabel}>Reload</Text>
+              </Focusable>
+              <Focusable
+                style={styles.tvNativeControlButton}
+                focusedStyle={styles.tvNativeControlButtonFocused}
+                onFocus={pokeControls}
+                onPress={() => {
+                  setShowPlayOverlay(false);
+                  setWebViewInteractive(true);
+                  // Once the WebView has taken D-pad focus, move page focus onto
+                  // the play control so the D-pad actually lands on it.
+                  setTimeout(() => {
+                    webViewRef.current?.injectJavaScript(
+                      buildTvCommandScript("focus"),
+                    );
+                  }, 450);
+                }}
+              >
+                <Text style={styles.tvNativeControlLabel}>Use Player</Text>
+              </Focusable>
+            </View>
+          )}
         {!Platform.isTV && <VideoHintToast />}
       </View>
     </SafeAreaView>
@@ -1080,6 +1332,24 @@ const styles = StyleSheet.create({
     color: "#e74c3c",
     marginTop: 4,
     fontWeight: "600",
+  },
+  headerTvOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 5,
+    elevation: 5,
+    paddingHorizontal: 32,
+    paddingTop: 20,
+    paddingBottom: 28,
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  tvRevealLayer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "transparent",
+    zIndex: 10,
+    elevation: 10,
   },
   webview: {
     flex: 1,

@@ -33,10 +33,7 @@ import Video, {
 import { VLCPlayer } from "react-native-vlc-media-player";
 import type { VideoInfo } from "react-native-vlc-media-player";
 import * as Brightness from "expo-brightness";
-import {
-  activateKeepAwakeAsync,
-  deactivateKeepAwake,
-} from "expo-keep-awake";
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import PlayerLevelIndicator from "../components/PlayerLevelIndicator";
 import AirPlayButton from "../components/AirPlayButton";
@@ -259,6 +256,11 @@ export default function NativeVideoPlayer({
   // Bumped to force a fresh player instance (via the `key` prop) when we need to
   // re-open the stream from the current position — see the reconnect logic.
   const [reloadNonce, setReloadNonce] = useState(0);
+  // True while the app is backgrounded with a *user-paused* Android VLC
+  // playback: the VLC view is unmounted for the duration (rendered as null)
+  // and remounted on foreground. See the AppState handler for why libVLC must
+  // not survive a surface destroy in that state.
+  const [vlcSuspended, setVlcSuspended] = useState(false);
   // True while resolving the next episode's streams (between tapping Next /
   // countdown expiry and the navigation.replace). Drives the button label.
   const [advancing, setAdvancing] = useState(false);
@@ -375,6 +377,8 @@ export default function NativeVideoPlayer({
   // the other while backgrounded; whichever fired is read on resume/foreground.
   const pausedAtRef = useRef<number | null>(null);
   const backgroundedAtRef = useRef<number | null>(null);
+  // Mirror of vlcSuspended for the once-mounted AppState closure.
+  const vlcSuspendedRef = useRef(false);
   // Position to seek back to once the freshly-remounted player reports onLoad.
   const pendingReloadSeekMsRef = useRef<number | null>(null);
   // Audio track to re-apply after a reconnect remount. Both players honor an
@@ -418,6 +422,10 @@ export default function NativeVideoPlayer({
     needsVlc(current) ||
     vlcForcedIndices.has(currentIndex) ||
     (Platform.OS === "android" && Platform.isTV);
+  // Mirror for the once-mounted AppState closure (derived per render, so a
+  // state-mirroring effect would lag a render behind).
+  const useVlcRef = useRef(useVlc);
+  useVlcRef.current = useVlc;
   // The episode to play after this one (rolls across seasons), or null when
   // this isn't a series or it's the series finale. Drives the Next button and
   // the autoplay countdown.
@@ -653,14 +661,58 @@ export default function NativeVideoPlayer({
       if (next === "active") {
         const bgAt = backgroundedAtRef.current;
         backgroundedAtRef.current = null;
+        if (vlcSuspendedRef.current) {
+          // Coming back from a paused-VLC suspension (below): remount the
+          // fresh instance and auto-resume. Resuming unpaused is load-bearing,
+          // not a UX nicety — a fresh libVLC instance that mounts paused never
+          // decodes a frame or fires onLoad, so the pending seek/track restore
+          // would never apply and the screen would stay blank.
+          vlcSuspendedRef.current = false;
+          setVlcSuspended(false);
+          // State was already captured at suspend time; null the pause
+          // timestamp so the pause-resume effect doesn't reload a second time.
+          pausedAtRef.current = null;
+          setPaused(false);
+          reconnectAttemptsRef.current = 0;
+          reconnectGraceUntilRef.current = Date.now() + RECONNECT_GRACE_MS;
+          return;
+        }
         if (bgAt === null || !hasStartedRef.current) return;
         reconnectAttemptsRef.current = 0;
         reconnectGraceUntilRef.current = Date.now() + RECONNECT_GRACE_MS;
         if (Date.now() - bgAt >= RECONNECT_AFTER_IDLE_MS) {
           reloadFromCurrentPosition();
         }
-      } else if (backgroundedAtRef.current === null) {
-        backgroundedAtRef.current = Date.now();
+      } else {
+        // Android + VLC + user-paused: unmount the player before the window
+        // loses its surface. react-native-vlc-media-player's onHostPause is
+        // guarded by `!isPaused`, so when the user paused first it never
+        // records the host pause and its onHostResume never re-attaches the
+        // surface. The instance then survives the screensaver's surface
+        // destroy bound to a dead surface, and the competing teardowns on
+        // resume (native surface re-create vs our key remount) release the
+        // wedged instance on the UI thread — freezing the whole app (Android
+        // TV: pause → screensaver → frozen blank screen). Releasing now, while
+        // the surface is still alive, avoids the state entirely; the player is
+        // remounted from position on 'active' above. The playing case keeps
+        // the native pause/resume path, which works.
+        if (
+          Platform.OS === "android" &&
+          useVlcRef.current &&
+          pausedRef.current &&
+          hasStartedRef.current &&
+          !erroredRef.current &&
+          !vlcSuspendedRef.current
+        ) {
+          vlcSuspendedRef.current = true;
+          // Captures position + audio/subtitle picks and bumps the player key.
+          reloadFromCurrentPosition();
+          // Batched with the key bump → one render, no interim mount.
+          setVlcSuspended(true);
+        }
+        if (backgroundedAtRef.current === null) {
+          backgroundedAtRef.current = Date.now();
+        }
       }
     };
     const sub = AppState.addEventListener("change", onChange);
@@ -1117,7 +1169,9 @@ export default function NativeVideoPlayer({
         : anchor.fraction * (index / anchor.index);
     }
     const span = TV_SEEK_SEGMENTS - 1 - anchor.index;
-    return anchor.fraction + (1 - anchor.fraction) * ((index - anchor.index) / span);
+    return (
+      anchor.fraction + (1 - anchor.fraction) * ((index - anchor.index) / span)
+    );
   };
 
   const commitTvScrub = (index: number) => {
@@ -1469,29 +1523,31 @@ export default function NativeVideoPlayer({
 
       <View style={styles.video}>
         {useVlc ? (
-          <VLCPlayer
-            // Bumping reloadNonce remounts a fresh libVLC instance, the
-            // reliable way to drop a dead connection and re-open from position.
-            key={`vlc-${currentIndex}-${reloadNonce}`}
-            // NOT styles.video: that carries backgroundColor, and VLCPlayer's
-            // Android view is a TextureView which crashes on a background
-            // drawable ("TextureView doesn't support displaying a background
-            // drawable"). The wrapping View already paints the black backdrop.
-            style={styles.vlcVideo}
-            source={vlcSource}
-            paused={paused}
-            rate={playbackRate}
-            volume={Math.round(volume * 100)}
-            seek={seekFraction}
-            audioTrack={selectedAudioKey ?? undefined}
-            textTrack={selectedTextKey}
-            resizeMode="contain"
-            onPlaying={markStarted}
-            onProgress={handleVlcProgress}
-            onLoad={handleVlcLoad}
-            onError={() => advanceOnError("VLC playback error")}
-            onEnd={handlePlaybackEnded}
-          />
+          vlcSuspended ? null : (
+            <VLCPlayer
+              // Bumping reloadNonce remounts a fresh libVLC instance, the
+              // reliable way to drop a dead connection and re-open from position.
+              key={`vlc-${currentIndex}-${reloadNonce}`}
+              // NOT styles.video: that carries backgroundColor, and VLCPlayer's
+              // Android view is a TextureView which crashes on a background
+              // drawable ("TextureView doesn't support displaying a background
+              // drawable"). The wrapping View already paints the black backdrop.
+              style={styles.vlcVideo}
+              source={vlcSource}
+              paused={paused}
+              rate={playbackRate}
+              volume={Math.round(volume * 100)}
+              seek={seekFraction}
+              audioTrack={selectedAudioKey ?? undefined}
+              textTrack={selectedTextKey}
+              resizeMode="contain"
+              onPlaying={markStarted}
+              onProgress={handleVlcProgress}
+              onLoad={handleVlcLoad}
+              onError={() => advanceOnError("VLC playback error")}
+              onEnd={handlePlaybackEnded}
+            />
+          )
         ) : (
           rnvVideo
         )}
@@ -1929,7 +1985,9 @@ export default function NativeVideoPlayer({
             if (usesCustomControls) showControls();
           }}
         >
-          <Text style={styles.pickerButtonText}>{formatRate(playbackRate)}</Text>
+          <Text style={styles.pickerButtonText}>
+            {formatRate(playbackRate)}
+          </Text>
         </Focusable>
       )}
 
@@ -2139,7 +2197,11 @@ export default function NativeVideoPlayer({
           the normal control overlay. */}
       {locked && controlsVisible && (
         <Focusable
-          style={[styles.lockButton, styles.lockButtonActive, { left: 12 + insets.left }]}
+          style={[
+            styles.lockButton,
+            styles.lockButtonActive,
+            { left: 12 + insets.left },
+          ]}
           focusedStyle={styles.lockButtonFocused}
           hasTVPreferredFocus
           accessibilityRole="button"

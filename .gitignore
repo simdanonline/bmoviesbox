@@ -27,3 +27,5 @@ coverage/
 
 android/app/release.keystore
 *.keystore
+
+store-assets/
