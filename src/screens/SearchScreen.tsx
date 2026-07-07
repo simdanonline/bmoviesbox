@@ -233,7 +233,7 @@ const localStyles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   searchInput: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceHigh,
     borderRadius: radii.pill,
     paddingHorizontal: spacing.lg,
     paddingVertical: 12,
@@ -269,7 +269,7 @@ const localStyles = StyleSheet.create({
     transform: [{ scale: 1.05 }],
   },
   tabLabel: {
-    color: "#bbb",
+    color: colors.textSecondary,
     fontSize: 13,
     fontWeight: "700",
     letterSpacing: 0.3,
@@ -290,7 +290,7 @@ const localStyles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.25)",
   },
   tabCountText: {
-    color: "#999",
+    color: colors.textMuted,
     fontSize: 11,
     fontWeight: "700",
   },
