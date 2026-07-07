@@ -9,11 +9,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
+import { Feather } from "@expo/vector-icons";
 import { useDownloads } from "../context/DownloadContext";
 import { DownloadRecord } from "../services/DownloadManager";
 import { getOriginalLanguage } from "../services/tmdb";
 import { styles } from "../styles/styles";
 import Focusable from "../components/Focusable";
+import { colors, spacing, typography } from "../styles/theme";
 
 type SortOrder = "newest" | "largest" | "title";
 
@@ -143,7 +145,7 @@ export default function DownloadedTitlesScreen({
 
       {sorted.length === 0 ? (
         <View style={dlStyles.empty}>
-          <FontAwesome name="cloud-download" size={56} color="#333" />
+          <Feather name="download" size={48} color={colors.textMuted} />
           <Text style={dlStyles.emptyText}>No downloads yet</Text>
           <Text style={dlStyles.emptySubText}>
             Tap Download on any movie or episode to save it offline.
@@ -203,7 +205,7 @@ const dlStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  totalText: { color: "#aaa", fontSize: 12, fontWeight: "600" },
+  totalText: { color: colors.textSecondary, fontSize: 12, fontWeight: "600" },
   sortRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -211,7 +213,7 @@ const dlStyles = StyleSheet.create({
     paddingVertical: 8,
     gap: 12,
   },
-  sortLabel: { color: "#666", fontSize: 13 },
+  sortLabel: { color: colors.textMuted, fontSize: 13 },
   sortChip: {
     paddingVertical: 4,
     paddingHorizontal: 8,
@@ -220,32 +222,29 @@ const dlStyles = StyleSheet.create({
     borderColor: "transparent",
   },
   sortChipFocused: { borderColor: "#e74c3c" },
-  sortChipText: { color: "#666", fontSize: 13 },
-  sortChipTextActive: { color: "#e74c3c", fontWeight: "600" },
+  sortChipText: { color: colors.textMuted, fontSize: 13 },
+  sortChipTextActive: { color: colors.accent, fontWeight: "600" },
   empty: {
     alignItems: "center",
     justifyContent: "center",
     paddingTop: 80,
     paddingHorizontal: 40,
+    gap: spacing.sm,
   },
   emptyText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "600",
-    marginTop: 16,
+    ...typography.heading,
+    color: colors.text,
   },
   emptySubText: {
-    color: "#aaa",
-    fontSize: 14,
+    ...typography.body,
+    color: colors.textSecondary,
     textAlign: "center",
-    marginTop: 8,
-    lineHeight: 20,
   },
-  list: { paddingHorizontal: 16, paddingBottom: 32, gap: 8 },
+  list: { paddingHorizontal: spacing.lg, paddingBottom: 32, gap: spacing.sm },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     borderRadius: 8,
     gap: 8,
     padding: 12,
@@ -264,14 +263,14 @@ const dlStyles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 6,
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     alignItems: "center",
     justifyContent: "center",
   },
   rowText: { flex: 1, gap: 2 },
-  rowTitle: { color: "#fff", fontSize: 14, fontWeight: "600" },
-  rowMeta: { color: "#aaa", fontSize: 12 },
-  rowMetaSecondary: { color: "#666", fontSize: 11 },
+  rowTitle: { color: colors.text, fontSize: 14, fontWeight: "600" },
+  rowMeta: { color: colors.textSecondary, fontSize: 12 },
+  rowMetaSecondary: { color: colors.textMuted, fontSize: 11 },
   deleteButton: {
     width: 36,
     height: 36,

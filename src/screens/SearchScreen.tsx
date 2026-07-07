@@ -10,9 +10,11 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Feather } from "@expo/vector-icons";
 import MovieAPI, { Movie } from "../services/MovieAPI";
 import MovieCard from "../components/MovieCard";
 import Focusable from "../components/Focusable";
+import { colors, spacing, radii, typography } from "../styles/theme";
 
 type SearchScreenNavigationProp = NativeStackNavigationProp<any>;
 type Tab = "movies" | "series";
@@ -96,7 +98,7 @@ const SearchScreen = () => {
           onChangeText={setQuery}
           value={query}
           placeholder="Search for movies, series..."
-          placeholderTextColor="#666"
+          placeholderTextColor={colors.textMuted}
         />
       </View>
 
@@ -119,6 +121,12 @@ const SearchScreen = () => {
 
       {!searched && (
         <View style={localStyles.emptyContainer}>
+          <Feather
+            name="search"
+            size={48}
+            color={colors.textMuted}
+            style={localStyles.emptyIcon}
+          />
           <Text style={localStyles.emptyText}>🔍 Search for movies</Text>
           <Text style={localStyles.emptySubText}>
             Type at least 3 characters to search
@@ -135,6 +143,12 @@ const SearchScreen = () => {
 
       {!loading && searched && activeResults.length === 0 && (
         <View style={localStyles.emptyContainer}>
+          <Feather
+            name="search"
+            size={48}
+            color={colors.textMuted}
+            style={localStyles.emptyIcon}
+          />
           <Text style={localStyles.emptyText}>😔 No results found</Text>
           <Text style={localStyles.emptySubText}>
             {activeTab === "movies"
@@ -209,24 +223,24 @@ const TabButton: React.FC<TabButtonProps> = ({
 const localStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: colors.bg,
   },
   searchHeader: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#333",
+    borderBottomColor: colors.border,
   },
   searchInput: {
-    backgroundColor: "#2a2a2a",
-    borderRadius: 8,
-    paddingHorizontal: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.lg,
     paddingVertical: 12,
-    color: "#fff",
+    color: colors.text,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: "#444",
+    borderColor: colors.border,
   },
   tabRow: {
     flexDirection: "row",
@@ -241,13 +255,13 @@ const localStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: colors.border,
   },
   tabActive: {
-    backgroundColor: "#e74c3c",
-    borderColor: "#e74c3c",
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   tabFocused: {
     borderColor: "#fff",
@@ -261,11 +275,11 @@ const localStyles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   tabLabelActive: {
-    color: "#fff",
+    color: colors.text,
   },
   tabCountBadge: {
     marginLeft: 8,
-    backgroundColor: "#2a2a2a",
+    backgroundColor: colors.surfaceHigh,
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 999,
@@ -281,33 +295,36 @@ const localStyles = StyleSheet.create({
     fontWeight: "700",
   },
   tabCountTextActive: {
-    color: "#fff",
+    color: colors.text,
   },
   columnWrapper: {
     justifyContent: "space-between",
-    paddingHorizontal: 10,
-    marginBottom: 16,
-    gap: 10,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.lg,
+    gap: spacing.md,
   },
   listContent: {
-    paddingVertical: 16,
+    paddingVertical: spacing.lg,
     paddingHorizontal: 0,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: spacing.xl,
+  },
+  emptyIcon: {
+    marginBottom: spacing.lg,
   },
   emptyText: {
-    color: "#fff",
-    fontSize: 20,
-    fontWeight: "600",
-    marginBottom: 8,
+    ...typography.heading,
+    color: colors.text,
+    textAlign: "center",
+    marginBottom: spacing.sm,
   },
   emptySubText: {
-    color: "#888",
-    fontSize: 14,
+    ...typography.body,
+    color: colors.textSecondary,
     textAlign: "center",
   },
   loadingContainer: {
@@ -316,7 +333,7 @@ const localStyles = StyleSheet.create({
     alignItems: "center",
   },
   loadingText: {
-    color: "#fff",
+    color: colors.text,
     marginTop: 12,
     fontSize: 14,
   },

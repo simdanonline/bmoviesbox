@@ -13,6 +13,8 @@ import { useUserData, SavedItem } from "../context/UserDataContext";
 import MovieCard from "../components/MovieCard";
 import { styles } from "../styles/styles";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
+import { Feather } from "@expo/vector-icons";
+import { colors, spacing, typography } from "../styles/theme";
 
 type FilterType = "all" | "movies" | "series";
 
@@ -85,7 +87,7 @@ export default function WatchlistScreen({
 
         {filteredItems.length === 0 ? (
           <View style={watchlistStyles.emptyContainer}>
-            <FontAwesome name="bookmark-o" size={64} color="#333" />
+            <Feather name="bookmark" size={48} color={colors.textMuted} />
             <Text style={watchlistStyles.emptyText}>No items saved yet</Text>
             <Text style={watchlistStyles.emptySubText}>
               Browse movies and series, then tap the bookmark icon to save them
@@ -134,39 +136,36 @@ const watchlistStyles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: colors.border,
   },
   filterChipActive: {
-    backgroundColor: "#e74c3c",
-    borderColor: "#e74c3c",
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   filterText: {
-    color: "#aaa",
+    color: colors.textSecondary,
     fontSize: 14,
     fontWeight: "600",
   },
   filterTextActive: {
-    color: "#fff",
+    color: colors.text,
   },
   emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
     paddingTop: 80,
     paddingHorizontal: 40,
+    gap: spacing.sm,
   },
   emptyText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "600",
-    marginTop: 16,
+    ...typography.heading,
+    color: colors.text,
   },
   emptySubText: {
-    color: "#aaa",
-    fontSize: 14,
+    ...typography.body,
+    color: colors.textSecondary,
     textAlign: "center",
-    marginTop: 8,
-    lineHeight: 20,
   },
 });
