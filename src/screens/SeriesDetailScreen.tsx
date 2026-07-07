@@ -1112,7 +1112,7 @@ export default function SeriesDetailsScreen({
 const seriesStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: colors.bg,
   },
   centered: {
     flex: 1,
@@ -1162,7 +1162,7 @@ const seriesStyles = StyleSheet.create({
     fontSize: 14,
   },
   metaDot: {
-    color: "#666",
+    color: colors.textMuted,
     marginHorizontal: 8,
   },
   progressSummary: {
