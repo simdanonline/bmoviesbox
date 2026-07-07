@@ -335,7 +335,7 @@ export default function SettingsScreen() {
         {/* Playback — web only. Lets the user swap the built-in <video> player
             for the legacy embedded site players, which handle MKV/HEVC and
             carry their own subtitle controls. */}
-        {Platform.OS === "web" && (
+        {(Platform.OS === "web" || isTvApp) && (
           <View style={settingsStyles.section}>
             <Text style={settingsStyles.sectionTitle}>Playback</Text>
             <Focusable
