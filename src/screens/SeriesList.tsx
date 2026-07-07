@@ -18,6 +18,7 @@ import { useUserData } from "../context/UserDataContext";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FontAwesome, Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import { colors } from "../styles/theme";
 
 type SeriesListProps = NativeStackScreenProps<any, "Series">;
 
@@ -213,10 +214,10 @@ const seriesListStyles = StyleSheet.create({
     width: "100%",
     height: 150,
     borderRadius: 8,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
   },
   recentTitle: {
-    color: "#ccc",
+    color: colors.textSecondary,
     fontSize: 11,
     marginTop: 6,
     textAlign: "center",

@@ -38,6 +38,8 @@ import {
 } from "../utils/downloadSourceHealth";
 import { preparePlayableStreams } from "../utils/playbackValidation";
 import { getWebPlayerMode } from "../utils/webPlayerMode";
+import { LinearGradient } from "expo-linear-gradient";
+import { colors } from "../styles/theme";
 
 type MovieDetailsScreenProps = NativeStackScreenProps<any, "MovieDetails">;
 
@@ -491,11 +493,24 @@ export default function MovieDetailsScreen({
           most common action is reachable without scrolling past the artwork. */}
       <View style={detailActionStyles.heroContainer}>
         {movieDetails.coverImage && (
-          <TvSafeImage
-            source={{ uri: movieDetails.coverImage?.trim() }}
-            style={styles.coverImage}
-            contentFit="cover"
-          />
+          <>
+            <TvSafeImage
+              source={{ uri: movieDetails.coverImage?.trim() }}
+              style={styles.coverImage}
+              contentFit="cover"
+            />
+            <LinearGradient
+              colors={[colors.scrimTop, colors.bg]}
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 160,
+              }}
+              pointerEvents="none"
+            />
+          </>
         )}
         {usesTvPlaybackControls && (
           <Focusable
@@ -842,9 +857,9 @@ const detailActionStyles = StyleSheet.create({
     justifyContent: "space-around",
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#333",
+    borderBottomColor: colors.border,
   },
   actionButton: {
     alignItems: "center",
@@ -862,13 +877,13 @@ const detailActionStyles = StyleSheet.create({
     borderColor: "#fff",
   },
   actionText: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 12,
     marginTop: 4,
   },
   yourRatingSection: {
     marginBottom: 16,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     padding: 16,
     borderRadius: 8,
   },
@@ -893,7 +908,7 @@ const detailActionStyles = StyleSheet.create({
   },
   downloadButtonCompleted: { backgroundColor: "#27ae60" },
   downloadButtonFailed: { backgroundColor: "#7f1d1d" },
-  downloadButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
+  downloadButtonText: { color: colors.text, fontWeight: "600", fontSize: 14 },
   downloadProgressFill: {
     position: "absolute",
     top: 0,

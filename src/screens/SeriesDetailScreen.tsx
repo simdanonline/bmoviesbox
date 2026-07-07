@@ -43,6 +43,8 @@ import {
   type SeriesRef,
 } from "../utils/episodePlayback";
 import { getWebPlayerMode } from "../utils/webPlayerMode";
+import { LinearGradient } from "expo-linear-gradient";
+import { colors } from "../styles/theme";
 
 type SeriesDetailsScreenProps = NativeStackScreenProps<any, "SeriesDetails">;
 
@@ -612,11 +614,24 @@ export default function SeriesDetailsScreen({
     >
       {/* Cover Image */}
       {seriesData.coverImage && (
-        <TvSafeImage
-          source={{ uri: seriesData.coverImage?.trim() }}
-          style={seriesStyles.coverImage}
-          contentFit="cover"
-        />
+        <View style={seriesStyles.coverWrapper}>
+          <TvSafeImage
+            source={{ uri: seriesData.coverImage?.trim() }}
+            style={seriesStyles.coverImage}
+            contentFit="cover"
+          />
+          <LinearGradient
+            colors={[colors.scrimTop, colors.bg]}
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 160,
+            }}
+            pointerEvents="none"
+          />
+        </View>
       )}
 
       {/* Action Buttons */}
@@ -1104,13 +1119,16 @@ const seriesStyles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  coverWrapper: {
+    position: "relative",
+  },
   coverImage: {
     width: "100%",
     height: 250,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
   },
   trailerButton: {
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     marginHorizontal: 16,
     marginVertical: 12,
     paddingVertical: 12,
@@ -1120,7 +1138,7 @@ const seriesStyles = StyleSheet.create({
     borderColor: "transparent",
   },
   trailerButtonText: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 16,
     fontWeight: "600",
   },
@@ -1129,7 +1147,7 @@ const seriesStyles = StyleSheet.create({
     paddingBottom: 32,
   },
   movieTitle: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 24,
     fontWeight: "700",
     marginBottom: 8,
@@ -1140,7 +1158,7 @@ const seriesStyles = StyleSheet.create({
     marginBottom: 12,
   },
   metaText: {
-    color: "#aaa",
+    color: colors.textSecondary,
     fontSize: 14,
   },
   metaDot: {
@@ -1152,18 +1170,18 @@ const seriesStyles = StyleSheet.create({
   },
   progressBar: {
     height: 4,
-    backgroundColor: "#333",
+    backgroundColor: colors.surfaceHigh,
     borderRadius: 2,
     overflow: "hidden",
     marginBottom: 6,
   },
   progressFill: {
     height: "100%",
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     borderRadius: 2,
   },
   progressText: {
-    color: "#888",
+    color: colors.textMuted,
     fontSize: 12,
   },
   genresContainer: {
@@ -1173,15 +1191,15 @@ const seriesStyles = StyleSheet.create({
     gap: 8,
   },
   genreTag: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#e74c3c",
+    borderColor: colors.accent,
   },
   genreText: {
-    color: "#e74c3c",
+    color: colors.accent,
     fontSize: 12,
     fontWeight: "600",
   },
@@ -1189,7 +1207,7 @@ const seriesStyles = StyleSheet.create({
     marginBottom: 16,
   },
   ratingsTitle: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 16,
     fontWeight: "600",
     marginBottom: 12,
@@ -1201,20 +1219,20 @@ const seriesStyles = StyleSheet.create({
   },
   ratingItem: {
     flex: 1,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: colors.border,
   },
   ratingSource: {
-    color: "#aaa",
+    color: colors.textSecondary,
     fontSize: 12,
     marginBottom: 4,
   },
   ratingValue: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 16,
     fontWeight: "600",
   },
@@ -1222,18 +1240,18 @@ const seriesStyles = StyleSheet.create({
     marginBottom: 20,
   },
   sectionTitle: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 16,
     fontWeight: "600",
     marginBottom: 12,
   },
   description: {
-    color: "#ccc",
+    color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 22,
   },
   personText: {
-    color: "#ccc",
+    color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 22,
   },
@@ -1246,22 +1264,22 @@ const seriesStyles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 6,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     marginRight: 8,
     borderWidth: 2,
-    borderColor: "#333",
+    borderColor: colors.border,
   },
   seasonButtonActive: {
-    backgroundColor: "#e74c3c",
-    borderColor: "#e74c3c",
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   seasonButtonText: {
-    color: "#aaa",
+    color: colors.textSecondary,
     fontSize: 14,
     fontWeight: "600",
   },
   seasonButtonTextActive: {
-    color: "#fff",
+    color: colors.text,
   },
   episodesGrid: {
     flexDirection: "row",
@@ -1270,11 +1288,11 @@ const seriesStyles = StyleSheet.create({
   },
   episodeCard: {
     width: (width - 48) / 2,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     borderRadius: 8,
     padding: 12,
     borderWidth: 3,
-    borderColor: "#333",
+    borderColor: colors.border,
     alignItems: "center",
   },
   focused: {
@@ -1288,7 +1306,7 @@ const seriesStyles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 8,
@@ -1297,12 +1315,12 @@ const seriesStyles = StyleSheet.create({
     backgroundColor: "#2ecc71",
   },
   episodeNumberText: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 12,
     fontWeight: "700",
   },
   episodeTitle: {
-    color: "#ccc",
+    color: colors.textSecondary,
     fontSize: 12,
     textAlign: "center",
     marginBottom: 8,
@@ -1311,12 +1329,12 @@ const seriesStyles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     justifyContent: "center",
     alignItems: "center",
   },
   playIcon: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 14,
   },
   downloadIconBtn: {
@@ -1332,7 +1350,7 @@ const seriesStyles = StyleSheet.create({
     justifyContent: "center",
   },
   downloadIconBtnDone: { backgroundColor: "#27ae60" },
-  downloadIconPct: { color: "#fff", fontSize: 9, fontWeight: "700" },
+  downloadIconPct: { color: colors.text, fontSize: 9, fontWeight: "700" },
   episodesHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -1340,7 +1358,7 @@ const seriesStyles = StyleSheet.create({
     marginBottom: 12,
     gap: 8,
   },
-  episodesSubtitle: { color: "#aaa", fontSize: 12, marginTop: -8 },
+  episodesSubtitle: { color: colors.textSecondary, fontSize: 12, marginTop: -8 },
   seasonDownloadBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -1352,7 +1370,7 @@ const seriesStyles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "transparent",
   },
-  seasonDownloadBtnText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  seasonDownloadBtnText: { color: colors.text, fontSize: 11, fontWeight: "700" },
 });
 
 const detailActionStyles = StyleSheet.create({
@@ -1361,9 +1379,9 @@ const detailActionStyles = StyleSheet.create({
     justifyContent: "space-around",
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#333",
+    borderBottomColor: colors.border,
   },
   actionButton: {
     alignItems: "center",
@@ -1381,13 +1399,13 @@ const detailActionStyles = StyleSheet.create({
     borderColor: "#fff",
   },
   actionText: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 12,
     marginTop: 4,
   },
   yourRatingSection: {
     marginBottom: 16,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     padding: 16,
     borderRadius: 8,
   },
@@ -1401,21 +1419,21 @@ const detailActionStyles = StyleSheet.create({
     marginTop: 4,
   },
   resumeSection: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     marginHorizontal: 16,
     padding: 12,
     borderRadius: 8,
     borderLeftWidth: 3,
-    borderLeftColor: "#e74c3c",
+    borderLeftColor: colors.accent,
     marginBottom: 8,
   },
   resumeLabel: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 14,
     fontWeight: "600",
   },
   progressLabel: {
-    color: "#888",
+    color: colors.textMuted,
     fontSize: 12,
     marginTop: 4,
   },
