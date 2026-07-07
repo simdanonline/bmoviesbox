@@ -1,4 +1,5 @@
 import { StyleSheet, Dimensions, Platform } from "react-native";
+import { colors, spacing, radii, typography, shadows } from "./theme";
 
 export const { width, height } = Dimensions.get("window");
 
@@ -15,7 +16,7 @@ export const styles = StyleSheet.create({
   // Global
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: colors.bg,
   },
   centered: {
     flex: 1,
@@ -28,9 +29,9 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 20,
     paddingBottom: 20,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.bg,
     borderBottomWidth: 1,
-    borderBottomColor: "#333",
+    borderBottomColor: colors.border,
   },
   row: {
     flexDirection: "row",
@@ -38,9 +39,8 @@ export const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#fff",
+    ...typography.title,
+    color: colors.text,
   },
   iconButtonFocused: {
     backgroundColor: "rgba(231, 76, 60, 0.25)",
@@ -66,8 +66,9 @@ export const styles = StyleSheet.create({
   featuredContainer: {
     marginHorizontal: 16,
     marginVertical: 20,
-    borderRadius: 12,
+    borderRadius: radii.card,
     overflow: "hidden",
+    ...shadows.card,
   },
   featuredFocused: {
     borderWidth: 4,
@@ -91,7 +92,7 @@ export const styles = StyleSheet.create({
     borderBottomRightRadius: 12,
   },
   featuredHeroTitle: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 28,
     fontWeight: "800",
     marginTop: 8,
@@ -129,8 +130,8 @@ export const styles = StyleSheet.create({
     padding: 16,
   },
   featuredBadge: {
-    backgroundColor: "#e74c3c",
-    color: "#fff",
+    backgroundColor: colors.accent,
+    color: colors.text,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 4,
@@ -153,12 +154,12 @@ export const styles = StyleSheet.create({
   featuredInfo: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
   },
   featuredTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#fff",
+    color: colors.text,
     marginBottom: 8,
   },
   featuredMeta: {
@@ -167,23 +168,23 @@ export const styles = StyleSheet.create({
     marginBottom: 8,
   },
   featuredMetaText: {
-    color: "#aaa",
+    color: colors.textSecondary,
     fontSize: 14,
   },
   genresList: {
-    color: "#888",
+    color: colors.textMuted,
     fontSize: 12,
     marginBottom: 8,
   },
   ratingBadge: {
-    backgroundColor: "#2d2d2d",
+    backgroundColor: colors.surfaceHigh,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
     alignSelf: "flex-start",
   },
   ratingBadgeText: {
-    color: "#ffc107",
+    color: colors.gold,
     fontWeight: "600",
     fontSize: 12,
   },
@@ -239,10 +240,9 @@ export const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#fff",
-    marginBottom: 16,
+    ...typography.heading,
+    color: colors.text,
+    marginBottom: spacing.lg,
   },
   moviesGrid: {
     flexDirection: "row",
@@ -260,9 +260,9 @@ export const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: Platform.isTV ? 4 : 0,
     borderColor: "transparent",
-    borderRadius: 8,
+    borderRadius: radii.card,
     overflow: "hidden",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
   },
   cardFocused: {
     borderWidth: 4,
@@ -274,7 +274,7 @@ export const styles = StyleSheet.create({
     position: "relative",
     width: "100%",
     height: Platform.isTV ? TV_CARD_IMAGE_HEIGHT : 200,
-    backgroundColor: "#2a2a2a",
+    backgroundColor: colors.surfaceHigh,
   },
   cardImage: {
     width: "100%",
@@ -291,19 +291,19 @@ export const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: "rgba(231, 76, 60, 0.8)",
+    backgroundColor: colors.accent,
     justifyContent: "center",
     alignItems: "center",
   },
   playIconSmall: {
     fontSize: 24,
-    color: "#fff",
+    color: colors.text,
   },
   cardInfo: {
     padding: 12,
   },
   cardTitle: {
-    color: "#fff",
+    color: colors.text,
     fontWeight: "600",
     fontSize: 13,
     marginBottom: 6,
@@ -313,12 +313,12 @@ export const styles = StyleSheet.create({
     marginBottom: 4,
   },
   cardRatingText: {
-    color: "#ffc107",
+    color: colors.gold,
     fontWeight: "600",
     fontSize: 12,
   },
   cardYear: {
-    color: "#888",
+    color: colors.textMuted,
     fontSize: 11,
   },
 
@@ -332,13 +332,13 @@ export const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 20,
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     paddingVertical: 16,
-    borderRadius: 8,
+    borderRadius: radii.button,
     alignItems: "center",
   },
   playButtonText: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 18,
     fontWeight: "bold",
   },
@@ -349,7 +349,7 @@ export const styles = StyleSheet.create({
   movieTitle: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#fff",
+    color: colors.text,
     marginBottom: 8,
   },
   metaRow: {
@@ -358,11 +358,11 @@ export const styles = StyleSheet.create({
     marginBottom: 12,
   },
   metaText: {
-    color: "#aaa",
+    color: colors.textSecondary,
     fontSize: 14,
   },
   metaDot: {
-    color: "#aaa",
+    color: colors.textSecondary,
     marginHorizontal: 8,
   },
   genresContainer: {
@@ -371,28 +371,28 @@ export const styles = StyleSheet.create({
     marginBottom: 20,
   },
   genreTag: {
-    backgroundColor: "#2d2d2d",
+    backgroundColor: colors.surfaceHigh,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: radii.pill,
     marginRight: 8,
     marginBottom: 8,
   },
   genreText: {
-    color: "#e74c3c",
+    color: colors.accent,
     fontWeight: "600",
     fontSize: 12,
   },
   ratingsContainer: {
     marginBottom: 24,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     padding: 16,
-    borderRadius: 8,
+    borderRadius: radii.md,
   },
   ratingsTitle: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#fff",
+    color: colors.text,
     marginBottom: 12,
   },
   ratingsGrid: {
@@ -402,19 +402,19 @@ export const styles = StyleSheet.create({
   },
   ratingItem: {
     width: "48%",
-    backgroundColor: "#2d2d2d",
+    backgroundColor: colors.surfaceHigh,
     padding: 12,
-    borderRadius: 8,
+    borderRadius: radii.md,
     marginBottom: 8,
     alignItems: "center",
   },
   ratingSource: {
-    color: "#aaa",
+    color: colors.textSecondary,
     fontSize: 12,
     marginBottom: 4,
   },
   ratingValue: {
-    color: "#ffc107",
+    color: colors.gold,
     fontSize: 18,
     fontWeight: "bold",
   },
@@ -422,24 +422,24 @@ export const styles = StyleSheet.create({
     marginBottom: 20,
   },
   description: {
-    color: "#ddd",
+    color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 20,
   },
   personText: {
-    color: "#aaa",
+    color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 20,
   },
   errorText: {
-    color: "#e74c3c",
+    color: colors.accent,
     fontSize: 16,
     fontWeight: "bold",
     textAlign: "center",
     marginBottom: 16,
   },
   subtext: {
-    color: "#888",
+    color: colors.textMuted,
     fontSize: 14,
     textAlign: "center",
   },
@@ -457,10 +457,10 @@ export const styles = StyleSheet.create({
   },
   serverCard: {
     width: "48%",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     borderWidth: 2,
-    borderColor: "#333",
-    borderRadius: 12,
+    borderColor: colors.border,
+    borderRadius: radii.md,
     padding: 16,
     marginBottom: 16,
     justifyContent: "center",
@@ -468,20 +468,20 @@ export const styles = StyleSheet.create({
     minHeight: 120,
   },
   serverName: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 16,
     fontWeight: "bold",
     marginBottom: 8,
     textAlign: "center",
   },
   serverQuality: {
-    color: "#ffc107",
+    color: colors.gold,
     fontSize: 14,
     fontWeight: "600",
     marginBottom: 4,
   },
   serverNumber: {
-    color: "#888",
+    color: colors.textMuted,
     fontSize: 12,
   },
 
@@ -496,20 +496,20 @@ export const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#333",
+    borderBottomColor: colors.border,
   },
   backButton: {
     padding: 8,
   },
   backButtonText: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 16,
     fontWeight: "bold",
   },
   playerTitle: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 16,
     fontWeight: "600",
     flex: 1,
@@ -541,7 +541,7 @@ export const styles = StyleSheet.create({
     borderTopColor: "#333",
   },
   serverInfo: {
-    color: "#888",
+    color: colors.textMuted,
     fontSize: 12,
     textAlign: "center",
   },
@@ -550,13 +550,13 @@ export const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#e74c3c",
+    borderColor: colors.accent,
     marginHorizontal: 16,
     marginBottom: 16,
 
   },
   trailerButtonText: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 16,
   },
   errorOverlay: {
@@ -570,14 +570,14 @@ export const styles = StyleSheet.create({
   retryButton: {
     paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     borderRadius: 6,
   },
   seriesBadge: {
     position: "absolute",
     top: 8,
     left: 8,
-    backgroundColor: "#ffc107",
+    backgroundColor: colors.gold,
     padding: 4,
     borderRadius: 4,
   },
