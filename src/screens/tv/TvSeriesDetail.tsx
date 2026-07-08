@@ -234,7 +234,7 @@ export default function TvSeriesDetail(props: TvSeriesDetailProps) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   content: { paddingBottom: tvLayout.overscanV * 2 },
-  hero: { height: tvLayout.heroHeight, flexDirection: "row" },
+  hero: { minHeight: tvLayout.heroHeight, flexDirection: "row" },
   heroArt: {
     position: "absolute",
     right: 0,
@@ -247,8 +247,10 @@ const styles = StyleSheet.create({
   heroInfo: {
     width: tvLayout.heroInfoWidth,
     paddingHorizontal: tvLayout.overscanH,
-    paddingTop: tvLayout.overscanV,
-    justifyContent: "center",
+    // Clear the stack nav header (~56px) and anchor content from the top so a
+    // 2-line title never rides under the header or overflows the hero.
+    paddingTop: tvLayout.overscanV + 56,
+    justifyContent: "flex-start",
   },
   title: { ...tvType.heroTitle, color: colors.text, marginBottom: 16 },
   pillRow: { flexDirection: "row", flexWrap: "wrap", marginBottom: 18 },
