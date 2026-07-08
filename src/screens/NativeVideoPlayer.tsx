@@ -505,18 +505,31 @@ export default function NativeVideoPlayer({
 
   useEffect(() => clearHideTimer, [clearHideTimer]);
 
+  // On Android TV the system screensaver (Daydream) is the trigger for a
+  // fatal freeze: if it starts while libVLC is *paused*, it destroys the video
+  // surface out from under the player. react-native-vlc-media-player's
+  // onHostPause is a no-op once the user has paused, so nothing detaches the
+  // surface first; on wake the wedged instance is released on the UI thread and
+  // the whole app deadlocks (blank/stuck-splash screen, remote dead, TV restart
+  // required). The reliable defense is to not let the screensaver start while
+  // we're on the player screen at all — so on TV we hold the keep-awake lock
+  // even while paused. (This is the chosen tradeoff: no screensaver on the
+  // paused player screen, in exchange for never freezing.)
+  const preventTvScreensaver = Platform.OS === "android" && Platform.isTV;
+
   // Hold the screen awake while actually watching. Android (and iOS) let the
   // display sleep on the OS timeout when untouched; that's wrong mid-movie. We
-  // override it only while playback is live — not while paused or on the error
-  // screen, where the user may have stepped away and the normal sleep timer
-  // should resume. deactivateKeepAwake on cleanup releases the lock on exit.
+  // override it while playback is live and, on TV, while paused too (see above)
+  // — but never on the error screen, where the user has likely stepped away
+  // from a dead stream. deactivateKeepAwake on cleanup releases the lock.
   useEffect(() => {
-    if (!hasStarted || paused || errored) return;
+    if (!hasStarted || errored) return;
+    if (paused && !preventTvScreensaver) return;
     void activateKeepAwakeAsync();
     return () => {
       void deactivateKeepAwake();
     };
-  }, [hasStarted, paused, errored]);
+  }, [hasStarted, paused, errored, preventTvScreensaver]);
 
   // Seed the HUD with the current screen brightness and restore it on exit so
   // we don't leave the device dimmed/brightened after playback.
