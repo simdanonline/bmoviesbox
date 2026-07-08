@@ -7,6 +7,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Platform,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -32,6 +33,13 @@ const STORAGE_CAP_OPTIONS: { label: string; bytes: number }[] = [
 ];
 
 const PARALLEL_OPTIONS = [1, 2, 3, 4, 6, 8];
+
+// Play Store listing for the shipping Reelmark app. `market://` opens the
+// native Play Store app directly; the https URL is the fallback (and what
+// works on devices without the Play Store app, e.g. some TV boxes).
+const PLAY_STORE_PACKAGE = "com.simdanonline.reelmarkapp";
+const PLAY_STORE_MARKET_URL = `market://details?id=${PLAY_STORE_PACKAGE}`;
+const PLAY_STORE_WEB_URL = `https://play.google.com/store/apps/details?id=${PLAY_STORE_PACKAGE}`;
 
 function formatBytes(bytes: number): string {
   if (!bytes) return "0 MB";
@@ -180,6 +188,24 @@ export default function SettingsScreen() {
         { text: "Clear", style: "destructive", onPress: clearHistory },
       ],
     );
+  };
+
+  const handleOpenPlayStore = async () => {
+    // Prefer the native Play Store app; fall back to the web listing if it
+    // isn't installed or the market:// scheme can't be handled.
+    try {
+      const supported = await Linking.canOpenURL(PLAY_STORE_MARKET_URL);
+      await Linking.openURL(supported ? PLAY_STORE_MARKET_URL : PLAY_STORE_WEB_URL);
+    } catch {
+      try {
+        await Linking.openURL(PLAY_STORE_WEB_URL);
+      } catch {
+        Alert.alert(
+          "Couldn't open Play Store",
+          `Search for the app or visit:\n${PLAY_STORE_WEB_URL}`,
+        );
+      }
+    }
   };
 
   const handleResetOnboarding = () => {
@@ -595,6 +621,23 @@ export default function SettingsScreen() {
         {/* About */}
         <View style={settingsStyles.section}>
           <Text style={settingsStyles.sectionTitle}>About</Text>
+          <Focusable
+            style={settingsStyles.settingRow}
+            onPress={handleOpenPlayStore}
+          >
+            <View style={settingsStyles.settingLeft}>
+              <FontAwesome name="android" size={18} color="#3ddc84" />
+              <View style={settingsStyles.settingTextContainer}>
+                <Text style={settingsStyles.settingText}>
+                  Get Reelmark on Google Play
+                </Text>
+                <Text style={settingsStyles.settingDetail}>
+                  Opens the Play Store listing directly
+                </Text>
+              </View>
+            </View>
+            <FontAwesome name="external-link" size={14} color="#555" />
+          </Focusable>
           <View style={settingsStyles.settingRow}>
             <View style={settingsStyles.settingLeft}>
               <FontAwesome name="info-circle" size={18} color="#aaa" />
