@@ -34,7 +34,6 @@ interface TvSeriesDetailProps {
   onSelectSeason: (n: number) => void;
   onPlayEpisode: (ep: Episode) => void;
   onToggleWatchlist: () => void;
-  onShare: () => void;
   onTrailer: () => void;
   onStatusSelect: (s: WatchStatus) => void;
   onRemoveStatus: () => void;
@@ -58,7 +57,6 @@ export default function TvSeriesDetail(props: TvSeriesDetailProps) {
     onSelectSeason,
     onPlayEpisode,
     onToggleWatchlist,
-    onShare,
     onTrailer,
     onStatusSelect,
     onRemoveStatus,
@@ -128,7 +126,6 @@ export default function TvSeriesDetail(props: TvSeriesDetailProps) {
             {!!seriesData.trailerUrl && (
               <TvActionButton icon="play-circle" label="Trailer" onPress={onTrailer} />
             )}
-            <TvActionButton icon="share-alt" label="Share" onPress={onShare} />
           </View>
         </View>
       </View>

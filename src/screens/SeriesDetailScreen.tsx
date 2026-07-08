@@ -665,12 +665,6 @@ export default function SeriesDetailsScreen({
             savedAt: Date.now(),
           })
         }
-        onShare={() =>
-          Share.share({
-            message: `Check out "${seriesData.title}" on Reelmark!`,
-            title: seriesData.title,
-          })
-        }
         onTrailer={handlePressTrailer}
         onStatusSelect={handleStatusSelect}
         onRemoveStatus={() => removeFromLibrary(seriesData.url)}

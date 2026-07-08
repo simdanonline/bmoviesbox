@@ -60,6 +60,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     marginRight: 14,
+    marginBottom: 14,
   },
   primary: {
     backgroundColor: colors.accent,

@@ -539,12 +539,6 @@ export default function MovieDetailsScreen({
             savedAt: Date.now(),
           })
         }
-        onShare={() =>
-          Share.share({
-            message: `Check out "${movieDetails.title}" on Reelmark!`,
-            title: movieDetails.title,
-          })
-        }
         onTrailer={handlePressTrailer}
         onStatusSelect={handleStatusSelect}
         onRemoveStatus={() => removeFromLibrary(movieDetails.url)}

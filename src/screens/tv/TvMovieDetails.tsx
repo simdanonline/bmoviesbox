@@ -21,7 +21,6 @@ interface TvMovieDetailsProps {
   currentStatus: WatchStatus | null;
   onPlay: () => void;
   onToggleWatchlist: () => void;
-  onShare: () => void;
   onTrailer: () => void;
   onStatusSelect: (s: WatchStatus) => void;
   onRemoveStatus: () => void;
@@ -38,7 +37,6 @@ export default function TvMovieDetails({
   currentStatus,
   onPlay,
   onToggleWatchlist,
-  onShare,
   onTrailer,
   onStatusSelect,
   onRemoveStatus,
@@ -117,7 +115,6 @@ export default function TvMovieDetails({
               onPress={onToggleWatchlist}
             />
             <TvActionButton icon="play-circle" label="Trailer" onPress={onTrailer} />
-            <TvActionButton icon="share-alt" label="Share" onPress={onShare} />
           </View>
         </View>
       </View>
