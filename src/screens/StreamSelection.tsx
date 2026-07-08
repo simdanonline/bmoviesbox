@@ -13,6 +13,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Focusable from "../components/Focusable";
 import MovieAPI, { LiveGame, LiveStream } from "../services/MovieAPI";
+import { colors, radii } from "../styles/theme";
 
 type Props = NativeStackScreenProps<any, "StreamSelection">;
 
@@ -85,7 +86,7 @@ const StreamSelection = ({ route, navigation }: Props) => {
         </Text>
         <View style={styles.streamFooter}>
           <Text style={styles.language}>{item.language}</Text>
-          <MaterialCommunityIcons name="play-circle" size={20} color="#e74c3c" />
+          <MaterialCommunityIcons name="play-circle" size={20} color={colors.accent} />
         </View>
       </View>
     </Focusable>
@@ -95,7 +96,7 @@ const StreamSelection = ({ route, navigation }: Props) => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#e74c3c" />
+          <ActivityIndicator size="large" color={colors.accent} />
           <Text style={styles.loadingText}>Loading available streams...</Text>
         </View>
       </SafeAreaView>
@@ -109,7 +110,7 @@ const StreamSelection = ({ route, navigation }: Props) => {
           <MaterialCommunityIcons
             name="alert-circle"
             size={48}
-            color="#e74c3c"
+            color={colors.accent}
             style={{ marginBottom: 16 }}
           />
           <Text style={styles.errorText}>{error}</Text>
@@ -220,7 +221,7 @@ const { width } = Dimensions.get("window");
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: colors.bg,
   },
   centered: {
     flex: 1,
@@ -229,21 +230,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   header: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#333",
+    borderBottomColor: colors.border,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#fff",
+    color: colors.text,
     marginBottom: 8,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: "#999",
+    color: colors.textMuted,
     flexShrink: 1,
   },
   matchupRow: {
@@ -252,7 +253,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   matchupVs: {
-    color: "#e74c3c",
+    color: colors.accent,
     fontSize: 12,
     fontWeight: "700",
     marginHorizontal: 6,
@@ -263,7 +264,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   headerLeague: {
-    color: "#666",
+    color: colors.textMuted,
     fontSize: 11,
     fontWeight: "600",
     marginTop: 6,
@@ -275,9 +276,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-around",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: "#0a0a0a",
+    backgroundColor: colors.bg,
     borderBottomWidth: 1,
-    borderBottomColor: "#222",
+    borderBottomColor: colors.border,
   },
   legendItem: {
     flexDirection: "row",
@@ -290,7 +291,7 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   legendText: {
-    color: "#999",
+    color: colors.textMuted,
     fontSize: 12,
   },
   listContent: {
@@ -298,12 +299,14 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   streamCard: {
-    backgroundColor: "#1a1a1a",
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
     marginBottom: 12,
     overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.border,
     borderLeftWidth: 4,
-    borderLeftColor: "#e74c3c",
+    borderLeftColor: colors.accent,
   },
   streamHeader: {
     flexDirection: "row",
@@ -313,13 +316,13 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "#2a2a2a",
+    borderBottomColor: colors.surfaceHigh,
   },
   sourceContainer: {
     flex: 1,
   },
   sourceName: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 14,
     fontWeight: "700",
   },
@@ -339,7 +342,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   channel: {
-    color: "#ccc",
+    color: colors.textSecondary,
     fontSize: 13,
     marginBottom: 8,
   },
@@ -349,33 +352,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   language: {
-    color: "#999",
+    color: colors.textMuted,
     fontSize: 12,
   },
   loadingText: {
-    color: "#fff",
+    color: colors.text,
     marginTop: 12,
     fontSize: 16,
   },
   errorText: {
-    color: "#e74c3c",
+    color: colors.accent,
     fontSize: 16,
     textAlign: "center",
     marginBottom: 20,
   },
   emptyText: {
-    color: "#999",
+    color: colors.textMuted,
     fontSize: 16,
   },
   retryButton: {
     marginTop: 20,
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   retryButtonText: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 14,
     fontWeight: "700",
   },

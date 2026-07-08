@@ -71,7 +71,7 @@ export const STATUS_LABELS: Record<WatchStatus, string> = {
 
 export const STATUS_COLORS: Record<WatchStatus, string> = {
   want_to_watch: "#3498db",
-  watching: "#e74c3c",
+  watching: "#E5484D",
   completed: "#2ecc71",
   dropped: "#95a5a6",
 };

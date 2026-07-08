@@ -11,6 +11,7 @@ import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import type { ResolvedStream } from "../services/MovieAPI";
 import { getSourceLanguageLabel } from "../utils/sourceLanguage";
 import Focusable from "./Focusable";
+import { colors } from "../styles/theme";
 
 interface DownloadSourcePickerProps {
   visible: boolean;
@@ -87,7 +88,7 @@ export default function DownloadSourcePicker({
                     {active && (
                       <ActivityIndicator
                         size="small"
-                        color="#e74c3c"
+                        color={colors.accent}
                         style={pickerStyles.spinner}
                       />
                     )}
@@ -195,7 +196,7 @@ const pickerStyles = StyleSheet.create({
     padding: 12,
     marginBottom: 10,
   },
-  recommendedRow: { borderColor: "#e74c3c" },
+  recommendedRow: { borderColor: colors.accent },
   rowFocused: {
     borderColor: "#fff",
     transform: [{ scale: 1.02 }],
@@ -214,7 +215,7 @@ const pickerStyles = StyleSheet.create({
     marginRight: 8,
   },
   badge: {
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,

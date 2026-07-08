@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import { ReleaseEvent } from "../types/app";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import Focusable from "./Focusable";
+import { colors } from "../styles/theme";
 
 interface CalendarEventCardProps {
   event: ReleaseEvent;
@@ -78,7 +79,7 @@ export default function CalendarEventCard({
         <FontAwesome
           name={hasReminder ? "bell" : "bell-o"}
           size={18}
-          color={hasReminder ? "#e74c3c" : "#666"}
+          color={hasReminder ? colors.accent : "#666"}
         />
       </Focusable>
     </Focusable>
@@ -96,11 +97,11 @@ const cardStyles = StyleSheet.create({
     borderColor: "#2a2a2a",
   },
   containerFocused: {
-    borderColor: "#e74c3c",
+    borderColor: colors.accent,
     transform: [{ scale: 1.02 }],
   },
   bellButtonFocused: {
-    backgroundColor: "rgba(231, 76, 60, 0.15)",
+    backgroundColor: "rgba(229, 72, 77, 0.15)",
     borderRadius: 999,
   },
   thumbnail: {
@@ -125,7 +126,7 @@ const cardStyles = StyleSheet.create({
     marginBottom: 2,
   },
   episode: {
-    color: "#e74c3c",
+    color: colors.accent,
     fontSize: 12,
     fontWeight: "600",
     marginBottom: 2,
@@ -160,7 +161,7 @@ const cardStyles = StyleSheet.create({
     borderRadius: 4,
   },
   reminderBadgeText: {
-    color: "#e74c3c",
+    color: colors.accent,
     fontSize: 10,
     fontWeight: "600",
   },

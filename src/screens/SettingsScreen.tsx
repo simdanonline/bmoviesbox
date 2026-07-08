@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { styles } from "../styles/styles";
+import { colors } from "../styles/theme";
 import Focusable from "../components/Focusable";
 import { useUserData } from "../context/UserDataContext";
 import { useDownloads } from "../context/DownloadContext";
@@ -227,12 +228,12 @@ export default function SettingsScreen() {
           <Text style={settingsStyles.sectionTitle}>Your Activity</Text>
           <View style={settingsStyles.statsRow}>
             <View style={settingsStyles.statCard}>
-              <FontAwesome name="folder-open" size={20} color="#e74c3c" />
+              <FontAwesome name="folder-open" size={20} color={colors.accent} />
               <Text style={settingsStyles.statNumber}>{library.length}</Text>
               <Text style={settingsStyles.statLabel}>In Library</Text>
             </View>
             <View style={settingsStyles.statCard}>
-              <FontAwesome name="eye" size={20} color="#e74c3c" />
+              <FontAwesome name="eye" size={20} color={colors.accent} />
               <Text style={settingsStyles.statNumber}>{history.length}</Text>
               <Text style={settingsStyles.statLabel}>Viewed</Text>
             </View>
@@ -242,7 +243,7 @@ export default function SettingsScreen() {
               <Text style={settingsStyles.statLabel}>Rated</Text>
             </View>
             <View style={settingsStyles.statCard}>
-              <FontAwesome name="calendar-check-o" size={20} color="#e74c3c" />
+              <FontAwesome name="calendar-check-o" size={20} color={colors.accent} />
               <Text style={settingsStyles.statNumber}>{activePlans}</Text>
               <Text style={settingsStyles.statLabel}>Planned</Text>
             </View>

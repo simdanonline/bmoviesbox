@@ -10,6 +10,7 @@ import {
 import { LibraryItem } from "../types/app";
 import Focusable from "./Focusable";
 import TvSafeImage from "./TvSafeImage";
+import { colors, radii, typography } from "../styles/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CW_CARD_WIDTH = Platform.isTV ? Math.min(SCREEN_WIDTH / 6, 320) : 140;
@@ -48,6 +49,7 @@ export default function ContinueWatchingSection({
                 source={{ uri: item.thumbnail?.trim() }}
                 style={cwStyles.image}
                 contentFit="cover"
+                transition={200}
               />
               {item.isSeries && item.lastSeasonNumber && item.lastEpisodeNumber && (
                 <View style={cwStyles.progressBadge}>
@@ -81,9 +83,8 @@ const cwStyles = StyleSheet.create({
     overflow: "visible",
   },
   title: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#fff",
+    ...typography.heading,
+    color: colors.text,
     marginBottom: 12,
     paddingHorizontal: 16,
   },
@@ -109,20 +110,20 @@ const cwStyles = StyleSheet.create({
   image: {
     width: "100%",
     height: CW_CARD_HEIGHT,
-    borderRadius: 8,
-    backgroundColor: "#1a1a1a",
+    borderRadius: radii.sm,
+    backgroundColor: colors.surface,
   },
   progressBadge: {
     position: "absolute",
     bottom: 6,
     left: 6,
-    backgroundColor: "rgba(231, 76, 60, 0.9)",
+    backgroundColor: colors.accent,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
   progressText: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 10,
     fontWeight: "700",
   },
@@ -136,11 +137,11 @@ const cwStyles = StyleSheet.create({
     borderRadius: 4,
   },
   epCountText: {
-    color: "#aaa",
+    color: colors.textSecondary,
     fontSize: 10,
   },
   cardTitle: {
-    color: "#ccc",
+    color: colors.textSecondary,
     fontSize: 12,
     marginTop: 6,
     lineHeight: 16,

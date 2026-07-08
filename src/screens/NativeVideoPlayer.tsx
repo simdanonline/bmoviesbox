@@ -44,6 +44,7 @@ import {
 } from "../utils/playerGestureMath";
 import Focusable from "../components/Focusable";
 import { useTVBackHandler } from "../hooks/useTVBackHandler";
+import { colors } from "../styles/theme";
 import { ResolvedStream } from "../services/MovieAPI";
 import { DownloadManager } from "../services/DownloadManager";
 import {
@@ -2255,7 +2256,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   button: {
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 6,
@@ -2271,7 +2272,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   nextButton: {
-    backgroundColor: "rgba(231,76,60,0.9)",
+    backgroundColor: "rgba(229,72,77,0.9)",
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 8,
@@ -2310,7 +2311,7 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: "rgba(231,76,60,0.85)",
+    backgroundColor: "rgba(229,72,77,0.85)",
   },
   transportButtonFocused: {
     borderColor: "#fff",
@@ -2348,14 +2349,14 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: "100%",
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
   },
   progressThumb: {
     position: "absolute",
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     top: "50%",
     marginTop: -7,
     shadowColor: "#000",
@@ -2410,7 +2411,7 @@ const styles = StyleSheet.create({
     position: "absolute",
   },
   pickerButtonFocused: {
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     transform: [{ scale: 1.05 }],
   },
   pickerButtonText: { color: "#fff", fontSize: 12, fontWeight: "600" },
@@ -2447,7 +2448,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.12)",
   },
   pickerCloseButtonFocused: {
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     transform: [{ scale: 1.05 }],
   },
   pickerCloseText: { color: "#fff", fontSize: 11, fontWeight: "600" },
@@ -2470,8 +2471,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     marginBottom: 2,
   },
-  speedRowActive: { backgroundColor: "rgba(231,76,60,0.25)" },
-  speedRowFocused: { backgroundColor: "#e74c3c", transform: [{ scale: 1.02 }] },
+  speedRowActive: { backgroundColor: "rgba(229,72,77,0.25)" },
+  speedRowFocused: { backgroundColor: colors.accent, transform: [{ scale: 1.02 }] },
   speedRowCheck: { width: 18 },
   speedRowText: { color: "#ddd", fontSize: 12, flexShrink: 1 },
   pickerScroll: { flex: 1 },
@@ -2484,9 +2485,9 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     marginBottom: 4,
   },
-  pickerRowActive: { backgroundColor: "rgba(231,76,60,0.25)" },
+  pickerRowActive: { backgroundColor: "rgba(229,72,77,0.25)" },
   pickerRowFocused: {
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     transform: [{ scale: 1.02 }],
   },
   pickerRowQuality: {
@@ -2525,7 +2526,7 @@ const styles = StyleSheet.create({
   },
   backButtonFocused: {
     borderColor: "#fff",
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     transform: [{ scale: 1.05 }],
   },
   backButtonText: { color: "#fff", fontSize: 14, fontWeight: "600" },
@@ -2546,11 +2547,11 @@ const styles = StyleSheet.create({
   },
   // Engaged state gets the accent fill so the unlock affordance reads as active.
   lockButtonActive: {
-    backgroundColor: "rgba(231,76,60,0.85)",
+    backgroundColor: "rgba(229,72,77,0.85)",
   },
   lockButtonFocused: {
     borderColor: "#fff",
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     transform: [{ scale: 1.08 }],
   },
 });

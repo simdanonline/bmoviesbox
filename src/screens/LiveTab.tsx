@@ -17,6 +17,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTvApp } from "../context/TvAppContext";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Focusable from "../components/Focusable";
+import { colors } from "../styles/theme";
 
 const STATE_COLORS: Record<LiveGame["state"], string> = {
   in: "#27ae60",
@@ -52,7 +53,7 @@ const SPORT_META: Record<string, SportMeta> = {
   baseball: { label: "Baseball", icon: "baseball", accent: "#c0392b" },
   hockey: { label: "Hockey", icon: "hockey-puck", accent: "#3498db" },
   tennis: { label: "Tennis", icon: "tennis-ball", accent: "#f1c40f" },
-  mma: { label: "MMA", icon: "boxing-glove", accent: "#e74c3c" },
+  mma: { label: "MMA", icon: "boxing-glove", accent: colors.accent },
   racing: { label: "Racing", icon: "racing-helmet", accent: "#d35400" },
   cricket: { label: "Cricket", icon: "cricket", accent: "#16a085" },
 };
@@ -398,7 +399,7 @@ const LiveTab = (props: Props) => {
     return (
       <View style={[styles.container, { paddingTop: top }]}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#e74c3c" />
+          <ActivityIndicator size="large" color={colors.accent} />
           <Text style={styles.loadingText}>Loading live games...</Text>
         </View>
       </View>
@@ -412,7 +413,7 @@ const LiveTab = (props: Props) => {
           <MaterialCommunityIcons
             name="alert-circle"
             size={48}
-            color="#e74c3c"
+            color={colors.accent}
             style={{ marginBottom: 16 }}
           />
           <Text style={styles.errorText}>{error}</Text>
@@ -496,7 +497,7 @@ const LiveTab = (props: Props) => {
             <MaterialCommunityIcons
               name="basketball"
               size={28}
-              color="#e74c3c"
+              color={colors.accent}
             />
             <Text style={styles.headerTitle}>Live Games</Text>
           </>
@@ -533,7 +534,7 @@ const LiveTab = (props: Props) => {
         {serverLoading ? (
           <ActivityIndicator
             size="small"
-            color="#e74c3c"
+            color={colors.accent}
             style={{ marginRight: 4 }}
           />
         ) : null}
@@ -565,15 +566,15 @@ const LiveTab = (props: Props) => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#e74c3c"
-              colors={["#e74c3c"]}
+              tintColor={colors.accent}
+              colors={[colors.accent]}
             />
           }
           showsVerticalScrollIndicator={false}
         />
       ) : trimmedQuery && combinedGames.length === 0 && serverLoading ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#e74c3c" />
+          <ActivityIndicator size="large" color={colors.accent} />
           <Text style={styles.loadingText}>{selectedMeta ? `Searching ${selectedMeta.label.toLowerCase()} games...` : "Searching all leagues..."}</Text>
         </View>
       ) : noSearchResults ? (
@@ -628,8 +629,8 @@ const LiveTab = (props: Props) => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#e74c3c"
-              colors={["#e74c3c"]}
+              tintColor={colors.accent}
+              colors={[colors.accent]}
             />
           }
           contentContainerStyle={styles.listContent}
@@ -710,7 +711,7 @@ const styles = StyleSheet.create({
   leagueTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#e74c3c",
+    color: colors.accent,
     marginBottom: 12,
     marginLeft: 4,
     textTransform: "uppercase",
@@ -722,7 +723,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     overflow: "hidden",
     borderLeftWidth: 4,
-    borderLeftColor: "#e74c3c",
+    borderLeftColor: colors.accent,
     borderTopWidth: 3,
     borderRightWidth: 3,
     borderBottomWidth: 3,
@@ -747,7 +748,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#2a2a2a",
   },
   leagueBadge: {
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -798,7 +799,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   vsText: {
-    color: "#e74c3c",
+    color: colors.accent,
     fontSize: 12,
     fontWeight: "600",
     marginBottom: 6,
@@ -942,7 +943,7 @@ const styles = StyleSheet.create({
   },
   iconButtonFocused: {
     borderColor: "#fff",
-    backgroundColor: "rgba(231, 76, 60, 0.25)",
+    backgroundColor: "rgba(229, 72, 77, 0.25)",
   },
   headerSportLabel: {
     color: "#999",
@@ -959,7 +960,7 @@ const styles = StyleSheet.create({
   },
   playButton: {
     flexDirection: "row",
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     paddingHorizontal: 24,
     paddingVertical: 10,
     borderRadius: 8,
@@ -979,7 +980,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   errorText: {
-    color: "#e74c3c",
+    color: colors.accent,
     fontSize: 16,
     textAlign: "center",
     marginBottom: 20,
@@ -990,7 +991,7 @@ const styles = StyleSheet.create({
   },
   retryButton: {
     marginTop: 20,
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,

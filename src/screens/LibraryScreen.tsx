@@ -25,6 +25,8 @@ import Focusable from "../components/Focusable";
 import UpcomingReleases from "../components/UpcomingReleases";
 import { styles } from "../styles/styles";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
+import { Feather } from "@expo/vector-icons";
+import { colors, spacing, typography } from "../styles/theme";
 
 type TypeFilter = "all" | "movies" | "series";
 type StatusFilter = "all" | WatchStatus;
@@ -304,9 +306,9 @@ export default function LibraryScreen({
                   libStyles.statusChip,
                   isActive && {
                     backgroundColor:
-                      s === "all" ? "#e74c3c" : STATUS_COLORS[s as WatchStatus],
+                      s === "all" ? colors.accent : STATUS_COLORS[s as WatchStatus],
                     borderColor:
-                      s === "all" ? "#e74c3c" : STATUS_COLORS[s as WatchStatus],
+                      s === "all" ? colors.accent : STATUS_COLORS[s as WatchStatus],
                   },
                 ]}
                 focusedStyle={libStyles.filterChipFocused}
@@ -536,7 +538,7 @@ export default function LibraryScreen({
 
         {filteredItems.length === 0 ? (
           <View style={libStyles.emptyContainer}>
-            <FontAwesome name="folder-open-o" size={56} color="#333" />
+            <Feather name="film" size={48} color={colors.textMuted} />
             <Text style={libStyles.emptyText}>Your library is empty</Text>
             <Text style={libStyles.emptySubText}>
               Browse movies and series, then use the status selector to add them
@@ -603,8 +605,8 @@ export default function LibraryScreen({
 const libStyles = StyleSheet.create({
   // Shared TV focus indicators
   headerButtonFocused: {
-    borderColor: "#e74c3c",
-    backgroundColor: "rgba(231, 76, 60, 0.15)",
+    borderColor: colors.accent,
+    backgroundColor: "rgba(229, 72, 77, 0.15)",
   },
   filterChipFocused: {
     borderColor: "#fff",
@@ -620,7 +622,7 @@ const libStyles = StyleSheet.create({
     borderColor: "#fff",
   },
   sortOptionFocused: {
-    backgroundColor: "rgba(231, 76, 60, 0.15)",
+    backgroundColor: "rgba(229, 72, 77, 0.15)",
     borderRadius: 6,
     paddingHorizontal: 6,
   },
@@ -628,15 +630,15 @@ const libStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: colors.border,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
   headerButtonText: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 13,
     fontWeight: "700",
   },
@@ -652,21 +654,21 @@ const libStyles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 10,
     borderRadius: 10,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: colors.border,
   },
   segmentButtonActive: {
-    backgroundColor: "#e74c3c",
-    borderColor: "#e74c3c",
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   segmentText: {
-    color: "#aaa",
+    color: colors.textSecondary,
     fontSize: 14,
     fontWeight: "700",
   },
   segmentTextActive: {
-    color: "#fff",
+    color: colors.text,
   },
   filterRow: {
     paddingHorizontal: 16,
@@ -678,29 +680,29 @@ const libStyles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: colors.border,
   },
   filterChipActive: {
-    backgroundColor: "#e74c3c",
-    borderColor: "#e74c3c",
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   statusChip: {
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: colors.border,
   },
   filterText: {
-    color: "#aaa",
+    color: colors.textSecondary,
     fontSize: 13,
     fontWeight: "600",
   },
   filterTextActive: {
-    color: "#fff",
+    color: colors.text,
   },
   sortRow: {
     flexDirection: "row",
@@ -710,18 +712,18 @@ const libStyles = StyleSheet.create({
     gap: 12,
   },
   sortLabel: {
-    color: "#666",
+    color: colors.textMuted,
     fontSize: 13,
   },
   sortOption: {
     paddingVertical: 4,
   },
   sortText: {
-    color: "#666",
+    color: colors.textMuted,
     fontSize: 13,
   },
   sortTextActive: {
-    color: "#e74c3c",
+    color: colors.accent,
     fontWeight: "600",
   },
   emptyContainer: {
@@ -729,19 +731,16 @@ const libStyles = StyleSheet.create({
     justifyContent: "center",
     paddingTop: 80,
     paddingHorizontal: 40,
+    gap: spacing.sm,
   },
   emptyText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "600",
-    marginTop: 16,
+    ...typography.heading,
+    color: colors.text,
   },
   emptySubText: {
-    color: "#aaa",
-    fontSize: 14,
+    ...typography.body,
+    color: colors.textSecondary,
     textAlign: "center",
-    marginTop: 8,
-    lineHeight: 20,
   },
   statusBadge: {
     position: "absolute",
@@ -752,7 +751,7 @@ const libStyles = StyleSheet.create({
     borderRadius: 6,
   },
   statusBadgeText: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 10,
     fontWeight: "700",
   },
@@ -766,7 +765,7 @@ const libStyles = StyleSheet.create({
     borderRadius: 6,
   },
   progressBadgeText: {
-    color: "#e74c3c",
+    color: colors.accent,
     fontSize: 10,
     fontWeight: "600",
   },
@@ -780,28 +779,28 @@ const libStyles = StyleSheet.create({
   continueScroll: { gap: 10, paddingRight: 16 },
   continueCard: {
     width: 200,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     borderRadius: 8,
     padding: 12,
     borderLeftWidth: 3,
-    borderLeftColor: "#e74c3c",
+    borderLeftColor: colors.accent,
   },
   continuePlayBadge: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 8,
   },
   continueTitle: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 13,
     fontWeight: "600",
     minHeight: 32,
   },
-  continueMeta: { color: "#aaa", fontSize: 11, marginTop: 4 },
+  continueMeta: { color: colors.textSecondary, fontSize: 11, marginTop: 4 },
 
   // Downloads section
   downloadsSection: {
@@ -814,21 +813,21 @@ const libStyles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 8,
   },
-  downloadsStorageText: { color: "#888", fontSize: 12 },
+  downloadsStorageText: { color: colors.textMuted, fontSize: 12 },
   downloadRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
     gap: 12,
   },
   downloadRowInfo: { flex: 1 },
-  downloadRowTitle: { color: "#fff", fontSize: 14, fontWeight: "600" },
-  downloadRowMeta: { color: "#aaa", fontSize: 12, marginTop: 2 },
+  downloadRowTitle: { color: colors.text, fontSize: 14, fontWeight: "600" },
+  downloadRowMeta: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
   downloadRowMetaPaused: { color: "#f39c12", fontSize: 12, marginTop: 2 },
-  downloadRowFailed: { color: "#e74c3c", fontSize: 12, marginTop: 2 },
+  downloadRowFailed: { color: colors.accent, fontSize: 12, marginTop: 2 },
   downloadProgressTrack: {
     height: 3,
     borderRadius: 2,
@@ -838,7 +837,7 @@ const libStyles = StyleSheet.create({
   },
   downloadProgressFill: {
     height: "100%",
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
   },
   downloadProgressFillPaused: { backgroundColor: "#f39c12" },
   downloadActionButton: {
@@ -852,19 +851,19 @@ const libStyles = StyleSheet.create({
   completedGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: spacing.sm,
     marginTop: 4,
   },
   completedCard: {
     width: "48%",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
     borderRadius: 8,
     padding: 12,
     borderLeftWidth: 3,
     borderLeftColor: "#27ae60",
   },
-  completedCardTitle: { color: "#fff", fontSize: 13, fontWeight: "600" },
-  completedCardMeta: { color: "#aaa", fontSize: 11, marginTop: 4 },
+  completedCardTitle: { color: colors.text, fontSize: 13, fontWeight: "600" },
+  completedCardMeta: { color: colors.textSecondary, fontSize: 11, marginTop: 4 },
   completedCardBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -877,7 +876,7 @@ const libStyles = StyleSheet.create({
     marginTop: 8,
   },
   completedCardBadgeText: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 9,
     fontWeight: "700",
     letterSpacing: 0.5,

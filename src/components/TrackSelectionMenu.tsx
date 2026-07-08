@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet, ScrollView, StyleProp, ViewStyle } from "react-native";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import Focusable from "./Focusable";
+import { colors, radii } from "../styles/theme";
 
 /** A track normalized from either react-native-video or VLC into one shape. */
 export type PlayerTrack = { key: number; label: string };
@@ -53,7 +54,7 @@ function TrackRow({
         color={selected ? "#fff" : "transparent"}
         style={styles.rowCheck}
       />
-      <Text style={styles.rowLabel} numberOfLines={1}>
+      <Text style={[styles.rowLabel, selected && styles.rowLabelActive]} numberOfLines={1}>
         {label}
       </Text>
     </Focusable>
@@ -129,8 +130,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     width: 280,
     maxHeight: "70%",
-    backgroundColor: "rgba(20,20,20,0.95)",
-    borderRadius: 8,
+    backgroundColor: colors.surfaceHigh,
+    borderRadius: radii.md,
     paddingTop: 8,
     paddingHorizontal: 8,
     paddingBottom: 8,
@@ -141,11 +142,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 6,
     paddingBottom: 8,
-    borderBottomColor: "rgba(255,255,255,0.08)",
+    borderBottomColor: colors.border,
     borderBottomWidth: 1,
     marginBottom: 6,
   },
-  headerText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  headerText: { color: colors.text, fontSize: 13, fontWeight: "700" },
   closeButton: {
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -153,14 +154,14 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.12)",
   },
   closeButtonFocused: {
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     transform: [{ scale: 1.05 }],
   },
-  closeText: { color: "#fff", fontSize: 11, fontWeight: "600" },
+  closeText: { color: colors.text, fontSize: 11, fontWeight: "600" },
   scroll: { flexShrink: 1 },
   scrollContent: { paddingBottom: 4 },
   sectionLabel: {
-    color: "#9a9a9a",
+    color: colors.textMuted,
     fontSize: 10,
     fontWeight: "700",
     textTransform: "uppercase",
@@ -177,8 +178,9 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     marginBottom: 2,
   },
-  rowActive: { backgroundColor: "rgba(231,76,60,0.25)" },
-  rowFocused: { backgroundColor: "#e74c3c", transform: [{ scale: 1.02 }] },
+  rowActive: { backgroundColor: colors.accentSoft },
+  rowFocused: { backgroundColor: colors.accent, transform: [{ scale: 1.02 }] },
   rowCheck: { width: 18 },
-  rowLabel: { color: "#ddd", fontSize: 12, flexShrink: 1 },
+  rowLabel: { color: colors.textSecondary, fontSize: 12, flexShrink: 1 },
+  rowLabelActive: { color: colors.accent },
 });

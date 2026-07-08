@@ -10,6 +10,7 @@ import {
 import { Movie } from "../services/MovieAPI";
 import Focusable from "./Focusable";
 import TvSafeImage from "./TvSafeImage";
+import { colors, radii, typography } from "../styles/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const RAIL_CARD_WIDTH = Platform.isTV ? Math.min(SCREEN_WIDTH / 7, 240) : 120;
@@ -49,6 +50,7 @@ export default function RecommendationRail({
               source={{ uri: item.thumbnail?.trim() }}
               style={railStyles.image}
               contentFit="cover"
+              transition={200}
             />
             <Text style={railStyles.cardTitle} numberOfLines={2}>
               {item.title}
@@ -72,9 +74,8 @@ const railStyles = StyleSheet.create({
     overflow: "visible",
   },
   title: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#fff",
+    ...typography.heading,
+    color: colors.text,
     marginBottom: 12,
     paddingHorizontal: 16,
   },
@@ -97,17 +98,17 @@ const railStyles = StyleSheet.create({
   image: {
     width: "100%",
     height: RAIL_CARD_HEIGHT,
-    borderRadius: 8,
-    backgroundColor: "#1a1a1a",
+    borderRadius: radii.sm,
+    backgroundColor: colors.surface,
   },
   cardTitle: {
-    color: "#ccc",
+    color: colors.textSecondary,
     fontSize: 12,
     marginTop: 6,
     lineHeight: 16,
   },
   rating: {
-    color: "#ffc107",
+    color: colors.gold,
     fontSize: 11,
     fontWeight: "600",
     marginTop: 2,

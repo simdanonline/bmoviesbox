@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Focusable from "../components/Focusable";
 import { useUserData } from "../context/UserDataContext";
+import { colors } from "../styles/theme";
 import {
   ALL_GENRES,
   Mood,
@@ -209,8 +210,8 @@ const prefStyles = StyleSheet.create({
     borderColor: "#333",
   },
   chipActive: {
-    backgroundColor: "#e74c3c",
-    borderColor: "#e74c3c",
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   chipText: {
     color: "#aaa",
@@ -226,7 +227,7 @@ const prefStyles = StyleSheet.create({
     marginTop: 8,
   },
   resetText: {
-    color: "#e74c3c",
+    color: colors.accent,
     fontSize: 14,
   },
   bottomBar: {
@@ -242,7 +243,7 @@ const prefStyles = StyleSheet.create({
     paddingBottom: 30,
   },
   saveBtn: {
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: "center",

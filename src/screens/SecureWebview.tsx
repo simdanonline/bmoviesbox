@@ -8,6 +8,7 @@ import React, {
 import { View, ActivityIndicator, StyleSheet, Platform } from "react-native";
 import { WebView } from "react-native-webview";
 import { width } from "../styles/styles";
+import { colors } from "../styles/theme";
 
 export interface SecureVideoWebViewHandle {
   injectJavaScript: (script: string) => void;
@@ -904,7 +905,7 @@ const SecureVideoWebView = forwardRef<SecureVideoWebViewHandle, SecureVideoWebVi
     <View style={styles.container}>
       {loading && Platform.OS !== "web" && (
         <View style={styles.loader}>
-          <ActivityIndicator size="large" color="#e74c3c" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       )}
 

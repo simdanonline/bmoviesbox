@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Focusable from "../components/Focusable";
 import { useUserData } from "../context/UserDataContext";
+import { colors } from "../styles/theme";
 import {
   ALL_GENRES,
   Mood,
@@ -268,7 +269,7 @@ const obStyles = StyleSheet.create({
     backgroundColor: "#333",
   },
   progressDotActive: {
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
   },
   stepTitle: {
     fontSize: 22,
@@ -296,8 +297,8 @@ const obStyles = StyleSheet.create({
     borderColor: "#333",
   },
   chipActive: {
-    backgroundColor: "#e74c3c",
-    borderColor: "#e74c3c",
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   chipText: {
     color: "#aaa",
@@ -339,7 +340,7 @@ const obStyles = StyleSheet.create({
     fontSize: 14,
   },
   nextBtn: {
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     paddingHorizontal: 28,
     paddingVertical: 14,
     borderRadius: 10,

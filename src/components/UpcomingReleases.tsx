@@ -12,6 +12,7 @@ import {
   requestNotificationPermission,
 } from "../services/NotificationService";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
+import { colors } from "../styles/theme";
 
 function groupByDateSection(
   events: ReleaseEvent[],
@@ -215,13 +216,13 @@ export default function UpcomingReleases() {
     <View>
       {loading && (
         <View style={upcomingStyles.centered}>
-          <ActivityIndicator size="large" color="#e74c3c" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       )}
 
       {!loading && !hasAnyEvents && (
         <View style={upcomingStyles.emptyContainer}>
-          <FontAwesome name="calendar-o" size={56} color="#333" />
+          <FontAwesome name="calendar-o" size={56} color={colors.textMuted} />
           <Text style={upcomingStyles.emptyText}>No upcoming releases</Text>
           <Text style={upcomingStyles.emptySubText}>
             Browse movies and series to discover upcoming releases. You can also
@@ -276,7 +277,7 @@ const upcomingStyles = StyleSheet.create({
     paddingTop: 20,
   },
   sectionTitle: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 17,
     fontWeight: "700",
     marginBottom: 12,
@@ -288,20 +289,20 @@ const upcomingStyles = StyleSheet.create({
     paddingHorizontal: 40,
   },
   emptyText: {
-    color: "#fff",
+    color: colors.text,
     fontSize: 18,
     fontWeight: "600",
     marginTop: 16,
   },
   emptySubText: {
-    color: "#aaa",
+    color: colors.textSecondary,
     fontSize: 14,
     textAlign: "center",
     marginTop: 8,
     lineHeight: 20,
   },
   reminderHint: {
-    color: "#888",
+    color: colors.textMuted,
     fontSize: 13,
     lineHeight: 18,
   },

@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { WatchStatus, STATUS_LABELS, STATUS_COLORS } from "../types/app";
 import Focusable from "./Focusable";
+import { colors } from "../styles/theme";
 
 interface StatusSelectorProps {
   currentStatus: WatchStatus | null;
@@ -109,7 +110,7 @@ const sStyles = StyleSheet.create({
     paddingVertical: 4,
   },
   removeText: {
-    color: "#e74c3c",
+    color: colors.accent,
     fontSize: 13,
   },
 });

@@ -18,6 +18,7 @@ import { useUserData } from "../context/UserDataContext";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FontAwesome, Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import { colors } from "../styles/theme";
 
 type SeriesListProps = NativeStackScreenProps<any, "Series">;
 
@@ -78,7 +79,7 @@ export default function SeriesList({ navigation }: SeriesListProps) {
     return (
       <View style={styles.container}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#e74c3c" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </View>
     );
@@ -112,8 +113,8 @@ export default function SeriesList({ navigation }: SeriesListProps) {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#e74c3c"
-            colors={["#e74c3c"]}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
           />
         }
       >
@@ -213,10 +214,10 @@ const seriesListStyles = StyleSheet.create({
     width: "100%",
     height: 150,
     borderRadius: 8,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface,
   },
   recentTitle: {
-    color: "#ccc",
+    color: colors.textSecondary,
     fontSize: 11,
     marginTop: 6,
     textAlign: "center",
