@@ -43,10 +43,10 @@ export const styles = StyleSheet.create({
     color: colors.text,
   },
   iconButtonFocused: {
-    backgroundColor: "rgba(231, 76, 60, 0.25)",
+    backgroundColor: "rgba(229, 72, 77, 0.25)",
     borderRadius: 24,
     borderWidth: 2,
-    borderColor: "#e74c3c",
+    borderColor: colors.accent,
     transform: [{ scale: 1.1 }],
   },
   headerLogoWrap: {
@@ -598,14 +598,14 @@ export const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 3,
     borderColor: "#fff",
-    backgroundColor: "rgba(231, 76, 60, 0.85)",
+    backgroundColor: "rgba(229, 72, 77, 0.85)",
     alignItems: "center",
     justifyContent: "center",
   },
   tvPlayButtonFocused: {
     borderColor: "#fff",
     borderWidth: 5,
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     shadowColor: "#fff",
     shadowOpacity: 1,
     shadowRadius: 24,
@@ -639,9 +639,9 @@ export const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.7)",
   },
   tvShowControlsButtonFocused: {
-    borderColor: "#e74c3c",
+    borderColor: colors.accent,
     borderWidth: 3,
-    backgroundColor: "rgba(231, 76, 60, 0.8)",
+    backgroundColor: "rgba(229, 72, 77, 0.8)",
     transform: [{ scale: 1.05 }],
   },
   tvShowControlsLabel: {
@@ -672,11 +672,11 @@ export const styles = StyleSheet.create({
   },
   tvNativeControlButtonPrimary: {
     minWidth: 150,
-    backgroundColor: "rgba(231, 76, 60, 0.9)",
+    backgroundColor: "rgba(229, 72, 77, 0.9)",
   },
   tvNativeControlButtonFocused: {
     borderColor: "#fff",
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     shadowColor: "#fff",
     shadowOpacity: 0.8,
     shadowRadius: 16,

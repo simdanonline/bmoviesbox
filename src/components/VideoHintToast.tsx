@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "rgba(231, 76, 60, 0.4)",
+    borderColor: "rgba(229, 72, 77, 0.4)",
     maxWidth: "90%",
   },
   text: {

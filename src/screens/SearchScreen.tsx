@@ -136,7 +136,7 @@ const SearchScreen = () => {
 
       {loading && (
         <View style={localStyles.loadingContainer}>
-          <ActivityIndicator size="large" color="#e74c3c" />
+          <ActivityIndicator size="large" color={colors.accent} />
           <Text style={localStyles.loadingText}>Searching...</Text>
         </View>
       )}

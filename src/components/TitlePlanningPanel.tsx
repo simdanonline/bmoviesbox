@@ -10,6 +10,7 @@ import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import { useUserData } from "../context/UserDataContext";
 import { WatchPlanItem } from "../types/app";
 import Focusable from "./Focusable";
+import { colors } from "../styles/theme";
 
 interface TitlePlanningPanelProps {
   titleUrl: string;
@@ -171,7 +172,7 @@ export default function TitlePlanningPanel({
               : "Schedule this title"}
           </Text>
         </View>
-        <FontAwesome name="calendar-plus-o" size={22} color="#e74c3c" />
+        <FontAwesome name="calendar-plus-o" size={22} color={colors.accent} />
       </View>
 
       <View style={panelStyles.quickRow}>
@@ -236,7 +237,7 @@ export default function TitlePlanningPanel({
             {existingNote ? "Updated in your journal" : "Keep your own take"}
           </Text>
         </View>
-        <FontAwesome name="pencil-square-o" size={22} color="#e74c3c" />
+        <FontAwesome name="pencil-square-o" size={22} color={colors.accent} />
       </View>
 
       <TextInput
@@ -317,8 +318,8 @@ const panelStyles = StyleSheet.create({
     borderColor: "#333",
   },
   quickChipActive: {
-    backgroundColor: "#e74c3c",
-    borderColor: "#e74c3c",
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   quickText: {
     color: "#aaa",
@@ -347,7 +348,7 @@ const panelStyles = StyleSheet.create({
     lineHeight: 20,
   },
   primaryButton: {
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     borderWidth: 2,
     borderColor: "transparent",
     borderRadius: 8,

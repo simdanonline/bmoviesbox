@@ -573,7 +573,7 @@ export default function SeriesDetailsScreen({
     return (
       <View style={styles.container}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#e74c3c" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </View>
     );
@@ -657,7 +657,7 @@ export default function SeriesDetailsScreen({
           <FontAwesome
             name={isInWatchlist(seriesData.url) ? "bookmark" : "bookmark-o"}
             size={22}
-            color={isInWatchlist(seriesData.url) ? "#e74c3c" : "#fff"}
+            color={isInWatchlist(seriesData.url) ? colors.accent : "#fff"}
           />
           <Text style={detailActionStyles.actionText}>
             {isInWatchlist(seriesData.url) ? "Saved" : "Save"}

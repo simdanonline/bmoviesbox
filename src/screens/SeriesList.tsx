@@ -79,7 +79,7 @@ export default function SeriesList({ navigation }: SeriesListProps) {
     return (
       <View style={styles.container}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#e74c3c" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </View>
     );
@@ -113,8 +113,8 @@ export default function SeriesList({ navigation }: SeriesListProps) {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#e74c3c"
-            colors={["#e74c3c"]}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
           />
         }
       >

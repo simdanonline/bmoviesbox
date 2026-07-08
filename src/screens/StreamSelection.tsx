@@ -86,7 +86,7 @@ const StreamSelection = ({ route, navigation }: Props) => {
         </Text>
         <View style={styles.streamFooter}>
           <Text style={styles.language}>{item.language}</Text>
-          <MaterialCommunityIcons name="play-circle" size={20} color="#e74c3c" />
+          <MaterialCommunityIcons name="play-circle" size={20} color={colors.accent} />
         </View>
       </View>
     </Focusable>
@@ -96,7 +96,7 @@ const StreamSelection = ({ route, navigation }: Props) => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#e74c3c" />
+          <ActivityIndicator size="large" color={colors.accent} />
           <Text style={styles.loadingText}>Loading available streams...</Text>
         </View>
       </SafeAreaView>
@@ -110,7 +110,7 @@ const StreamSelection = ({ route, navigation }: Props) => {
           <MaterialCommunityIcons
             name="alert-circle"
             size={48}
-            color="#e74c3c"
+            color={colors.accent}
             style={{ marginBottom: 16 }}
           />
           <Text style={styles.errorText}>{error}</Text>

@@ -3,6 +3,7 @@ import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { WebView } from "react-native-webview";
 import { useVideoPlayer, VideoView, VideoSource } from "expo-video";
 import { height, width } from "../styles/styles";
+import { colors } from "../styles/theme";
 
 interface VideoExtractorProps {
   url: string;
@@ -60,7 +61,7 @@ export default function VideoExtractor({ url }: VideoExtractorProps) {
   if (!videoUrl) {
     return (
       <View style={[]}>
-        <ActivityIndicator size="large" color="#e74c3c" style={styles.loader} />
+        <ActivityIndicator size="large" color={colors.accent} style={styles.loader} />
         <WebView
           ref={webRef}
           source={{ uri: url }}

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, Dimensions } from "react-native";
 import Focusable from "../components/Focusable";
+import { colors } from "../styles/theme";
 import HomeScreen from "../screens/HomeScreen";
 import SeriesList from "../screens/SeriesList";
 import LibraryScreen from "../screens/LibraryScreen";
@@ -85,12 +86,12 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   tabButtonActive: {
-    borderBottomColor: "#e74c3c",
+    borderBottomColor: colors.accent,
     borderBottomWidth: 3,
   },
   tabButtonFocused: {
-    borderColor: "#e74c3c",
-    backgroundColor: "rgba(231, 76, 60, 0.15)",
+    borderColor: colors.accent,
+    backgroundColor: "rgba(229, 72, 77, 0.15)",
     transform: [{ scale: 1.05 }],
   },
   tabLabel: { color: "#999", fontSize: 18, fontWeight: "600" },

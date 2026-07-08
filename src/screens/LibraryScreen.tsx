@@ -306,9 +306,9 @@ export default function LibraryScreen({
                   libStyles.statusChip,
                   isActive && {
                     backgroundColor:
-                      s === "all" ? "#e74c3c" : STATUS_COLORS[s as WatchStatus],
+                      s === "all" ? colors.accent : STATUS_COLORS[s as WatchStatus],
                     borderColor:
-                      s === "all" ? "#e74c3c" : STATUS_COLORS[s as WatchStatus],
+                      s === "all" ? colors.accent : STATUS_COLORS[s as WatchStatus],
                   },
                 ]}
                 focusedStyle={libStyles.filterChipFocused}
@@ -605,8 +605,8 @@ export default function LibraryScreen({
 const libStyles = StyleSheet.create({
   // Shared TV focus indicators
   headerButtonFocused: {
-    borderColor: "#e74c3c",
-    backgroundColor: "rgba(231, 76, 60, 0.15)",
+    borderColor: colors.accent,
+    backgroundColor: "rgba(229, 72, 77, 0.15)",
   },
   filterChipFocused: {
     borderColor: "#fff",
@@ -622,7 +622,7 @@ const libStyles = StyleSheet.create({
     borderColor: "#fff",
   },
   sortOptionFocused: {
-    backgroundColor: "rgba(231, 76, 60, 0.15)",
+    backgroundColor: "rgba(229, 72, 77, 0.15)",
     borderRadius: 6,
     paddingHorizontal: 6,
   },

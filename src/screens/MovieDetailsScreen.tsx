@@ -212,7 +212,7 @@ export default function MovieDetailsScreen({
     return (
       <View style={styles.container}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#e74c3c" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </View>
     );
@@ -550,7 +550,7 @@ export default function MovieDetailsScreen({
           <FontAwesome
             name={isInWatchlist(movieDetails.url) ? "bookmark" : "bookmark-o"}
             size={22}
-            color={isInWatchlist(movieDetails.url) ? "#e74c3c" : "#fff"}
+            color={isInWatchlist(movieDetails.url) ? colors.accent : "#fff"}
           />
           <Text style={detailActionStyles.actionText}>
             {isInWatchlist(movieDetails.url) ? "Saved" : "Save"}
@@ -576,7 +576,7 @@ export default function MovieDetailsScreen({
         style={[
           styles.trailerButton,
           detailActionStyles.primaryActionButton,
-          { borderColor: "#e74c3c", marginTop: 12 },
+          { borderColor: colors.accent, marginTop: 12 },
         ]}
         focusedStyle={detailActionStyles.focused}
         onPress={handlePressTrailer}
@@ -914,6 +914,6 @@ const detailActionStyles = StyleSheet.create({
     top: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: "rgba(231,76,60,0.45)",
+    backgroundColor: "rgba(229,72,77,0.45)",
   },
 });

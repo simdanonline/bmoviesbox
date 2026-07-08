@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.12)",
   },
   closeButtonFocused: {
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     transform: [{ scale: 1.05 }],
   },
   closeText: { color: colors.text, fontSize: 11, fontWeight: "600" },
@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   rowActive: { backgroundColor: colors.accentSoft },
-  rowFocused: { backgroundColor: "#e74c3c", transform: [{ scale: 1.02 }] },
+  rowFocused: { backgroundColor: colors.accent, transform: [{ scale: 1.02 }] },
   rowCheck: { width: 18 },
   rowLabel: { color: colors.textSecondary, fontSize: 12, flexShrink: 1 },
   rowLabelActive: { color: colors.accent },

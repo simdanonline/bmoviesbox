@@ -11,6 +11,7 @@ import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import { useUserData } from "../context/UserDataContext";
 import { LibraryItem, WatchPlanItem, WatchPlanStatus } from "../types/app";
 import { styles } from "../styles/styles";
+import { colors } from "../styles/theme";
 import MovieAPI, { Movie } from "../services/MovieAPI";
 import Focusable from "../components/Focusable";
 import TvSafeImage from "../components/TvSafeImage";
@@ -238,7 +239,7 @@ export default function PlannerScreen({
             </View>
           </View>
           <View style={plannerStyles.planDateRow}>
-            <FontAwesome name="clock-o" size={11} color="#e74c3c" />
+            <FontAwesome name="clock-o" size={11} color={colors.accent} />
             <Text style={plannerStyles.planDate}>
               {formatPlanDate(plan.plannedFor)}
             </Text>
@@ -275,7 +276,7 @@ export default function PlannerScreen({
                 focusedStyle={plannerStyles.actionButtonFocused}
                 onPress={() => updateWatchPlan(plan.id, { status: "planned" })}
               >
-                <FontAwesome name="calendar-plus-o" size={12} color="#e74c3c" />
+                <FontAwesome name="calendar-plus-o" size={12} color={colors.accent} />
                 <Text style={plannerStyles.actionText}>Plan again</Text>
               </Focusable>
             )}
@@ -470,8 +471,8 @@ const plannerStyles = StyleSheet.create({
     gap: 8,
   },
   statBlockAccent: {
-    borderColor: "rgba(231,76,60,0.45)",
-    backgroundColor: "rgba(231,76,60,0.08)",
+    borderColor: "rgba(229,72,77,0.45)",
+    backgroundColor: "rgba(229,72,77,0.08)",
   },
   statIconRow: {
     flexDirection: "row",
@@ -482,7 +483,7 @@ const plannerStyles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
   },
   statValue: {
     color: "#fff",
@@ -523,7 +524,7 @@ const plannerStyles = StyleSheet.create({
     justifyContent: "center",
   },
   suggestionLabel: {
-    color: "#e74c3c",
+    color: colors.accent,
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 1,
@@ -558,14 +559,14 @@ const plannerStyles = StyleSheet.create({
     borderColor: "#2e2e2e",
   },
   roundButtonFocused: {
-    borderColor: "#e74c3c",
+    borderColor: colors.accent,
     backgroundColor: "#2a2a2a",
   },
   planTonightButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 9,
@@ -598,8 +599,8 @@ const plannerStyles = StyleSheet.create({
     borderColor: "#2a2a2a",
   },
   filterChipActive: {
-    backgroundColor: "#e74c3c",
-    borderColor: "#e74c3c",
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   filterChipFocused: {
     borderColor: "#fff",
@@ -646,7 +647,7 @@ const plannerStyles = StyleSheet.create({
     marginBottom: 12,
   },
   planCardFocused: {
-    borderColor: "#e74c3c",
+    borderColor: colors.accent,
     backgroundColor: "#1a1a1a",
   },
   poster: {
@@ -696,7 +697,7 @@ const plannerStyles = StyleSheet.create({
     marginTop: 8,
   },
   planDate: {
-    color: "#e74c3c",
+    color: colors.accent,
     fontSize: 12,
     fontWeight: "700",
   },
@@ -723,9 +724,9 @@ const plannerStyles = StyleSheet.create({
     paddingVertical: 6,
   },
   actionButtonFocused: {
-    backgroundColor: "rgba(231,76,60,0.25)",
+    backgroundColor: "rgba(229,72,77,0.25)",
     borderWidth: 1,
-    borderColor: "#e74c3c",
+    borderColor: colors.accent,
   },
   actionText: {
     color: "#ddd",

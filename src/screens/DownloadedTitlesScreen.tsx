@@ -221,7 +221,7 @@ const dlStyles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "transparent",
   },
-  sortChipFocused: { borderColor: "#e74c3c" },
+  sortChipFocused: { borderColor: colors.accent },
   sortChipText: { color: colors.textMuted, fontSize: 13 },
   sortChipTextActive: { color: colors.accent, fontWeight: "600" },
   empty: {
@@ -281,5 +281,5 @@ const dlStyles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "transparent",
   },
-  deleteButtonFocused: { borderColor: "#e74c3c" },
+  deleteButtonFocused: { borderColor: colors.accent },
 });

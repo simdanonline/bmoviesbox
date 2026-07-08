@@ -18,6 +18,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import VideoHintToast from "../components/VideoHintToast";
 import Focusable from "../components/Focusable";
 import { useTVBackHandler } from "../hooks/useTVBackHandler";
+import { colors } from "../styles/theme";
 
 type TvPlayerCommand = "play" | "toggle" | "focus" | "unmute";
 
@@ -705,7 +706,7 @@ const TV_CONTROL_RUNTIME = `
       var st = document.createElement('style');
       st.id = '__bmb_tv_focus_style__';
       st.textContent =
-        '[tabindex]:focus, video:focus { outline: 4px solid #e74c3c !important; outline-offset: 2px !important; }';
+        '[tabindex]:focus, video:focus { outline: 4px solid #E5484D !important; outline-offset: 2px !important; }';
       (document.head || document.documentElement).appendChild(st);
     } catch(_) {}
   }
@@ -1059,7 +1060,7 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#e74c3c" />
+          <ActivityIndicator size="large" color={colors.accent} />
           <Text style={styles.loadingText}>Loading game...</Text>
         </View>
       </SafeAreaView>
@@ -1160,7 +1161,7 @@ const LiveGamePlayer = ({ route, navigation }: any) => {
             onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
             renderLoading={() => (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#e74c3c" />
+                <ActivityIndicator size="large" color={colors.accent} />
               </View>
             )}
             onError={(syntheticEvent) => {
@@ -1329,7 +1330,7 @@ const styles = StyleSheet.create({
   },
   headerSource: {
     fontSize: 11,
-    color: "#e74c3c",
+    color: colors.accent,
     marginTop: 4,
     fontWeight: "600",
   },
@@ -1370,7 +1371,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   errorText: {
-    color: "#e74c3c",
+    color: colors.accent,
     fontSize: 16,
     marginBottom: 16,
     textAlign: "center",
@@ -1398,14 +1399,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 3,
     borderColor: "#fff",
-    backgroundColor: "rgba(231, 76, 60, 0.85)",
+    backgroundColor: "rgba(229, 72, 77, 0.85)",
     alignItems: "center",
     justifyContent: "center",
   },
   tvPlayButtonFocused: {
     borderColor: "#fff",
     borderWidth: 5,
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     shadowColor: "#fff",
     shadowOpacity: 1,
     shadowRadius: 24,
@@ -1448,11 +1449,11 @@ const styles = StyleSheet.create({
   },
   tvNativeControlButtonPrimary: {
     minWidth: 150,
-    backgroundColor: "rgba(231, 76, 60, 0.9)",
+    backgroundColor: "rgba(229, 72, 77, 0.9)",
   },
   tvNativeControlButtonFocused: {
     borderColor: "#fff",
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.accent,
     shadowColor: "#fff",
     shadowOpacity: 0.8,
     shadowRadius: 16,

@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, Platform, View } from "react-native";
 import { TvAppProvider } from "../context/TvAppContext";
+import { colors } from "../styles/theme";
 import { UserDataProvider, useUserData } from "../context/UserDataContext";
 import { DownloadProvider } from "../context/DownloadContext";
 import MovieDetailsScreen from "../screens/MovieDetailsScreen";
@@ -38,7 +39,7 @@ function AppNavigator() {
           alignItems: "center",
         }}
       >
-        <ActivityIndicator size="large" color="#e74c3c" />
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
