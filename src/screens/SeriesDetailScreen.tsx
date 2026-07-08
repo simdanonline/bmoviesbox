@@ -45,6 +45,9 @@ import {
 import { getWebPlayerMode } from "../utils/webPlayerMode";
 import { LinearGradient } from "expo-linear-gradient";
 import { colors } from "../styles/theme";
+import TvSeriesDetail from "./tv/TvSeriesDetail";
+import { getRelatedTitles } from "../services/RelatedTitles";
+import type { Movie } from "../services/MovieAPI";
 
 type SeriesDetailsScreenProps = NativeStackScreenProps<any, "SeriesDetails">;
 
@@ -93,6 +96,7 @@ export default function SeriesDetailsScreen({
     string | null
   >(null);
   const downloads = useDownloads();
+  const [relatedTitles, setRelatedTitles] = useState<Movie[]>([]);
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -147,6 +151,22 @@ export default function SeriesDetailsScreen({
       });
     }
   }, [seriesData?.id]);
+
+  useEffect(() => {
+    if (!Platform.isTV || !seriesData) return;
+    let cancelled = false;
+    (async () => {
+      const related = await getRelatedTitles(
+        "series",
+        seriesData.genres ?? [],
+        seriesData.url,
+      );
+      if (!cancelled) setRelatedTitles(related);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [seriesData]);
 
   const currentSeason = seriesData?.seasons?.find(
     (s) => s.seasonNumber === selectedSeason,
@@ -606,6 +626,54 @@ export default function SeriesDetailsScreen({
   const lastProgress = libraryItem?.lastEpisodeNumber
     ? `S${libraryItem.lastSeasonNumber}E${libraryItem.lastEpisodeNumber}`
     : null;
+
+  const handleRelatedPress = (item: Movie) => {
+    if (item.isSeries) {
+      navigation.navigate("SeriesDetails", { url: item.url });
+    } else {
+      const parts = item.url.split("/").filter(Boolean);
+      const slug = parts[parts.length - 1];
+      navigation.navigate("MovieDetails", { slug, movie: item });
+    }
+  };
+
+  if (Platform.isTV) {
+    return (
+      <TvSeriesDetail
+        seriesData={seriesData}
+        relatedTitles={relatedTitles}
+        seasons={seriesData.seasons ?? []}
+        selectedSeason={selectedSeason}
+        currentEpisodes={currentEpisodes}
+        gettingLinks={gettingLinks}
+        selectedEpisode={selectedEpisode}
+        isSaved={isInWatchlist(seriesData.url)}
+        currentStatus={currentStatus}
+        isEpisodeWatched={isEpisodeWatched}
+        onSelectSeason={setSelectedSeason}
+        onPlayEpisode={handlePlayEpisode}
+        onToggleWatchlist={() =>
+          toggleWantToWatch({
+            id: seriesData.id,
+            title: seriesData.title,
+            thumbnail: seriesData.thumbnail,
+            imdbRating: seriesData.ratings?.imdb ?? null,
+            releaseYear: seriesData.releaseYear,
+            genres: seriesData.genres,
+            url: seriesData.url,
+            isSeries: true,
+            savedAt: Date.now(),
+          })
+        }
+        onTrailer={handlePressTrailer}
+        onStatusSelect={handleStatusSelect}
+        onRemoveStatus={() => removeFromLibrary(seriesData.url)}
+        getRating={getRating}
+        setRating={setRating}
+        onRelatedPress={handleRelatedPress}
+      />
+    );
+  }
 
   return (
     <ScrollView

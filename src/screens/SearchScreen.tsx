@@ -15,6 +15,7 @@ import MovieAPI, { Movie } from "../services/MovieAPI";
 import MovieCard from "../components/MovieCard";
 import Focusable from "../components/Focusable";
 import { colors, spacing, radii, typography } from "../styles/theme";
+import TvSearch from "./tv/TvSearch";
 
 type SearchScreenNavigationProp = NativeStackNavigationProp<any>;
 type Tab = "movies" | "series";
@@ -88,6 +89,23 @@ const SearchScreen = () => {
 
   const activeResults = activeTab === "movies" ? movies : series;
   const showTabs = searched && !loading && (movies.length > 0 || series.length > 0);
+
+  if (Platform.isTV) {
+    return (
+      <TvSearch
+        query={query}
+        setQuery={setQuery}
+        inputRef={inputRef}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        movies={movies}
+        series={series}
+        loading={loading}
+        searched={searched}
+        onMoviePress={handleMoviePress}
+      />
+    );
+  }
 
   return (
     <View style={localStyles.container}>

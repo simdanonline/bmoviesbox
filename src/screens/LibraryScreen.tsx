@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -23,6 +24,7 @@ import {
 import MovieCard from "../components/MovieCard";
 import Focusable from "../components/Focusable";
 import UpcomingReleases from "../components/UpcomingReleases";
+import TvLibrary from "./tv/TvLibrary";
 import { styles } from "../styles/styles";
 import FontAwesome from "@expo/vector-icons/build/FontAwesome";
 import { Feather } from "@expo/vector-icons";
@@ -200,6 +202,17 @@ export default function LibraryScreen({
     }
     return counts;
   }, [library]);
+
+  if (Platform.isTV) {
+    return (
+      <TvLibrary
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        filteredItems={filteredItems}
+        onItemPress={handlePress}
+      />
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>

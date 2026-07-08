@@ -18,6 +18,7 @@ import MovieCard from "../components/MovieCard";
 import RecommendationRail from "../components/RecommendationRail";
 import ContinueWatchingSection from "../components/ContinueWatchingCard";
 import Focusable from "../components/Focusable";
+import TvHome from "./tv/TvHome";
 import { styles } from "../styles/styles";
 import { colors } from "../styles/theme";
 import { useTvApp } from "../context/TvAppContext";
@@ -326,6 +327,22 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     setShowAccessModal(false);
     setAccessKey("");
   };
+
+  if (Platform.isTV) {
+    return (
+      <TvHome
+        featuredMovie={featuredMovie}
+        rails={rails}
+        filteredMovies={filteredMovies}
+        continueWatching={continueWatching}
+        isTvApp={isTvApp}
+        onMoviePress={handleMoviePress}
+        onContinuePress={handleContinuePress}
+        onSearch={onclickSearch}
+        onSettings={onclickSettings}
+      />
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>

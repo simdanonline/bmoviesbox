@@ -40,6 +40,9 @@ import { preparePlayableStreams } from "../utils/playbackValidation";
 import { getWebPlayerMode } from "../utils/webPlayerMode";
 import { LinearGradient } from "expo-linear-gradient";
 import { colors } from "../styles/theme";
+import TvMovieDetails from "./tv/TvMovieDetails";
+import { getRelatedTitles } from "../services/RelatedTitles";
+import type { Movie } from "../services/MovieAPI";
 
 type MovieDetailsScreenProps = NativeStackScreenProps<any, "MovieDetails">;
 
@@ -141,6 +144,7 @@ export default function MovieDetailsScreen({
     string | null
   >(null);
   const [error, setError] = useState<string | null>(null);
+  const [relatedTitles, setRelatedTitles] = useState<Movie[]>([]);
   const downloads = useDownloads();
   const downloadRecord = movieDetails
     ? downloads.byTmdbId[String(movieDetails.id)]?.find(
@@ -188,6 +192,22 @@ export default function MovieDetailsScreen({
       });
     }
   }, [movieDetails?.id]);
+
+  useEffect(() => {
+    if (!Platform.isTV || !movieDetails) return;
+    let cancelled = false;
+    (async () => {
+      const related = await getRelatedTitles(
+        "movie",
+        movieDetails.genres ?? [],
+        movieDetails.url,
+      );
+      if (!cancelled) setRelatedTitles(related);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [movieDetails]);
 
   const fetchMovieDetails = async () => {
     try {
@@ -474,6 +494,16 @@ export default function MovieDetailsScreen({
     }
   };
 
+  const handleRelatedPress = (item: Movie) => {
+    if (item.isSeries) {
+      navigation.navigate("SeriesDetails", { url: item.url });
+    } else {
+      const parts = item.url.split("/").filter(Boolean);
+      const slug = parts[parts.length - 1];
+      navigation.navigate("MovieDetails", { slug, movie: item });
+    }
+  };
+
   const handlePressTrailer = () => {
     if (!movieDetails.trailerUrl) {
       Alert.alert("No Trailer", "Trailer not available for this movie");
@@ -486,6 +516,38 @@ export default function MovieDetailsScreen({
     }
     navigation.navigate("TrailerScreen", { videoUrl: movieDetails.trailerUrl });
   };
+
+  if (Platform.isTV) {
+    return (
+      <TvMovieDetails
+        movieDetails={movieDetails}
+        relatedTitles={relatedTitles}
+        resolvingStreams={resolvingStreams}
+        isSaved={isInWatchlist(movieDetails.url)}
+        currentStatus={currentStatus}
+        onPlay={handlePlayPress}
+        onToggleWatchlist={() =>
+          toggleWantToWatch({
+            id: movieDetails.id,
+            title: movieDetails.title,
+            thumbnail: movieDetails.thumbnail,
+            imdbRating: movieDetails.ratings?.imdb ?? null,
+            releaseYear: movieDetails.releaseYear,
+            genres: movieDetails.genres,
+            url: movieDetails.url,
+            isSeries: false,
+            savedAt: Date.now(),
+          })
+        }
+        onTrailer={handlePressTrailer}
+        onStatusSelect={handleStatusSelect}
+        onRemoveStatus={() => removeFromLibrary(movieDetails.url)}
+        getRating={getRating}
+        setRating={setRating}
+        onRelatedPress={handleRelatedPress}
+      />
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
