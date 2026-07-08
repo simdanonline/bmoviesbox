@@ -24,9 +24,9 @@ export default function TvActionButton({
   loading,
   active,
 }: TvActionButtonProps) {
-  // `active` is handled at the color site below (accent); here it only needs
-  // the primary vs. quiet distinction.
-  const iconColor = primary ? colors.text : colors.textSecondary;
+  // `active` should not reduce contrast when the button is `primary` (accent bg).
+  const baseIconColor = primary ? colors.text : colors.textSecondary;
+  const iconTint = active && !primary ? colors.accent : baseIconColor;
   return (
     <Focusable
       style={[styles.button, primary && styles.primary]}
@@ -38,11 +38,7 @@ export default function TvActionButton({
         <ActivityIndicator color={colors.text} />
       ) : (
         <View style={styles.inner}>
-          <FontAwesome
-            name={icon}
-            size={20}
-            color={active ? colors.accent : iconColor}
-          />
+          <FontAwesome name={icon} size={20} color={iconTint} />
           <Text style={styles.label}>{label}</Text>
         </View>
       )}
