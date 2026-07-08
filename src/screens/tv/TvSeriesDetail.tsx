@@ -157,7 +157,7 @@ export default function TvSeriesDetail(props: TvSeriesDetailProps) {
       {/* Episodes rail */}
       <View style={styles.railSection}>
         <Text style={styles.sectionTitle}>Episodes</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={styles.episodeGrid}>
           {currentEpisodes.map((ep) => {
             const watched = isEpisodeWatched(ep.episodeUrl);
             const loading = gettingLinks && selectedEpisode === ep.episodeNumber;
@@ -183,7 +183,7 @@ export default function TvSeriesDetail(props: TvSeriesDetailProps) {
               </Focusable>
             );
           })}
-        </ScrollView>
+        </View>
       </View>
 
       <View style={styles.section}>
@@ -273,7 +273,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: radii.pill,
     backgroundColor: colors.surfaceHigh,
-    borderWidth: 1,
+    // 2px base border reserves space so the focus border swaps color without a
+    // layout shift.
+    borderWidth: 2,
     borderColor: colors.border,
     marginRight: 12,
   },
@@ -282,16 +284,20 @@ const styles = StyleSheet.create({
   seasonTextActive: { color: colors.text },
   chipFocused: {
     borderColor: colors.text,
-    transform: [{ scale: tvLayout.focusScale }],
+    // Gentle scale — enough to read as focus at 10ft, small enough that a
+    // focused tile does not clip its neighbours inside the grid gaps.
+    transform: [{ scale: 1.04 }],
   },
+  episodeGrid: { flexDirection: "row", flexWrap: "wrap" },
   episodeCard: {
     width: 260,
     padding: 16,
     borderRadius: radii.card,
     backgroundColor: colors.surface,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.border,
     marginRight: 14,
+    marginBottom: 14,
   },
   episodeTop: {
     flexDirection: "row",
