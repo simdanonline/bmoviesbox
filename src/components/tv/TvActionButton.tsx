@@ -24,7 +24,9 @@ export default function TvActionButton({
   loading,
   active,
 }: TvActionButtonProps) {
-  const iconColor = primary || active ? colors.text : colors.textSecondary;
+  // `active` is handled at the color site below (accent); here it only needs
+  // the primary vs. quiet distinction.
+  const iconColor = primary ? colors.text : colors.textSecondary;
   return (
     <Focusable
       style={[styles.button, primary && styles.primary]}

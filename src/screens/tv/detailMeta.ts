@@ -15,8 +15,15 @@ export function buildMetaPills(input: {
   if (year) pills.push(year);
   if (duration) pills.push(duration);
   if (rating) pills.push(`★ ${rating}`);
-  for (const g of (input.genres ?? []).slice(0, 3)) {
-    if (clean(g)) pills.push(g);
+  // Filter invalid genres first, then take up to 3 — so a leading "N/A" can't
+  // crowd out a valid genre. Push the cleaned (trimmed) value.
+  let genreCount = 0;
+  for (const g of input.genres ?? []) {
+    const c = clean(g);
+    if (c) {
+      pills.push(c);
+      if (++genreCount === 3) break;
+    }
   }
   return pills;
 }
