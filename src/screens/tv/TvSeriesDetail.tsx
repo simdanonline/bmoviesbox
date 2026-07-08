@@ -28,6 +28,7 @@ interface TvSeriesDetailProps {
   currentEpisodes: Episode[];
   gettingLinks: boolean;
   selectedEpisode: number | null;
+  isTvApp: boolean;
   isSaved: boolean;
   currentStatus: WatchStatus | null;
   isEpisodeWatched: (episodeUrl: string) => boolean;
@@ -51,6 +52,7 @@ export default function TvSeriesDetail(props: TvSeriesDetailProps) {
     currentEpisodes,
     gettingLinks,
     selectedEpisode,
+    isTvApp,
     isSaved,
     currentStatus,
     isEpisodeWatched,
@@ -155,36 +157,38 @@ export default function TvSeriesDetail(props: TvSeriesDetailProps) {
       </View>
 
       {/* Episodes rail */}
-      <View style={styles.railSection}>
-        <Text style={styles.sectionTitle}>Episodes</Text>
-        <View style={styles.episodeGrid}>
-          {currentEpisodes.map((ep) => {
-            const watched = isEpisodeWatched(ep.episodeUrl);
-            const loading = gettingLinks && selectedEpisode === ep.episodeNumber;
-            return (
-              <Focusable
-                key={ep.episodeNumber}
-                style={styles.episodeCard}
-                focusedStyle={styles.chipFocused}
-                disabled={gettingLinks}
-                onPress={() => onPlayEpisode(ep)}
-              >
-                <View style={styles.episodeTop}>
-                  <Text style={styles.episodeNum}>E{ep.episodeNumber}</Text>
-                  <FontAwesome
-                    name={loading ? "spinner" : watched ? "check-circle" : "play"}
-                    size={16}
-                    color={watched ? colors.accent : colors.text}
-                  />
-                </View>
-                <Text style={styles.episodeTitle} numberOfLines={2}>
-                  {ep.episodeTitle}
-                </Text>
-              </Focusable>
-            );
-          })}
+      {isTvApp && (
+        <View style={styles.railSection}>
+          <Text style={styles.sectionTitle}>Episodes</Text>
+          <View style={styles.episodeGrid}>
+            {currentEpisodes.map((ep) => {
+              const watched = isEpisodeWatched(ep.episodeUrl);
+              const loading = gettingLinks && selectedEpisode === ep.episodeNumber;
+              return (
+                <Focusable
+                  key={ep.episodeNumber}
+                  style={styles.episodeCard}
+                  focusedStyle={styles.chipFocused}
+                  disabled={gettingLinks}
+                  onPress={() => onPlayEpisode(ep)}
+                >
+                  <View style={styles.episodeTop}>
+                    <Text style={styles.episodeNum}>E{ep.episodeNumber}</Text>
+                    <FontAwesome
+                      name={loading ? "spinner" : watched ? "check-circle" : "play"}
+                      size={16}
+                      color={watched ? colors.accent : colors.text}
+                    />
+                  </View>
+                  <Text style={styles.episodeTitle} numberOfLines={2}>
+                    {ep.episodeTitle}
+                  </Text>
+                </Focusable>
+              );
+            })}
+          </View>
         </View>
-      </View>
+      )}
 
       <View style={styles.section}>
         <StatusSelector

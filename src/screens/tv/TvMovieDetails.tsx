@@ -17,6 +17,7 @@ interface TvMovieDetailsProps {
   movieDetails: MovieDetail;
   relatedTitles: Movie[];
   resolvingStreams: boolean;
+  isTvApp: boolean;
   isSaved: boolean;
   currentStatus: WatchStatus | null;
   onPlay: () => void;
@@ -33,6 +34,7 @@ export default function TvMovieDetails({
   movieDetails,
   relatedTitles,
   resolvingStreams,
+  isTvApp,
   isSaved,
   currentStatus,
   onPlay,
@@ -100,14 +102,16 @@ export default function TvMovieDetails({
           )}
 
           <View style={styles.actionRow}>
-            <TvActionButton
-              icon="play"
-              label="Play"
-              primary
-              hasTVPreferredFocus
-              loading={resolvingStreams}
-              onPress={onPlay}
-            />
+            {isTvApp && (
+              <TvActionButton
+                icon="play"
+                label="Play"
+                primary
+                hasTVPreferredFocus
+                loading={resolvingStreams}
+                onPress={onPlay}
+              />
+            )}
             <TvActionButton
               icon={isSaved ? "bookmark" : "bookmark-o"}
               label={isSaved ? "Saved" : "Save"}

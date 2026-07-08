@@ -647,6 +647,7 @@ export default function SeriesDetailsScreen({
         currentEpisodes={currentEpisodes}
         gettingLinks={gettingLinks}
         selectedEpisode={selectedEpisode}
+        isTvApp={isTvApp}
         isSaved={isInWatchlist(seriesData.url)}
         currentStatus={currentStatus}
         isEpisodeWatched={isEpisodeWatched}

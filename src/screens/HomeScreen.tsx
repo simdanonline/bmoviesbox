@@ -330,17 +330,73 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 
   if (Platform.isTV) {
     return (
-      <TvHome
-        featuredMovie={featuredMovie}
-        rails={rails}
-        filteredMovies={filteredMovies}
-        continueWatching={continueWatching}
-        isTvApp={isTvApp}
-        onMoviePress={handleMoviePress}
-        onContinuePress={handleContinuePress}
-        onSearch={onclickSearch}
-        onSettings={onclickSettings}
-      />
+      <>
+        <TvHome
+          featuredMovie={featuredMovie}
+          rails={rails}
+          filteredMovies={filteredMovies}
+          continueWatching={continueWatching}
+          isTvApp={isTvApp}
+          onLogoPress={handleHeaderTap}
+          onMoviePress={handleMoviePress}
+          onContinuePress={handleContinuePress}
+          onSearch={onclickSearch}
+          onSettings={onclickSettings}
+        />
+
+        {/* Access Key Modal (TV) */}
+        <Modal
+          visible={showAccessModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={handleAccessCancel}
+        >
+          <View style={modalStyles.modalOverlay}>
+            <View style={modalStyles.modalContent}>
+              <Text style={modalStyles.modalTitle}>Hello there</Text>
+              <Text style={modalStyles.modalMessage}>
+                What do you have to say?
+              </Text>
+              <TextInput
+                ref={accessInputRef}
+                style={[
+                  modalStyles.textInput,
+                  accessInputFocused && modalStyles.textInputFocused,
+                ]}
+                placeholder="Access key"
+                placeholderTextColor="#888"
+                value={accessKey}
+                onChangeText={setAccessKey}
+                onFocus={() => setAccessInputFocused(true)}
+                onBlur={() => setAccessInputFocused(false)}
+                onSubmitEditing={handleAccessConfirm}
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry={true}
+                autoFocus={showAccessModal}
+                returnKeyType="done"
+              />
+              <View style={modalStyles.buttonContainer}>
+                <Focusable
+                  style={[modalStyles.button, modalStyles.cancelButton]}
+                  focusedStyle={modalStyles.buttonFocused}
+                  onPress={handleAccessCancel}
+                >
+                  <Text style={modalStyles.cancelButtonText}>Cancel</Text>
+                </Focusable>
+                <Focusable
+                  style={[modalStyles.button, modalStyles.confirmButton]}
+                  focusedStyle={modalStyles.buttonFocused}
+                  hasTVPreferredFocus={Platform.isTV}
+                  onPress={handleAccessConfirm}
+                >
+                  <Text style={modalStyles.confirmButtonText}>Submit</Text>
+                </Focusable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </>
     );
   }
 

@@ -17,6 +17,7 @@ interface TvHomeProps {
   filteredMovies: Movie[];
   continueWatching: LibraryItem[];
   isTvApp: boolean;
+  onLogoPress: () => void;
   onMoviePress: (m: Movie) => void;
   onContinuePress: (i: LibraryItem) => void;
   onSearch: () => void;
@@ -29,6 +30,7 @@ export default function TvHome({
   filteredMovies,
   continueWatching,
   isTvApp,
+  onLogoPress,
   onMoviePress,
   onContinuePress,
   onSearch,
@@ -41,7 +43,14 @@ export default function TvHome({
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
-        <Text style={styles.logo}>Reelmark</Text>
+        <Focusable
+          style={styles.logoButton}
+          focusedStyle={styles.logoFocused}
+          hasTVPreferredFocus={!isTvApp}
+          onPress={onLogoPress}
+        >
+          <Text style={styles.logo}>Reelmark</Text>
+        </Focusable>
         <View style={styles.headerActions}>
           <Focusable style={styles.iconBtn} focusedStyle={styles.iconFocused} onPress={onSearch}>
             <FontAwesome name="search" size={22} color={colors.text} />
@@ -100,6 +109,14 @@ const styles = StyleSheet.create({
     paddingTop: tvLayout.overscanV,
     paddingBottom: 12,
   },
+  logoButton: {
+    borderWidth: 2,
+    borderColor: "transparent",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  logoFocused: { borderColor: colors.text },
   logo: { ...tvType.heroTitle, color: colors.accent },
   headerActions: { flexDirection: "row" },
   iconBtn: {

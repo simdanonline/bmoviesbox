@@ -523,6 +523,7 @@ export default function MovieDetailsScreen({
         movieDetails={movieDetails}
         relatedTitles={relatedTitles}
         resolvingStreams={resolvingStreams}
+        isTvApp={isTvApp}
         isSaved={isInWatchlist(movieDetails.url)}
         currentStatus={currentStatus}
         onPlay={handlePlayPress}
